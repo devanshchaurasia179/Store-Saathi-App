@@ -22,7 +22,7 @@ import { nanoid } from "nanoid/non-secure";
 import { generateBarcode } from "../utils/generateBarcode";
 
 /* ================= CONFIG ================= */
-const BARCODE_PER_PAGE = 24; // ✅ 3 x 8
+const BARCODE_PER_PAGE = 21; // ✅ 3 x 8
 const EXTRA_BLANK_BARCODES = 5;
 
 export default function BarcodeSheet() {
@@ -73,30 +73,67 @@ export default function BarcodeSheet() {
     <html>
       <head>
         <style>
-          body { font-family: 'Helvetica', Arial; margin: 10mm; }
-          h3 { text-align: center; margin-bottom: 6mm; text-transform: uppercase; letter-spacing: 1px; }
+          * { box-sizing: border-box; }
+          body { 
+            font-family: 'Helvetica', Arial; 
+            margin: 0; 
+            padding: 15mm; 
+            background-color: white;
+          }
+          h3 { 
+            text-align: center; 
+            margin-bottom: 8mm; 
+            text-transform: uppercase; 
+            letter-spacing: 2px;
+            font-size: 14px;
+          }
           .grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            grid-auto-rows: 34mm;
-            gap: 4mm;
+            /* Standard A4 is 297mm height. 7 rows x 38mm = 266mm + margins */
+            grid-template-rows: repeat(7, 38mm); 
+            gap: 5mm;
+            width: 100%;
           }
           .label {
-            border: 0.5px solid #000;
-            padding: 3mm;
+            border: 0.2px solid #ccc; /* Light border for easy cutting */
+            padding: 4mm;
             text-align: center;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
+            border-radius: 1mm;
           }
-          .name { font-size: 10px; font-weight: bold; margin-bottom: 2mm; height: 12px; overflow: hidden; }
-          img { height: 20mm; width: auto; max-width: 100%; }
+          .name { 
+            font-size: 9px; 
+            font-weight: bold; 
+            margin-bottom: 3mm; 
+            height: 12px; 
+            overflow: hidden; 
+            color: #333;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            width: 100%;
+          }
+          img { 
+            height: 18mm; /* Fixed height to prevent stretching */
+            width: auto; 
+            max-width: 100%; 
+          }
+          .b-code {
+            font-size: 8px;
+            margin-top: 1mm;
+            color: #666;
+          }
           .footer {
+            position: absolute;
+            bottom: 10mm;
+            left: 0;
+            right: 0;
             text-align: center;
-            font-size: 9px;
-            margin-top: 10mm;
-            color: #888;
+            font-size: 8px;
+            color: #aaa;
           }
         </style>
       </head>
@@ -112,12 +149,13 @@ export default function BarcodeSheet() {
                 ${p.name ? `${p.name}${p.size ? " - " + p.size : ""}` : "&nbsp;"}
               </div>
               <img src="https://barcode.tec-it.com/barcode.ashx?data=${p.barcode}&code=Code128" />
+              <div class="b-code">${p.barcode}</div>
             </div>
           `
             )
             .join("")}
         </div>
-        <div class="footer">Powered by Store Saathi</div>
+        <div class="footer">Powered by Store Saathi - 1/1</div>
       </body>
     </html>
     `;
@@ -284,19 +322,11 @@ const styles = StyleSheet.create({
       android: { elevation: 8 },
     }),
   },
-  page: {
-    width: 360, // Scaled down for mobile preview (maintains A4 aspect ratio roughly)
-    minHeight: 500,
+ page: {
+    width: 350, 
+    aspectRatio: 1 / 1.414, // Exact A4 Proportions
     backgroundColor: "#fff",
-    padding: 16,
-  },
-  shopTitle: {
-    textAlign: "center",
-    fontSize: 14,
-    fontWeight: "800",
-    marginBottom: 16,
-    textTransform: "uppercase",
-    color: "#1f2937",
+    padding: 15,
   },
   grid: {
     flexDirection: "row",
@@ -304,33 +334,28 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   label: {
-    width: "31%", 
-    height: 100,
-    marginBottom: 10,
+    width: "31%", // Leaves exactly enough gap for 3 columns
+    height: 90,
+    marginBottom: 12,
     borderWidth: 0.5,
-    borderColor: "#d1d5db",
-    borderRadius: 2,
-    padding: 4,
+    borderColor: "#e5e7eb", // Softer border
+    borderRadius: 4,
+    padding: 6,
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#fff",
   },
   cardTitle: {
-    fontSize: 8,
-    fontWeight: "600",
+    fontSize: 7,
+    fontWeight: "700",
     textAlign: "center",
-    marginBottom: 4,
-    color: "#374151",
+    color: "#1f2937",
+    height: 12,
   },
   barcodeValue: {
-    fontSize: 7,
-    color: "#9ca3af",
+    fontSize: 8,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    color: "#4b5563",
     marginTop: 2,
-  },
-  footerText: {
-    textAlign: "center",
-    fontSize: 9,
-    marginTop: 20,
-    color: "#9ca3af",
-    fontStyle: "italic",
   },
 });
