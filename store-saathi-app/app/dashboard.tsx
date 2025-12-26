@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { View, ScrollView, StyleSheet, RefreshControl, StatusBar, TouchableOpacity, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 
 // API & Auth
 import { getDashboard } from "../constants/dashboard.api";
@@ -77,7 +77,7 @@ export default function DashboardPage() {
             style={styles.createBillButton}
             onPress={() => router.push("/billing")}
           >
-            <MaterialCommunityIcons name="qrcode-scan" size={20} color="#fff" />
+            <Ionicons name="barcode-outline" size={20} color="#fff" />
             <Text style={styles.createBillText}>Create Bill</Text>
           </TouchableOpacity>
 
@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   createBillButton: {
-    backgroundColor: "#2b62f1", // Vibrant action blue
+    backgroundColor: "#1e3a8a", // Vibrant action blue
     marginHorizontal: 12,
     marginVertical: 12,
     padding: 16,

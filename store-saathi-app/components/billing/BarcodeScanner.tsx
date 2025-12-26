@@ -1,34 +1,48 @@
 import { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { Ionicons } from "@expo/vector-icons";
 
 type Props = {
   onScan: (barcode: string) => void;
-  onClose: () => void;
+  onClose?: () => void;
 };
 
 export default function BarcodeScanner({ onScan, onClose }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
-  const [hasScanned, setHasScanned] = useState(false);
+  const scannedRef = useRef<string | null>(null);
+  const [active, setActive] = useState(true);
 
+  /* ---------------- PERMISSION ---------------- */
   useEffect(() => {
     if (!permission?.granted) {
       requestPermission();
     }
   }, []);
 
+  /* ---------------- HANDLE SCAN ---------------- */
   const handleBarcodeScanned = ({ data }: { data: string }) => {
-    // Prevent multiple scans
-    if (hasScanned || !data) return;
+    if (!data) return;
+    if (scannedRef.current === data) return;
 
-    setHasScanned(true); // Lock the scanner immediately
+    scannedRef.current = data;
+    setActive(false);
+
     onScan(data);
+
+    // allow next scan after short delay
+    setTimeout(() => {
+      scannedRef.current = null;
+      setActive(true);
+    }, 1200);
   };
 
   if (!permission?.granted) {
     return (
       <View style={styles.center}>
-        <Text style={styles.permissionText}>Camera permission is required</Text>
+        <Text style={styles.permissionText}>
+          Camera permission is required
+        </Text>
         <TouchableOpacity onPress={requestPermission} style={styles.permissionBtn}>
           <Text style={styles.permissionBtnText}>Grant Permission</Text>
         </TouchableOpacity>
@@ -37,83 +51,93 @@ export default function BarcodeScanner({ onScan, onClose }: Props) {
   }
 
   return (
-    <View style={styles.overlay}>
-      {/* White Card Container */}
-      <View style={styles.card}>
-        
-        {/* Black Scanner Window */}
-        <View style={styles.cameraWrapper}>
-          <CameraView
-            style={styles.camera}
-            facing="back"
-            barcodeScannerSettings={{
-              barcodeTypes: ["ean13", "ean8", "code128", "upc_a", "upc_e"],
-            }}
-            // Only fire the event if we haven't scanned yet
-            onBarcodeScanned={hasScanned ? undefined : handleBarcodeScanned}
-          />
-        </View>
+    <View style={styles.container}>
+      <CameraView
+        style={StyleSheet.absoluteFill}
+        facing="back"
+        barcodeScannerSettings={{
+          barcodeTypes: [
+            "ean13",
+            "ean8",
+            "code128",
+            "upc_a",
+            "upc_e",
+          ],
+        }}
+        onBarcodeScanned={active ? handleBarcodeScanned : undefined}
+      />
 
-        {/* Cancel Button Section */}
-        <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-          <Text style={styles.cancelButtonText}>Cancel</Text>
-        </TouchableOpacity>
-        
+      {/* SCAN FRAME */}
+      <View style={styles.overlay}>
+        <View style={styles.scanBox} />
+      </View>
+
+      {/* TOP BAR */}
+      <View style={styles.topBar}>
+        <Text style={styles.scanText}>Scan Product Barcode</Text>
+        {onClose && (
+          <TouchableOpacity onPress={onClose}>
+            <Ionicons name="close" size={26} color="#fff" />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
 }
 
+/* ================= STYLES ================= */
+
 const styles = StyleSheet.create({
-  overlay: {
+  container: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)', // Dimmed background
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: '#fff',
-    borderRadius: 24,
-    padding: 12,
-    alignItems: 'center',
-    // Shadow for iOS
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    // Elevation for Android
-    elevation: 5,
-  },
-  cameraWrapper: {
-    width: '100%',
-    aspectRatio: 1.5, // Matches the rectangular look of your image
-    borderRadius: 16,
-    overflow: "hidden", 
     backgroundColor: "#000",
   },
-  camera: {
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  scanBox: {
+    width: 260,
+    height: 160,
+    borderWidth: 2,
+    borderColor: "#22c55e",
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.1)",
+  },
+  topBar: {
+    position: "absolute",
+    top: 50,
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  scanText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  center: {
     flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
   },
-  cancelButton: {
-    width: '100%',
-    paddingVertical: 16,
-    marginTop: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+  permissionText: {
+    color: "#333",
+    fontSize: 14,
+    marginBottom: 10,
   },
-  cancelButtonText: {
-    color: "#000",
-    fontSize: 18,
-    fontWeight: "400",
+  permissionBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#2563eb",
+    borderRadius: 10,
   },
-  /* Permission Styles */
-  center: { flex: 1, justifyContent: 'center', alignItems: "center" },
-  permissionText: { marginBottom: 10 },
-  permissionBtn: { padding: 10, backgroundColor: "#2563eb", borderRadius: 8 },
-  permissionBtnText: { color: "#fff" },
+  permissionBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+  },
 });
