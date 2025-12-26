@@ -66,7 +66,7 @@ export default function InventoryHeader({
 
         <TouchableOpacity
           style={styles.darkBtn}
-          onPress={() => router.push("/barcodes")}
+          onPress={() => router.push("/barcode-sheet")}
           activeOpacity={0.8}
         >
           <Ionicons name="barcode-outline" size={20} color="#fff" />
