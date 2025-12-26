@@ -1,0 +1,56 @@
+import express from "express";
+import dotenv from "dotenv";
+import authRoutes from "./routes/auth.routes.js";
+import ledgerRoutes from "./routes/ledger.routes.js";
+import customerRoutes from "./routes/customer.routes.js";
+import { connectDB } from "./lib/db.js";
+import cookieParser from "cookie-parser";
+import cors from "cors";
+import path from "path";
+import productRoutes from "./routes/product.routes.js";
+import billRoutes from "./routes/bill.routes.js";
+import dashboardRoutes from "./routes/dashboard.routes.js";
+
+
+
+
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT;
+
+const __dirname = path.resolve();
+
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  })
+);
+
+  
+  app.use(express.json());
+  app.use(cookieParser());
+
+  app.use("/api/auth", authRoutes);
+app.use("/api/ledger", ledgerRoutes);
+app.use("/api/customers", customerRoutes);
+app.use("/api/products", productRoutes);
+app.use("/api/bills", billRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "../frontend/dist")));
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
+  });
+}
+
+connectDB();
+
+app.listen(PORT,"0.0.0.0", () => {
+  console.log(`Server is running on port ${PORT}`);
+});
