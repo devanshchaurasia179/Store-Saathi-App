@@ -19,6 +19,7 @@ import { getBillById } from "../../constants/bills.api";
 import { formatRupee } from "../../utils/formatCurrency";
 import { formatDate } from "../../utils/formatDate";
 import { shareBillPdf } from "../../utils/billPdf";
+import { printBill58mm } from "../../utils/thermalPrinter";
 
 export default function ViewBillModal({ billId, onClose }: any) {
   const [bill, setBill] = useState<any>(null);
@@ -179,10 +180,13 @@ export default function ViewBillModal({ billId, onClose }: any) {
   <Text style={styles.secondaryBtnText}>Share</Text>
 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.primaryBtn}>
-                  <Feather name="printer" size={18} color="#fff" />
-                  <Text style={styles.primaryBtnText}>Print Bill</Text>
-                </TouchableOpacity>
+                <TouchableOpacity
+  style={styles.primaryBtn}
+  onPress={() => printBill58mm(bill)}
+>
+  <Feather name="printer" size={18} color="#fff" />
+  <Text style={styles.primaryBtnText}>Print Bill</Text>
+</TouchableOpacity>
               </View>
             </>
           )}

@@ -48,7 +48,7 @@ const groupBillsByDate = (bills: any[] = []) => {
 
           <TouchableOpacity
             style={styles.seeMoreGroup}
-            onPress={() => router.push("/bills")}
+            onPress={() => router.push("/history")}
           >
             <Text style={styles.seeMoreText}>
               {text?.seeMore || "See more"}

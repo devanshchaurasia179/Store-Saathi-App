@@ -15,7 +15,7 @@ type Props = {
   paidAmount: number;
   setPaidAmount: (v: number) => void;
   totalAmount: number;
-  onCheckout: () => Promise<void>;
+  onCheckout: () => Promise<void> | void;
   disabled?: boolean;
 };
 
@@ -27,9 +27,9 @@ export default function BillSummary({
   setPaidAmount,
   totalAmount,
   onCheckout,
-  disabled,
+  disabled = false,
 }: Props) {
-  const dueAmount = totalAmount - paidAmount;
+  const dueAmount = Math.max(totalAmount - paidAmount, 0);
 
   return (
     <View style={styles.container}>
@@ -38,27 +38,37 @@ export default function BillSummary({
         {/* Discount */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>
-            <Ionicons name="pricetag-outline" size={12} /> Discount (₹)
+            <Ionicons
+              name="pricetag-outline"
+              size={12}
+              color="#2563eb"
+            />{" "}
+            Discount (₹)
           </Text>
           <TextInput
-            value={discount ? String(discount) : ""}
-            onChangeText={(v) => setDiscount(Number(v) || 0)}
             keyboardType="numeric"
             placeholder="0"
+            value={discount ? String(discount) : ""}
+            onChangeText={(v) => setDiscount(Number(v) || 0)}
             style={styles.input}
           />
         </View>
 
-        {/* Paid */}
+        {/* Paid Amount */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>
-            <Ionicons name="wallet-outline" size={12} /> Paid Amount (₹)
+            <Ionicons
+              name="wallet-outline"
+              size={12}
+              color="#2563eb"
+            />{" "}
+            Paid Amount (₹)
           </Text>
           <TextInput
-            value={paidAmount ? String(paidAmount) : ""}
-            onChangeText={(v) => setPaidAmount(Number(v) || 0)}
             keyboardType="numeric"
             placeholder="0"
+            value={paidAmount ? String(paidAmount) : ""}
+            onChangeText={(v) => setPaidAmount(Number(v) || 0)}
             style={styles.input}
           />
         </View>
@@ -66,19 +76,31 @@ export default function BillSummary({
 
       {/* TOTALS */}
       <View style={styles.summaryBox}>
-        <Row label="Subtotal" value={`₹${subTotal}`} />
+        <View style={styles.row}>
+          <Text style={styles.subLabel}>Subtotal</Text>
+          <Text style={styles.subValue}>
+            ₹{subTotal.toLocaleString()}
+          </Text>
+        </View>
 
         <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>₹{totalAmount}</Text>
+          <Text style={styles.totalLabel}>
+            Total Amount
+          </Text>
+          <Text style={styles.totalValue}>
+            ₹{totalAmount.toLocaleString()}
+          </Text>
         </View>
 
         {dueAmount > 0 && (
-          <Row
-            label="Balance Due"
-            value={`₹${dueAmount}`}
-            danger
-          />
+          <View style={styles.dueRow}>
+            <Text style={styles.dueLabel}>
+              Balance Due
+            </Text>
+            <Text style={styles.dueValue}>
+              ₹{dueAmount.toLocaleString()}
+            </Text>
+          </View>
         )}
       </View>
 
@@ -86,14 +108,21 @@ export default function BillSummary({
       <TouchableOpacity
         disabled={disabled}
         onPress={onCheckout}
+        activeOpacity={0.85}
         style={[
           styles.checkoutBtn,
           disabled && styles.disabledBtn,
         ]}
       >
-        <Text style={styles.checkoutText}>
+        <Text
+          style={[
+            styles.checkoutText,
+            disabled && styles.disabledText,
+          ]}
+        >
           COMPLETE CHECKOUT
         </Text>
+
         {!disabled && (
           <Ionicons
             name="arrow-forward"
@@ -106,109 +135,135 @@ export default function BillSummary({
   );
 }
 
-const Row = ({
-  label,
-  value,
-  danger,
-}: {
-  label: string;
-  value: string;
-  danger?: boolean;
-}) => (
-  <View style={styles.row}>
-    <Text
-      style={[
-        styles.rowLabel,
-        danger && { color: "#e11d48" },
-      ]}
-    >
-      {label}
-    </Text>
-    <Text
-      style={[
-        styles.rowValue,
-        danger && { color: "#e11d48" },
-      ]}
-    >
-      {value}
-    </Text>
-  </View>
-);
+/* ================= STYLES ================= */
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 8,
+    gap: 16,
   },
+
   grid: {
     flexDirection: "row",
     gap: 12,
   },
+
   inputGroup: {
     flex: 1,
   },
+
   label: {
-    fontSize: 11,
-    color: "#64748b",
+    fontSize: 10,
     fontWeight: "700",
+    color: "#94a3b8",
     marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: 1,
   },
+
   input: {
     backgroundColor: "#f8fafc",
     borderWidth: 1,
     borderColor: "#e5e7eb",
-    borderRadius: 12,
-    padding: 10,
+    borderRadius: 14,
+    padding: 12,
+    fontSize: 14,
     fontWeight: "600",
   },
+
   summaryBox: {
-    marginTop: 12,
     backgroundColor: "#f8fafc",
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
     borderColor: "#f1f5f9",
+    gap: 8,
   },
+
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 6,
+    alignItems: "center",
   },
-  rowLabel: {
-    color: "#475569",
+
+  subLabel: {
+    fontSize: 12,
+    color: "#64748b",
     fontWeight: "500",
   },
-  rowValue: {
+
+  subValue: {
+    fontSize: 12,
     fontWeight: "700",
+    color: "#334155",
   },
+
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     marginTop: 6,
   },
+
   totalLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "800",
+    color: "#1e293b",
   },
+
   totalValue: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "900",
     color: "#2563eb",
   },
+
+  dueRow: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderColor: "#e5e7eb",
+    borderStyle: "dashed",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  dueLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#fb7185",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+
+  dueValue: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#e11d48",
+  },
+
   checkoutBtn: {
-    marginTop: 14,
+    marginTop: 8,
     backgroundColor: "#2563eb",
-    paddingVertical: 14,
-    borderRadius: 18,
+    paddingVertical: 16,
+    borderRadius: 22,
     flexDirection: "row",
     justifyContent: "center",
-    gap: 8,
+    alignItems: "center",
+    gap: 10,
   },
+
   checkoutText: {
     color: "#fff",
     fontWeight: "800",
-    letterSpacing: 1,
+    fontSize: 12,
+    letterSpacing: 2,
   },
+
   disabledBtn: {
-    backgroundColor: "#cbd5f5",
+    backgroundColor: "#e5e7eb",
+  },
+
+  disabledText: {
+    color: "#94a3b8",
   },
 });

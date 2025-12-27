@@ -1,22 +1,40 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Alert } from "react-native";
 
 import { getProductByBarcode } from "../constants/inventory.api";
 import { createBill } from "../constants/billing.api";
 
-export const useBilling = () => {
-  const [items, setItems] = useState<any[]>([]);
-  const [discount, setDiscount] = useState(0);
-  const [paidAmount, setPaidAmount] = useState(0);
-  const [paymentMode, setPaymentMode] = useState("CASH");
+type BillItem = {
+  productId: string;
+  name: string;
+  price: number;
+  quantity: number;
+};
 
-  const [productNotFound, setProductNotFound] = useState(false);
+export const useBilling = () => {
+  /* ---------------- STATE ---------------- */
+  const [items, setItems] = useState<BillItem[]>([]);
+  const [discount, setDiscount] = useState<number>(0);
+  const [paidAmount, setPaidAmount] = useState<number>(0);
+  const [paymentMode, setPaymentMode] =
+    useState<"CASH" | "UPI">("CASH");
+
+  // 🔥 product-not-found flow
+  const [productNotFound, setProductNotFound] =
+    useState<boolean>(false);
   const [lastScannedBarcode, setLastScannedBarcode] =
     useState<string | null>(null);
+
+  // 🔒 prevent infinite scan firing
+  const scanLockRef = useRef<string | null>(null);
 
   /* ---------------- SCAN ---------------- */
   const handleScan = async (barcode: string) => {
     if (!barcode) return;
+
+    // prevent repeated scan spam
+    if (scanLockRef.current === barcode) return;
+    scanLockRef.current = barcode;
 
     setLastScannedBarcode(barcode);
 
@@ -28,6 +46,8 @@ export const useBilling = () => {
         setProductNotFound(true);
         return;
       }
+
+      setProductNotFound(false);
 
       setItems(prev => {
         const existing = prev.find(
@@ -55,10 +75,14 @@ export const useBilling = () => {
     } catch (err: any) {
       if (err.response?.status === 404) {
         setProductNotFound(true);
-        return;
+      } else {
+        Alert.alert("Scan Failed", "Unable to fetch product");
       }
-
-      Alert.alert("Scan Failed", "Unable to fetch product");
+    } finally {
+      // unlock scan after short delay
+      setTimeout(() => {
+        scanLockRef.current = null;
+      }, 800);
     }
   };
 
@@ -74,7 +98,7 @@ export const useBilling = () => {
   const checkout = async (customerId: string | null) => {
     if (!items.length) {
       Alert.alert("Empty Bill", "No items in bill");
-      return;
+      return null;
     }
 
     try {
@@ -86,23 +110,22 @@ export const useBilling = () => {
         customerId,
       });
 
-      Alert.alert("Success", "Bill created successfully");
-
-      setItems([]);
-      setDiscount(0);
-      setPaidAmount(0);
-      setPaymentMode("CASH");
-
-      return res.data.bill;
-    } catch {
+      // ✅ IMPORTANT:
+      // DO NOT reset state here
+      // navigation must happen first
+      return res.data; // backend returns bill directly
+    } catch (err) {
       Alert.alert("Error", "Failed to create bill");
-      throw new Error("Create bill failed");
+      throw err;
     }
   };
 
   return {
+    // bill items
     items,
     setItems,
+
+    // amounts
     discount,
     setDiscount,
     paidAmount,
@@ -111,8 +134,12 @@ export const useBilling = () => {
     setPaymentMode,
     subTotal,
     totalAmount,
+
+    // actions
     handleScan,
     checkout,
+
+    // product-not-found flow
     productNotFound,
     setProductNotFound,
     lastScannedBarcode,

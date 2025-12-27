@@ -5,25 +5,26 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Modal,
+  TextInput,
   StatusBar,
 } from "react-native";
-// Import useSafeAreaInsets to handle the bottom spacing perfectly
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
 import BarcodeScanner from "../../components/billing/BarcodeScanner";
 import BillItemsList from "../../components/billing/BillItemsList";
 import BillSummary from "../../components/billing/BillSummary";
-import SearchOverlay from "../../components/SearchOverlay";
 import QuickAddProductModal from "../../components/inventory/QuickAddProductModal";
 
 import { useBilling } from "../../hooks/useBilling";
 import { getProducts } from "../../constants/inventory.api";
 import { getLedgerCustomers } from "../../constants/ledger.api";
 
+/* ================= PAGE ================= */
 export default function BillingPage() {
-  const insets = useSafeAreaInsets();
+  /* ---------------- BILLING HOOK ---------------- */
   const {
     items,
     setItems,
@@ -40,21 +41,26 @@ export default function BillingPage() {
     lastScannedBarcode,
   } = useBilling();
 
-  /* ---------------- STATES ---------------- */
+  /* ---------------- CUSTOMER STATES ---------------- */
   const [customers, setCustomers] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-
-  const [customerId, setCustomerId] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
-  const [productSearch, setProductSearch] = useState("");
-
+  const [customerId, setCustomerId] = useState("");
   const [customerOpen, setCustomerOpen] = useState(false);
+
+  /* ---------------- PRODUCT STATES ---------------- */
+  const [products, setProducts] = useState<any[]>([]);
+  const [productSearch, setProductSearch] = useState("");
   const [productOpen, setProductOpen] = useState(false);
 
   /* ---------------- FETCH ---------------- */
   useEffect(() => {
-    getLedgerCustomers().then((res) => setCustomers(res.data.customers || []));
-    getProducts().then((res) => setProducts(res.data.products || []));
+    getLedgerCustomers()
+      .then((res) => setCustomers(res.data.customers || []))
+      .catch(() => {});
+
+    getProducts()
+      .then((res) => setProducts(res.data.products || []))
+      .catch(() => {});
   }, []);
 
   /* ---------------- FILTERS ---------------- */
@@ -65,7 +71,7 @@ export default function BillingPage() {
         c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
         c.mobileNumber?.includes(customerSearch)
     );
-  }, [customerSearch, customers]);
+  }, [customers, customerSearch]);
 
   const filteredProducts = useMemo(() => {
     if (!productSearch) return products.slice(0, 30);
@@ -74,23 +80,19 @@ export default function BillingPage() {
       (p) =>
         p.name?.toLowerCase().includes(q) || p.barcode?.includes(productSearch)
     );
-  }, [productSearch, products]);
+  }, [products, productSearch]);
 
   const selectedCustomer =
     customers.find((c) => c._id === customerId)?.name || "Walk-in Customer";
 
   /* ---------------- ADD PRODUCT ---------------- */
-  const addProduct = (product: any) => {
-    if (!product || !product._id) return;
-
+  const addProductToBill = (product: any) => {
     setItems((prev) => {
       const existing = prev.find((i) => i.productId === product._id);
 
       if (existing) {
         return prev.map((i) =>
-          i.productId === product._id
-            ? { ...i, quantity: i.quantity + 1 }
-            : i
+          i.productId === product._id ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
 
@@ -99,7 +101,7 @@ export default function BillingPage() {
         {
           productId: product._id,
           name: product.name,
-          price: product.price?.sellingPrice ?? 0,
+          price: product.price.sellingPrice,
           quantity: 1,
         },
       ];
@@ -110,88 +112,89 @@ export default function BillingPage() {
   };
 
   /* ---------------- CHECKOUT ---------------- */
-  const handleCheckout = async () => {
-    const bill = await checkout(customerId || null);
-    if (bill?._id) {
-      router.push(`/bills/${bill._id}`);
-    }
-  };
+const handleCheckout = async () => {
+  try {
+    const res = await checkout(customerId || null);
 
+    const bill = res?.bill; // 👈 unwrap here
+
+    if (!bill?._id) {
+      console.warn("Invalid bill returned", res);
+      return;
+    }
+
+    router.replace(`/bills/${bill._id}`);
+  } catch (err) {
+    console.error("Checkout failed", err);
+  }
+};
+
+
+
+
+  /* ================= UI ================= */
   return (
-    <View style={styles.container}>
-      {/* Top SafeArea for Status Bar and Header */}
-      <SafeAreaView edges={["top"]} style={{ backgroundColor: "#fff" }} />
-      <StatusBar barStyle="dark-content" />
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
-          <Ionicons name="chevron-back" size={24} color="#1a1a1a" />
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="chevron-back" size={24} />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>New Bill</Text>
+        <View>
+          <Text style={styles.title}>New Bill</Text>
+          <Text style={styles.subtitle}>TERMINAL ACTIVE</Text>
+        </View>
 
         <TouchableOpacity
-          style={styles.searchActionBtn}
+          style={styles.searchBtn}
           onPress={() => setProductOpen(true)}
         >
-          <Ionicons name="search" size={18} color="#fff" />
-          <Text style={styles.searchBtnText}>Search</Text>
+          <Text style={styles.searchBtnText}>Search Product</Text>
         </TouchableOpacity>
       </View>
 
-      {/* SCANNER SECTION */}
-      <View style={styles.scannerSection}>
-        <View style={styles.scannerWrapper}>
-          <BarcodeScanner onScan={handleScan} onClose={() => {}} />
+      {/* SCANNER */}
+      <View style={styles.scanner}>
+        <BarcodeScanner onScan={handleScan} />
+        <View style={styles.scanHint}>
+          <Ionicons name="scan" size={12} color="#fff" />
+          <Text style={styles.scanText}>Align Barcode</Text>
         </View>
       </View>
 
-      {/* BODY CONTENT */}
+      {/* BODY */}
       <View style={styles.body}>
-        {/* CUSTOMER SELECTOR */}
+        {/* CUSTOMER */}
         <TouchableOpacity
           style={styles.customerBox}
           onPress={() => setCustomerOpen(true)}
         >
-          <View style={styles.customerInfo}>
-            {/* FIXED: Changed <div> to <View> below */}
-            <View style={styles.customerIconContainer}>
-              <Ionicons name="person" size={18} color="#2563eb" />
-            </View>
-            <View>
-              <Text style={styles.label}>Customer</Text>
-              <Text style={styles.customerText}>{selectedCustomer}</Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#999" />
+          <Ionicons name="person" size={16} />
+          <Text style={styles.customerText}>{selectedCustomer}</Text>
+          <Ionicons
+            name="search"
+            size={14}
+            style={{ marginLeft: "auto" }}
+          />
         </TouchableOpacity>
 
-        {/* ITEMS LIST */}
-        <View style={styles.listContainer}>
-          <Text style={styles.sectionTitle}>Bill Items</Text>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 20 }}
-          >
-            {items.length === 0 ? (
-              <View style={styles.empty}>
-                <View style={styles.emptyCircle}>
-                  <Ionicons name="barcode-outline" size={40} color="#cbd5e1" />
-                </View>
-                <Text style={styles.emptyText}>Ready to scan products</Text>
-                <Text style={styles.emptySubText}>
-                  Items will appear here once scanned
-                </Text>
-              </View>
-            ) : (
-              <BillItemsList items={items} setItems={setItems} />
-            )}
-          </ScrollView>
+        {/* ITEMS */}
+        <View style={{ flex: 1 }}>
+          {items.length === 0 ? (
+            <View style={styles.empty}>
+              <Ionicons name="add-circle-outline" size={32} />
+              <Text style={styles.emptyText}>Scanner Ready</Text>
+            </View>
+          ) : (
+            <BillItemsList items={items} setItems={setItems} />
+          )}
         </View>
 
-        {/* SUMMARY SECTION - Adjusted with Dynamic Insets */}
-        <View style={{ marginBottom: insets.bottom + 10 }}>
+        {/* SUMMARY */}
+        <View style={styles.summary}>
           <BillSummary
             subTotal={subTotal}
             discount={discount}
@@ -205,203 +208,246 @@ export default function BillingPage() {
         </View>
       </View>
 
-      {/* OVERLAYS & MODALS */}
-      {customerOpen && (
-        <SearchOverlay
-          title="Search Customer"
-          value={customerSearch}
-          onChange={setCustomerSearch}
-          items={filteredCustomers}
-          onClose={() => setCustomerOpen(false)}
-          onSelect={(c: any) => {
-            setCustomerId(c._id);
-            setCustomerOpen(false);
-          }}
-          renderItem={(c: any) => (
-            <View style={styles.searchItem}>
-              <Text style={styles.searchItemName}>{c.name}</Text>
-              <Text style={styles.searchItemSub}>{c.mobileNumber}</Text>
-            </View>
-          )}
-          walkInOption
-        />
-      )}
+      {/* CUSTOMER SEARCH */}
+      <SearchOverlay
+        visible={customerOpen}
+        title="Search Customer"
+        value={customerSearch}
+        onChange={setCustomerSearch}
+        onClose={() => setCustomerOpen(false)}
+        items={filteredCustomers}
+        onSelect={(c: any) => {
+          setCustomerId(c._id || "");
+          setCustomerOpen(false);
+        }}
+        walkInOption
+        renderItem={(c: any) => (
+          <>
+            <Text style={styles.itemTitle}>{c.name}</Text>
+            <Text style={styles.itemSub}>{c.mobileNumber}</Text>
+          </>
+        )}
+      />
 
-      {productOpen && (
-        <SearchOverlay
-          title="Search Product"
-          value={productSearch}
-          onChange={setProductSearch}
-          items={filteredProducts}
-          onClose={() => setProductOpen(false)}
-          onSelect={addProduct}
-          renderItem={(p: any) => (
-            <View style={styles.productRow}>
-              <Text style={styles.searchItemName}>{p.name}</Text>
-              <Text style={styles.priceTag}>₹{p.price.sellingPrice}</Text>
+      {/* PRODUCT SEARCH */}
+      <SearchOverlay
+        visible={productOpen}
+        title="Search Product"
+        value={productSearch}
+        onChange={setProductSearch}
+        onClose={() => setProductOpen(false)}
+        items={filteredProducts}
+        onSelect={addProductToBill}
+        renderItem={(p: any) => (
+          <View style={styles.productRow}>
+            <View>
+              <Text style={styles.itemTitle}>{p.name}</Text>
+              <Text style={styles.itemSub}>{p.barcode}</Text>
             </View>
-          )}
-        />
-      )}
+            <Text style={styles.price}>₹{p.price.sellingPrice}</Text>
+          </View>
+        )}
+      />
 
+      {/* QUICK ADD */}
       {productNotFound && lastScannedBarcode && (
         <QuickAddProductModal
           barcode={lastScannedBarcode}
           onClose={() => setProductNotFound(false)}
-          onSuccess={addProduct}
+          onSuccess={addProductToBill}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
+/* ================= SEARCH OVERLAY ================= */
+function SearchOverlay({
+  visible,
+  title,
+  value,
+  onChange,
+  onClose,
+  items,
+  onSelect,
+  renderItem,
+  walkInOption,
+}: any) {
+  if (!visible) return null;
+
+  return (
+    <Modal transparent animationType="fade">
+      <View style={styles.overlay}>
+        <View style={styles.sheet}>
+          <View style={styles.searchHeader}>
+            <Ionicons name="search" size={14} />
+            <TextInput
+              autoFocus
+              placeholder={title}
+              value={value}
+              onChangeText={onChange}
+              style={styles.input}
+            />
+            <TouchableOpacity onPress={onClose}>
+              <Ionicons name="close" size={16} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView keyboardShouldPersistTaps="handled">
+            {walkInOption && (
+              <TouchableOpacity
+                onPress={() => onSelect({ _id: "" })}
+                style={styles.walkIn}
+              >
+                <Text style={styles.walkInText}>Walk-in customer</Text>
+              </TouchableOpacity>
+            )}
+
+            {items.map((item: any) => (
+              <TouchableOpacity
+                key={item._id}
+                onPress={() => onSelect(item)}
+                style={styles.listItem}
+              >
+                {renderItem(item)}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/* ================= STYLES ================= */
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
+  container: { flex: 1, backgroundColor: "#fff" },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#fff",
+    padding: 12,
+    borderBottomWidth: 1,
+    borderColor: "#eee",
+    gap: 12,
   },
-  headerTitle: {
-    fontSize: 18,
+
+  title: { fontSize: 14, fontWeight: "700" },
+  subtitle: {
+    fontSize: 9,
+    color: "#2563eb",
     fontWeight: "700",
-    color: "#1e293b",
   },
-  iconBtn: {
-    padding: 4,
-  },
-  searchActionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#2563eb",
+
+  searchBtn: {
+    marginLeft: "auto",
+    backgroundColor: "#eff6ff",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    gap: 4,
   },
   searchBtnText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 14,
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#2563eb",
   },
-  scannerSection: {
-    height: "25%",
-    backgroundColor: "#0f172a",
-    padding: 16,
-    justifyContent: "center",
+
+  scanner: { height: "22%", backgroundColor: "#020617" },
+  scanHint: {
+    position: "absolute",
+    top: 8,
+    alignSelf: "center",
+    flexDirection: "row",
+    gap: 4,
   },
-  scannerWrapper: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: "hidden",
-  },
+  scanText: { fontSize: 8, color: "#fff", fontWeight: "700" },
+
   body: {
     flex: 1,
-    marginTop: -24,
     backgroundColor: "#fff",
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 10,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginTop: -16,
   },
+
   customerBox: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     padding: 12,
-    backgroundColor: "#f1f5f9",
-    borderRadius: 16,
-    marginBottom: 20,
+    margin: 16,
+    borderWidth: 1,
+    borderRadius: 12,
+    gap: 8,
+    borderColor: "#eee",
   },
-  customerInfo: {
+
+  customerText: { fontSize: 12, fontWeight: "700" },
+
+  empty: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  emptyText: { fontSize: 12, fontWeight: "700" },
+
+  summary: {
+    borderTopWidth: 1,
+    borderColor: "#eee",
+    padding: 16,
+  },
+
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-start",
+    paddingTop: 80,
+  },
+
+  sheet: {
+    backgroundColor: "#fff",
+    marginHorizontal: 16,
+    borderRadius: 16,
+    overflow: "hidden",
+    maxHeight: "70%", // Prevent overlay from going off-screen
+  },
+
+  searchHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
+    padding: 12,
+    borderBottomWidth: 1,
+    borderColor: "#eee",
   },
-  customerIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#dbeafe",
-    alignItems: "center",
-    justifyContent: "center",
+
+  input: { flex: 1, fontSize: 12 },
+
+  listItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderColor: "#f1f5f9",
   },
-  label: {
-    fontSize: 12,
-    color: "#64748b",
-    marginBottom: 2,
-  },
-  customerText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#1e293b",
-  },
-  listContainer: {
-    flex: 1,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#94a3b8",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 12,
-  },
-  empty: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 40,
-  },
-  emptyCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#f1f5f9",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#64748b",
-  },
-  emptySubText: {
-    fontSize: 14,
-    color: "#94a3b8",
-    marginTop: 4,
-  },
+
+  itemTitle: { fontWeight: "700", fontSize: 12 },
+  itemSub: { fontSize: 10, color: "#64748b" },
+
   productRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 4,
   },
-  searchItem: {
-    paddingVertical: 2,
+
+  price: { fontWeight: "700", color: "#2563eb" },
+
+  walkIn: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderColor: "#eee",
   },
-  searchItemName: {
-    fontWeight: "600",
-    fontSize: 15,
-    color: "#1e293b",
-  },
-  searchItemSub: {
+  walkInText: {
     fontSize: 12,
-    color: "#64748b",
-  },
-  priceTag: {
     fontWeight: "700",
-    color: "#059669",
+    color: "#2563eb",
   },
 });

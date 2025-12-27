@@ -228,18 +228,17 @@ export async function updateProduct(req, res) {
 
 
 /**
- * DELETE PRODUCT (SOFT DELETE)
+ * DELETE PRODUCT (HARD DELETE)
  */
 export async function deleteProduct(req, res) {
   try {
     const shopId = req.user._id;
     const { productId } = req.params;
 
-    const product = await Product.findOneAndUpdate(
-      { _id: productId, shopId },
-      { isActive: false },
-      { new: true }
-    );
+    const product = await Product.findOneAndDelete({
+      _id: productId,
+      shopId,
+    });
 
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
@@ -247,7 +246,7 @@ export async function deleteProduct(req, res) {
 
     res.status(200).json({
       success: true,
-      message: "Product deleted",
+      message: "Product permanently deleted",
     });
   } catch (error) {
     console.error("Delete Product Error:", error);
