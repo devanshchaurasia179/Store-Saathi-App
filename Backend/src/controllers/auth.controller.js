@@ -101,7 +101,7 @@ export async function onboard(req, res) {
       shopName,
       ownerName,
       gstNumber = "",
-      storeCategory,
+      storeCategory = "",
       upiId = "",
       location = "",
     } = req.body;
@@ -112,16 +112,38 @@ export async function onboard(req, res) {
       });
     }
 
+    /* ================= PROFILE COMPLETION ================= */
+    // GST is OPTIONAL → excluded from calculation
+    const completionFields = {
+      shopName,
+      ownerName,
+      storeCategory,
+      upiId,
+      location,
+    };
+
+    const totalFields = Object.keys(completionFields).length;
+
+    const filledFields = Object.values(completionFields).filter(
+      (value) => value && value.toString().trim() !== ""
+    ).length;
+
+    const profileCompletion = Math.round(
+      (filledFields / totalFields) * 100
+    );
+    /* ====================================================== */
+
     const shop = await Shop.findByIdAndUpdate(
       shopId,
       {
         shopName,
         ownerName,
-        gstNumber,
+        gstNumber,        // stored but not counted
         storeCategory,
         upiId,
         location,
-        isOnboarded: true,
+        profileCompletion,
+        isOnboarded: profileCompletion === 100,
       },
       { new: true }
     );
@@ -130,12 +152,16 @@ export async function onboard(req, res) {
       return res.status(404).json({ message: "Shop not found" });
     }
 
-    res.status(200).json({ success: true, shop });
+    res.status(200).json({
+      success: true,
+      shop,
+    });
   } catch (error) {
     console.error("Onboarding Error:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 }
+
 
 /**
  * LOGOUT
