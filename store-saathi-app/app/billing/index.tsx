@@ -17,6 +17,7 @@ import BarcodeScanner from "../../components/billing/BarcodeScanner";
 import BillItemsList from "../../components/billing/BillItemsList";
 import BillSummary from "../../components/billing/BillSummary";
 import QuickAddProductModal from "../../components/inventory/QuickAddProductModal";
+import AddCustomerModal from "../../components/ledger/AddCustomerModal"; // ← Added import
 
 import { useBilling } from "../../hooks/useBilling";
 import { getProducts } from "../../constants/inventory.api";
@@ -46,6 +47,7 @@ export default function BillingPage() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [customerOpen, setCustomerOpen] = useState(false);
+  const [addCustomerModalVisible, setAddCustomerModalVisible] = useState(false); // ← New state
 
   /* ---------------- PRODUCT STATES ---------------- */
   const [products, setProducts] = useState<any[]>([]);
@@ -55,7 +57,12 @@ export default function BillingPage() {
   /* ---------------- FETCH ---------------- */
   useEffect(() => {
     getLedgerCustomers()
-      .then((res) => setCustomers(res.data.customers || []))
+      .then((res) => {
+        const all = res.data.customers || [];
+        // Exclude suppliers
+        const onlyCustomers = all.filter((c: any) => !c.isSupplier);
+        setCustomers(onlyCustomers);
+      })
       .catch(() => {});
 
     getProducts()
@@ -87,19 +94,21 @@ export default function BillingPage() {
 
   /* ---------------- ADD PRODUCT ---------------- */
   const addProductToBill = (product: any) => {
+    const productId = product._id || product.id;
+
     setItems((prev) => {
-      const existing = prev.find((i) => i.productId === product._id);
+      const existing = prev.find((i) => i.productId === productId);
 
       if (existing) {
         return prev.map((i) =>
-          i.productId === product._id ? { ...i, quantity: i.quantity + 1 } : i
+          i.productId === productId ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
 
       return [
         ...prev,
         {
-          productId: product._id,
+          productId: productId,
           name: product.name,
           price: product.price.sellingPrice,
           quantity: 1,
@@ -112,25 +121,22 @@ export default function BillingPage() {
   };
 
   /* ---------------- CHECKOUT ---------------- */
-const handleCheckout = async () => {
-  try {
-    const res = await checkout(customerId || null);
+  const handleCheckout = async () => {
+    try {
+      const res = await checkout(customerId || null);
 
-    const bill = res?.bill; // 👈 unwrap here
+      const bill = res?.bill;
 
-    if (!bill?._id) {
-      console.warn("Invalid bill returned", res);
-      return;
+      if (!bill?._id) {
+        console.warn("Invalid bill returned", res);
+        return;
+      }
+
+      router.replace(`/bills/${bill._id}`);
+    } catch (err) {
+      console.error("Checkout failed", err);
     }
-
-    router.replace(`/bills/${bill._id}`);
-  } catch (err) {
-    console.error("Checkout failed", err);
-  }
-};
-
-
-
+  };
 
   /* ================= UI ================= */
   return (
@@ -208,25 +214,41 @@ const handleCheckout = async () => {
         </View>
       </View>
 
-      {/* CUSTOMER SEARCH */}
+      {/* CUSTOMER SEARCH WITH ADD OPTION */}
       <SearchOverlay
         visible={customerOpen}
         title="Search Customer"
         value={customerSearch}
         onChange={setCustomerSearch}
-        onClose={() => setCustomerOpen(false)}
+        onClose={() => {
+          setCustomerOpen(false);
+          setCustomerSearch("");
+        }}
         items={filteredCustomers}
         onSelect={(c: any) => {
           setCustomerId(c._id || "");
           setCustomerOpen(false);
+          setCustomerSearch("");
         }}
         walkInOption
         renderItem={(c: any) => (
           <>
             <Text style={styles.itemTitle}>{c.name}</Text>
-            <Text style={styles.itemSub}>{c.mobileNumber}</Text>
+            <Text style={styles.itemSub}>{c.mobileNumber || "No mobile"}</Text>
           </>
         )}
+        extraTopOption={
+          <TouchableOpacity
+            style={styles.addNewOption}
+            onPress={() => {
+              setCustomerOpen(false);
+              setAddCustomerModalVisible(true);
+            }}
+          >
+            <Ionicons name="add-circle-outline" size={18} color="#2563eb" />
+            <Text style={styles.addNewText}>Add New Customer</Text>
+          </TouchableOpacity>
+        }
       />
 
       {/* PRODUCT SEARCH */}
@@ -249,14 +271,33 @@ const handleCheckout = async () => {
         )}
       />
 
-      {/* QUICK ADD */}
+      {/* QUICK ADD PRODUCT */}
       {productNotFound && lastScannedBarcode && (
         <QuickAddProductModal
           barcode={lastScannedBarcode}
           onClose={() => setProductNotFound(false)}
-          onSuccess={addProductToBill}
+          onSuccess={(newProduct) => {
+            addProductToBill(newProduct);
+          }}
         />
       )}
+
+      {/* ADD NEW CUSTOMER MODAL */}
+      <AddCustomerModal
+        visible={addCustomerModalVisible}
+        isSupplier={false}
+        onClose={() => setAddCustomerModalVisible(false)}
+        onAdded={() => {
+          // Refresh customer list after adding a new one
+          getLedgerCustomers()
+            .then((res) => {
+              const all = res.data.customers || [];
+              const onlyCustomers = all.filter((c: any) => !c.isSupplier);
+              setCustomers(onlyCustomers);
+            })
+            .catch(() => {});
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -272,6 +313,7 @@ function SearchOverlay({
   onSelect,
   renderItem,
   walkInOption,
+  extraTopOption, // ← New prop
 }: any) {
   if (!visible) return null;
 
@@ -294,6 +336,10 @@ function SearchOverlay({
           </View>
 
           <ScrollView keyboardShouldPersistTaps="handled">
+            {/* Add New Customer Option */}
+            {extraTopOption}
+
+            {/* Walk-in Option */}
             {walkInOption && (
               <TouchableOpacity
                 onPress={() => onSelect({ _id: "" })}
@@ -303,6 +349,7 @@ function SearchOverlay({
               </TouchableOpacity>
             )}
 
+            {/* Customer/Product List */}
             {items.map((item: any) => (
               <TouchableOpacity
                 key={item._id}
@@ -409,7 +456,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     borderRadius: 16,
     overflow: "hidden",
-    maxHeight: "70%", // Prevent overlay from going off-screen
+    maxHeight: "70%",
   },
 
   searchHeader: {
@@ -447,6 +494,22 @@ const styles = StyleSheet.create({
   },
   walkInText: {
     fontSize: 12,
+    fontWeight: "700",
+    color: "#2563eb",
+  },
+
+  // New styles for Add New Customer option
+  addNewOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    gap: 10,
+    backgroundColor: "#eff6ff",
+    borderBottomWidth: 1,
+    borderColor: "#eee",
+  },
+  addNewText: {
+    fontSize: 13,
     fontWeight: "700",
     color: "#2563eb",
   },

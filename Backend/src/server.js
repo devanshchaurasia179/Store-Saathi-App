@@ -11,9 +11,6 @@ import productRoutes from "./routes/product.routes.js";
 import billRoutes from "./routes/bill.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
 
-
-
-
 dotenv.config();
 
 const app = express();
@@ -41,6 +38,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
+
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../frontend/dist")));

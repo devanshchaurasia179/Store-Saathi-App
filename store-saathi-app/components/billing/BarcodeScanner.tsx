@@ -122,7 +122,6 @@ export default function BarcodeScanner({ onScan, onClose }: Props) {
 
       {/* TOP BAR */}
       <View style={styles.topBar}>
-        <Text style={styles.scanText}>Scan Product Barcode</Text>
         {onClose && (
           <TouchableOpacity onPress={onClose}>
             <Ionicons name="close" size={26} color="#fff" />

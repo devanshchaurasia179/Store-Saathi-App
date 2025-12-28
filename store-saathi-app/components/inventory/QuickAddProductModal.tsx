@@ -1,3 +1,5 @@
+// QuickAddProductModal.tsx (Toast instead of Alert)
+
 import { useState } from "react";
 import {
   Modal,
@@ -8,10 +10,10 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   Switch,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import Toast from "react-native-toast-message"; // <-- Added
 
 import { createProduct } from "../../constants/inventory.api";
 
@@ -19,7 +21,7 @@ type Props = {
   visible: boolean;
   barcode: string;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (newProduct: any) => void;
 };
 
 export default function QuickAddProductModal({
@@ -47,14 +49,18 @@ export default function QuickAddProductModal({
   /* ---------------- SAVE PRODUCT ---------------- */
   const handleSave = async () => {
     if (!form.name.trim() || !form.price) {
-      Alert.alert("Error", "Product name and price are required");
+      Toast.show({
+        type: "error",
+        text1: "Validation Error",
+        text2: "Product name and price are required",
+      });
       return;
     }
 
     try {
       setLoading(true);
 
-      await createProduct({
+      const payload = {
         name: form.name,
         barcode,
         isBarcodeListed: true,
@@ -65,16 +71,39 @@ export default function QuickAddProductModal({
         expiryDate: form.expiryDate || null,
         price: { sellingPrice: Number(form.price) },
         isActive: true,
+      };
+
+      const response = await createProduct(payload);
+
+      const newProduct = response.data?.product || response.product || response;
+
+      if (!newProduct || !newProduct._id) {
+        throw new Error("No product ID returned from server");
+      }
+
+      Toast.show({
+        type: "success",
+        text1: "Success!",
+        text2: "Product added successfully",
       });
 
-      Alert.alert("Success", "Product added successfully");
-      onSuccess();
+      onSuccess(newProduct);
       onClose();
     } catch (e: any) {
+      console.error("Quick add error:", e);
+
       if (e?.response?.status === 409) {
-        Alert.alert("Duplicate", "This barcode already exists");
+        Toast.show({
+          type: "error",
+          text1: "Duplicate Barcode",
+          text2: "This barcode already exists in inventory",
+        });
       } else {
-        Alert.alert("Error", "Failed to add product");
+        Toast.show({
+          type: "error",
+          text1: "Error",
+          text2: e?.message || "Failed to add product",
+        });
       }
     } finally {
       setLoading(false);
@@ -215,8 +244,7 @@ export default function QuickAddProductModal({
   );
 }
 
-/* ================= STYLES ================= */
-
+/* ================= STYLES (unchanged) ================= */
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
