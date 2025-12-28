@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   View,
   Text,
@@ -29,241 +29,187 @@ export default function BillSummary({
   onCheckout,
   disabled = false,
 }: Props) {
+  
+  // Requirement: Paid Amount should default to Total Amount
+  useEffect(() => {
+    if (totalAmount > 0) {
+      setPaidAmount(totalAmount);
+    }
+  }, [totalAmount]);
+
   const dueAmount = Math.max(totalAmount - paidAmount, 0);
 
   return (
     <View style={styles.container}>
-      {/* INPUTS */}
-      <View style={styles.grid}>
-        {/* Discount */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>
-            <Ionicons
-              name="pricetag-outline"
-              size={12}
-              color="#2563eb"
-            />{" "}
-            Discount (₹)
-          </Text>
+      {/* COMPACT INPUT SECTION */}
+      <View style={styles.inputGrid}>
+        <View style={styles.compactInputGroup}>
+          <Ionicons name="pricetag-outline" size={12} color="#64748b" />
+          <Text style={styles.compactLabel}>Discount</Text>
           <TextInput
             keyboardType="numeric"
             placeholder="0"
             value={discount ? String(discount) : ""}
             onChangeText={(v) => setDiscount(Number(v) || 0)}
-            style={styles.input}
+            style={styles.compactInput}
+            selectTextOnFocus
           />
         </View>
 
-        {/* Paid Amount */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>
-            <Ionicons
-              name="wallet-outline"
-              size={12}
-              color="#2563eb"
-            />{" "}
-            Paid Amount (₹)
-          </Text>
+        <View style={styles.compactInputGroup}>
+          <Ionicons name="cash-outline" size={12} color="#64748b" />
+          <Text style={styles.compactLabel}>Received</Text>
           <TextInput
             keyboardType="numeric"
             placeholder="0"
             value={paidAmount ? String(paidAmount) : ""}
             onChangeText={(v) => setPaidAmount(Number(v) || 0)}
-            style={styles.input}
+            style={[styles.compactInput, { color: '#059669' }]}
+            selectTextOnFocus
           />
         </View>
       </View>
 
-      {/* TOTALS */}
-      <View style={styles.summaryBox}>
-        <View style={styles.row}>
-          <Text style={styles.subLabel}>Subtotal</Text>
-          <Text style={styles.subValue}>
-            ₹{subTotal.toLocaleString()}
-          </Text>
+      {/* COMPACT SUMMARY BOX */}
+      <View style={styles.summaryRow}>
+        <View>
+          <Text style={styles.subText}>Subtotal: ₹{subTotal}</Text>
+          {dueAmount > 0 && (
+            <Text style={styles.dueText}>Due: ₹{dueAmount}</Text>
+          )}
         </View>
-
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>
-            Total Amount
-          </Text>
-          <Text style={styles.totalValue}>
-            ₹{totalAmount.toLocaleString()}
-          </Text>
+        
+        <View style={styles.totalContainer}>
+          <Text style={styles.totalLabel}>TOTAL</Text>
+          <Text style={styles.totalValue}>₹{totalAmount.toLocaleString()}</Text>
         </View>
-
-        {dueAmount > 0 && (
-          <View style={styles.dueRow}>
-            <Text style={styles.dueLabel}>
-              Balance Due
-            </Text>
-            <Text style={styles.dueValue}>
-              ₹{dueAmount.toLocaleString()}
-            </Text>
-          </View>
-        )}
       </View>
 
-      {/* CHECKOUT */}
+      {/* SLIM CHECKOUT BUTTON */}
       <TouchableOpacity
         disabled={disabled}
         onPress={onCheckout}
-        activeOpacity={0.85}
+        activeOpacity={0.8}
         style={[
           styles.checkoutBtn,
           disabled && styles.disabledBtn,
         ]}
       >
-        <Text
-          style={[
-            styles.checkoutText,
-            disabled && styles.disabledText,
-          ]}
-        >
-          COMPLETE CHECKOUT
+        <Text style={[styles.checkoutText, disabled && styles.disabledText]}>
+          {disabled ? "CART EMPTY" : "COMPLETE BILL"}
         </Text>
-
-        {!disabled && (
-          <Ionicons
-            name="arrow-forward"
-            size={18}
-            color="#fff"
-          />
-        )}
+        {!disabled && <Ionicons name="chevron-forward" size={16} color="#fff" />}
       </TouchableOpacity>
     </View>
   );
 }
 
-/* ================= STYLES ================= */
-
 const styles = StyleSheet.create({
   container: {
-    gap: 16,
+    paddingTop: 8,
+    gap: 10,
   },
 
-  grid: {
+  inputGrid: {
     flexDirection: "row",
-    gap: 12,
-  },
-
-  inputGroup: {
-    flex: 1,
-  },
-
-  label: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#94a3b8",
-    marginBottom: 4,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-
-  input: {
-    backgroundColor: "#f8fafc",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 14,
-    padding: 12,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-
-  summaryBox: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#f1f5f9",
     gap: 8,
   },
 
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  compactInputGroup: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: "#f1f5f9",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 38, // Reduced height
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
 
-  subLabel: {
-    fontSize: 12,
-    color: "#64748b",
-    fontWeight: "500",
-  },
-
-  subValue: {
-    fontSize: 12,
+  compactLabel: {
+    fontSize: 10,
     fontWeight: "700",
-    color: "#334155",
+    color: "#64748b",
+    marginLeft: 4,
+    marginRight: 8,
   },
 
-  totalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 6,
+  compactInput: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1e293b",
+    textAlign: 'right',
+    paddingVertical: 0,
+  },
+
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+
+  subText: {
+    fontSize: 11,
+    color: "#94a3b8",
+    fontWeight: "600",
+  },
+
+  dueText: {
+    fontSize: 11,
+    color: "#ef4444",
+    fontWeight: "700",
+    marginTop: 2,
+  },
+
+  totalContainer: {
+    alignItems: 'flex-end',
   },
 
   totalLabel: {
-    fontSize: 14,
+    fontSize: 9,
     fontWeight: "800",
-    color: "#1e293b",
+    color: "#64748b",
+    letterSpacing: 1,
   },
 
   totalValue: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "900",
     color: "#2563eb",
   },
 
-  dueRow: {
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderColor: "#e5e7eb",
-    borderStyle: "dashed",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-
-  dueLabel: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: "#fb7185",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-  },
-
-  dueValue: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#e11d48",
-  },
-
   checkoutBtn: {
-    marginTop: 8,
     backgroundColor: "#2563eb",
-    paddingVertical: 16,
-    borderRadius: 22,
+    height: 48, // Slimmer button
+    borderRadius: 12,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
+    shadowColor: "#2563eb",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
   },
 
   checkoutText: {
     color: "#fff",
     fontWeight: "800",
-    fontSize: 12,
-    letterSpacing: 2,
+    fontSize: 13,
+    letterSpacing: 1,
   },
 
   disabledBtn: {
-    backgroundColor: "#e5e7eb",
+    backgroundColor: "#f1f5f9",
+    elevation: 0,
+    shadowOpacity: 0,
   },
 
   disabledText: {
-    color: "#94a3b8",
+    color: "#cbd5e1",
   },
 });

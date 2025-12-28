@@ -91,14 +91,11 @@ export default function BillDetailScreen() {
   }
 
   /* ---------------- CALCULATIONS ---------------- */
-  const dueAmount = Math.max(
-    (bill.totalAmount || 0) - (bill.paidAmount || 0),
-    0
-  );
+  const billAmount = bill.totalAmount 
 
   const upiUrl =
-    upiId && dueAmount > 0
-      ? `upi://pay?pa=${upiId}&pn=Shop&am=${dueAmount}&cu=INR`
+    upiId && billAmount > 0
+      ? `upi://pay?pa=${upiId}&pn=Shop&am=${billAmount}&cu=INR`
       : null;
 
   const isPaid = bill.paymentStatus === "PAID";
@@ -214,19 +211,6 @@ export default function BillDetailScreen() {
               </View>
             </View>
           </View>
-
-          {dueAmount > 0 && (
-            <View style={styles.dueAlert}>
-              <Ionicons
-                name="information-circle"
-                size={16}
-                color="#dc2626"
-              />
-              <Text style={styles.dueAlertTxt}>
-                Balance Due: {formatRupee(dueAmount)}
-              </Text>
-            </View>
-          )}
         </View>
 
         {/* ITEMS */}
@@ -262,7 +246,7 @@ export default function BillDetailScreen() {
           <View style={styles.qrSection}>
             <Text style={styles.qrTitle}>Customer Payment QR</Text>
             <Text style={styles.qrSub}>
-              Scan this to receive {formatRupee(dueAmount)} instantly
+              Scan this to receive {formatRupee(billAmount)} instantly
             </Text>
             <View style={styles.qrWrapper}>
               <QRCode

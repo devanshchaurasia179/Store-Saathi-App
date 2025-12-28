@@ -1,4 +1,5 @@
 import {
+  Modal,
   View,
   Text,
   StyleSheet,
@@ -12,7 +13,7 @@ import {
   ToastAndroid,
   Alert,
 } from "react-native";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback,useRef } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -38,6 +39,7 @@ export default function InventoryPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+const scanningLockedRef = useRef(false);
 
   const [lastScannedBarcode, setLastScannedBarcode] =
     useState<string | null>(null);
@@ -78,32 +80,34 @@ export default function InventoryPage() {
 
   /* ---------------- BARCODE SCAN HANDLER ---------------- */
   const handleScan = async (barcode: string) => {
-    if (!barcode) return;
+  if (scanningLockedRef.current) return;
+  scanningLockedRef.current = true;
 
-    setLastScannedBarcode(barcode);
+  setLastScannedBarcode(barcode);
 
-    try {
-      const res = await getProductByBarcode(barcode);
-      const product = res?.data?.product;
+  try {
+    const res = await getProductByBarcode(barcode);
+    const product = res?.data?.product;
 
-      // Product exists → Show Toast/Alert and close scanner
-      if (product) {
-        if (Platform.OS === 'android') {
-          ToastAndroid.show("Product already exists in your inventory", ToastAndroid.LONG);
-        } else {
-          Alert.alert("Notice", "Product already exists in your inventory");
-        }
-        setShowScanner(false);
-        return;
-      }
-    } catch (e: any) {
-      // 404 → product not found
-      if (e?.response?.status === 404) {
-        setProductNotFound(true);
-        setShowScanner(false);
-      }
+    if (product) {
+      Alert.alert("Notice", "Product already exists");
+      setShowScanner(false);
+      scanningLockedRef.current = false;
+      return;
     }
-  };
+  } catch (e: any) {
+    if (e?.response?.status === 404) {
+      setShowScanner(false);
+
+      // ⏳ wait for scanner to unmount
+      setTimeout(() => {
+        setProductNotFound(true);
+        scanningLockedRef.current = false;
+      }, 150);
+    }
+  }
+};
+
 
   if (loading && !refreshing) {
     return <PageLoader />;
@@ -230,25 +234,36 @@ export default function InventoryPage() {
 
         {productNotFound && lastScannedBarcode && (
           <QuickAddProductModal
-            visible={productNotFound}
-            barcode={lastScannedBarcode}
-            onClose={() => setProductNotFound(false)}
-            onSuccess={() => {
-              setProductNotFound(false);
-              refresh();
-            }}
-          />
+  visible={productNotFound}
+  barcode={lastScannedBarcode}
+  onClose={() => {
+    setProductNotFound(false);
+    setLastScannedBarcode(null);
+  }}
+  onSuccess={() => {
+    setProductNotFound(false);
+    setLastScannedBarcode(null);
+    refresh();
+  }}
+/>
+
         )}
 
         {/* ================= BARCODE SCANNER (FORCED TOP LAYER) ================= */}
         {showScanner && (
-          <View style={styles.scannerWrapper}>
-            <BarcodeScanner
-              onScan={handleScan}
-              onClose={() => setShowScanner(false)}
-            />
-          </View>
-        )}
+  <Modal visible transparent animationType="fade">
+    <View style={styles.scannerWrapper}>
+      <BarcodeScanner
+        onScan={handleScan}
+        onClose={() => {
+          setShowScanner(false);
+          scanningLockedRef.current = false;
+        }}
+      />
+    </View>
+  </Modal>
+)}
+
       </View>
     </SafeAreaView>
   );
