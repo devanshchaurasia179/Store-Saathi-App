@@ -10,7 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 type Props = {
   subTotal: number;
-  discount: number; // Now % value (e.g. 10 = 10%)
+  discount: number;
   setDiscount: (v: number) => void;
   paidAmount: number;
   setPaidAmount: (v: number) => void;
@@ -29,86 +29,71 @@ export default function BillSummary({
   onCheckout,
   disabled = false,
 }: Props) {
-  // Auto-fill paid amount only on first render when total changes
+  
+  // Requirement: Paid Amount should default to Total Amount
   useEffect(() => {
-    if (totalAmount > 0 && paidAmount === 0) {
+    if (totalAmount > 0) {
       setPaidAmount(totalAmount);
     }
   }, [totalAmount]);
 
-  // Calculate discount in rupees
-  const discountAmount = (subTotal * discount) / 100;
-  const finalTotal = Math.max(subTotal - discountAmount, 0);
-  const dueAmount = Math.max(finalTotal - paidAmount, 0);
+  const dueAmount = Math.max(totalAmount - paidAmount, 0);
 
   return (
     <View style={styles.container}>
-      {/* COMPACT INPUTS */}
-      <View style={styles.inputRow}>
-        {/* Discount % */}
-        <View style={styles.inputGroup}>
-          <View style={styles.labelRow}>
-            <Ionicons name="pricetag-outline" size={14} color="#64748b" />
-            <Text style={styles.label}>Discount %</Text>
-          </View>
-          <View style={styles.inputWrapper}>
-            <TextInput
-              keyboardType="numeric"
-              value={discount > 0 ? String(discount) : ""}
-              onChangeText={(v) => setDiscount(Number(v) || 0)}
-              placeholder="0"
-              style={styles.input}
-              selectTextOnFocus
-            />
-            <Text style={styles.percent}>%</Text>
-          </View>
-          {discountAmount > 0 && (
-            <Text style={styles.discountInfo}>-₹{discountAmount.toFixed(0)}</Text>
-          )}
+      {/* COMPACT INPUT SECTION */}
+      <View style={styles.inputGrid}>
+        <View style={styles.compactInputGroup}>
+          <Ionicons name="pricetag-outline" size={12} color="#64748b" />
+          <Text style={styles.compactLabel}>Discount</Text>
+          <TextInput
+            keyboardType="numeric"
+            placeholder="0"
+            value={discount ? String(discount) : ""}
+            onChangeText={(v) => setDiscount(Number(v) || 0)}
+            style={styles.compactInput}
+            selectTextOnFocus
+          />
         </View>
 
-        {/* Paid Amount - compact but readable */}
-        <View style={styles.inputGroup}>
-          <View style={styles.labelRow}>
-            <Ionicons name="cash-outline" size={14} color="#059669" />
-            <Text style={styles.label}>Paid</Text>
-          </View>
-          <View style={[styles.inputWrapper, styles.paidWrapper]}>
-            <TextInput
-              keyboardType="numeric"
-              value={paidAmount > 0 ? String(paidAmount) : ""}
-              onChangeText={(v) => setPaidAmount(Number(v) || 0)}
-              placeholder="0"
-              style={[styles.input, styles.paidInput]}
-              selectTextOnFocus
-            />
-          </View>
+        <View style={styles.compactInputGroup}>
+          <Ionicons name="cash-outline" size={12} color="#64748b" />
+          <Text style={styles.compactLabel}>Received</Text>
+          <TextInput
+            keyboardType="numeric"
+            placeholder="0"
+            value={paidAmount ? String(paidAmount) : ""}
+            onChangeText={(v) => setPaidAmount(Number(v) || 0)}
+            style={[styles.compactInput, { color: '#059669' }]}
+            selectTextOnFocus
+          />
         </View>
       </View>
 
-      {/* SUMMARY */}
+      {/* COMPACT SUMMARY BOX */}
       <View style={styles.summaryRow}>
         <View>
-          <Text style={styles.subLabel}>Subtotal</Text>
-          <Text style={styles.subValue}>₹{subTotal.toLocaleString()}</Text>
+          <Text style={styles.subText}>Subtotal: ₹{subTotal}</Text>
+          {dueAmount > 0 && (
+            <Text style={styles.dueText}>Due: ₹{dueAmount}</Text>
+          )}
         </View>
-
-        <View style={styles.totalBox}>
+        
+        <View style={styles.totalContainer}>
           <Text style={styles.totalLabel}>TOTAL</Text>
-          <Text style={styles.totalValue}>₹{finalTotal.toLocaleString()}</Text>
+          <Text style={styles.totalValue}>₹{totalAmount.toLocaleString()}</Text>
         </View>
       </View>
 
-      {dueAmount > 0 && (
-        <Text style={styles.dueText}>Due: ₹{dueAmount.toLocaleString()}</Text>
-      )}
-
-      {/* CHECKOUT BUTTON */}
+      {/* SLIM CHECKOUT BUTTON */}
       <TouchableOpacity
         disabled={disabled}
         onPress={onCheckout}
         activeOpacity={0.8}
-        style={[styles.checkoutBtn, disabled && styles.disabledBtn]}
+        style={[
+          styles.checkoutBtn,
+          disabled && styles.disabledBtn,
+        ]}
       >
         <Text style={[styles.checkoutText, disabled && styles.disabledText]}>
           {disabled ? "CART EMPTY" : "COMPLETE BILL"}
@@ -121,146 +106,110 @@ export default function BillSummary({
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 12,
+    paddingTop: 8,
+    gap: 10,
   },
 
-  inputRow: {
+  inputGrid: {
     flexDirection: "row",
-    gap: 12,
+    gap: 8,
   },
 
-  inputGroup: {
+  compactInputGroup: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: "#f1f5f9",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 38, // Reduced height
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
 
-  labelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 6,
-  },
-
-  label: {
-    fontSize: 11,
+  compactLabel: {
+    fontSize: 10,
     fontWeight: "700",
     color: "#64748b",
+    marginLeft: 4,
+    marginRight: 8,
   },
 
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f8fafc",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    paddingHorizontal: 12,
-    height: 44, // comfortable but not huge
-  },
-
-  paidWrapper: {
-    backgroundColor: "#f0fdf4",
-    borderColor: "#86efac",
-  },
-
-  input: {
+  compactInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "700",
     color: "#1e293b",
-    textAlign: "right",
+    textAlign: 'right',
     paddingVertical: 0,
   },
 
-  paidInput: {
-    fontSize: 18,
-    color: "#166534",
-  },
-
-  percent: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#64748b",
-  },
-
-  discountInfo: {
-    fontSize: 11,
-    color: "#dc2626",
-    fontWeight: "600",
-    textAlign: "right",
-    marginTop: 4,
-  },
-
   summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 4,
   },
 
-  subLabel: {
+  subText: {
     fontSize: 11,
     color: "#94a3b8",
     fontWeight: "600",
   },
-  subValue: {
-    fontSize: 14,
+
+  dueText: {
+    fontSize: 11,
+    color: "#ef4444",
     fontWeight: "700",
-    color: "#475569",
+    marginTop: 2,
   },
 
-  totalBox: {
-    alignItems: "flex-end",
+  totalContainer: {
+    alignItems: 'flex-end',
   },
+
   totalLabel: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "800",
     color: "#64748b",
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
+
   totalValue: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "900",
     color: "#2563eb",
   },
 
-  dueText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#ef4444",
-    textAlign: "right",
-  },
-
   checkoutBtn: {
     backgroundColor: "#2563eb",
-    height: 48,
+    height: 48, // Slimmer button
     borderRadius: 12,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
-    marginTop: 8,
     shadowColor: "#2563eb",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
   },
 
   checkoutText: {
     color: "#fff",
     fontWeight: "800",
-    fontSize: 14,
-    letterSpacing: 0.5,
+    fontSize: 13,
+    letterSpacing: 1,
   },
 
   disabledBtn: {
-    backgroundColor: "#e2e8f0",
-    shadowOpacity: 0,
+    backgroundColor: "#f1f5f9",
     elevation: 0,
+    shadowOpacity: 0,
   },
+
   disabledText: {
-    color: "#94a3b8",
+    color: "#cbd5e1",
   },
 });
