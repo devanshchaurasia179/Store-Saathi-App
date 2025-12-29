@@ -22,6 +22,7 @@ export default function QuickActions() {
       icon: "bar-chart-outline",
       Icon: Ionicons,
       onPress: () => {
+        router.push("/analytics")
         // wire later
       },
     },

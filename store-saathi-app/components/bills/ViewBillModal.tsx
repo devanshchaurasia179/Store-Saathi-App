@@ -19,17 +19,19 @@ import { getBillById } from "../../constants/bills.api";
 import { formatRupee } from "../../utils/formatCurrency";
 import { formatDate } from "../../utils/formatDate";
 import { shareBillPdf } from "../../utils/billPdf";
-import { printBill58mm } from "../../utils/thermalPrinter";
+import { printBillPdf58mm } from "../../utils/PrintBillPdf";
 
 export default function ViewBillModal({ billId, onClose }: any) {
   const [bill, setBill] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Helper for sharing the bill
+  // Helper for sharing the bill (text share)
   const onShare = async () => {
     try {
       await Share.share({
-        message: `Bill Summary for ID: #${bill?.dailyBillNumber}\nTotal: ${formatRupee(bill?.totalAmount)}\nStatus: ${bill?.paymentStatus}`,
+        message: `Bill Summary for ID: #${bill?.dailyBillNumber}
+Total: ${formatRupee(bill?.totalAmount)}
+Status: ${bill?.paymentStatus}`,
       });
     } catch (error) {
       console.log(error);
@@ -54,6 +56,7 @@ export default function ViewBillModal({ billId, onClose }: any) {
 
   useEffect(() => {
     if (!billId) return;
+
     async function fetchBill() {
       try {
         const res = await getBillById(billId);
@@ -64,13 +67,19 @@ export default function ViewBillModal({ billId, onClose }: any) {
         setLoading(false);
       }
     }
+
     fetchBill();
   }, [billId]);
 
   if (!billId) return null;
 
   return (
-    <Modal visible={true} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal
+      visible={true}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           {/* DRAG INDICATOR */}
@@ -80,11 +89,17 @@ export default function ViewBillModal({ billId, onClose }: any) {
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <View style={styles.headerIcon}>
-                <MaterialCommunityIcons name="receipt-text" size={22} color="#4f46e5" />
+                <MaterialCommunityIcons
+                  name="receipt-text"
+                  size={22}
+                  color="#4f46e5"
+                />
               </View>
               <View>
                 <Text style={styles.headerTitle}>Invoice Details</Text>
-                <Text style={styles.headerSub}>ID: #{bill?.dailyBillNumber || "..."}</Text>
+                <Text style={styles.headerSub}>
+                  ID: #{bill?.dailyBillNumber || "..."}
+                </Text>
               </View>
             </View>
             <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
@@ -99,23 +114,50 @@ export default function ViewBillModal({ billId, onClose }: any) {
             </View>
           ) : (
             <>
-              <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+              <ScrollView
+                contentContainerStyle={styles.content}
+                showsVerticalScrollIndicator={false}
+              >
                 {/* SUMMARY CARD */}
                 <View style={styles.summaryCard}>
                   <Text style={styles.summaryLabel}>Total Payable</Text>
-                  <Text style={styles.summaryAmount}>{formatRupee(bill.totalAmount)}</Text>
-                  <View style={[
-                    styles.statusBadge, 
-                    { backgroundColor: bill.paymentStatus === "PAID" ? "#dcfce7" : "#fef3c7" }
-                  ]}>
-                    <View style={[
-                        styles.statusDot, 
-                        { backgroundColor: bill.paymentStatus === "PAID" ? "#22c55e" : "#f59e0b" }
-                    ]} />
-                    <Text style={[
-                        styles.statusText, 
-                        { color: bill.paymentStatus === "PAID" ? "#166534" : "#92400e" }
-                    ]}>
+                  <Text style={styles.summaryAmount}>
+                    {formatRupee(bill.totalAmount)}
+                  </Text>
+
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      {
+                        backgroundColor:
+                          bill.paymentStatus === "PAID"
+                            ? "#dcfce7"
+                            : "#fef3c7",
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.statusDot,
+                        {
+                          backgroundColor:
+                            bill.paymentStatus === "PAID"
+                              ? "#22c55e"
+                              : "#f59e0b",
+                        },
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        styles.statusText,
+                        {
+                          color:
+                            bill.paymentStatus === "PAID"
+                              ? "#166534"
+                              : "#92400e",
+                        },
+                      ]}
+                    >
                       {bill.paymentStatus}
                     </Text>
                   </View>
@@ -125,68 +167,113 @@ export default function ViewBillModal({ billId, onClose }: any) {
                 <View style={styles.infoGrid}>
                   <View style={styles.infoBlock}>
                     <Text style={styles.infoLabel}>Issued On</Text>
-                    <Text style={styles.infoValue}>{formatDate(bill.createdAt)}</Text>
+                    <Text style={styles.infoValue}>
+                      {formatDate(bill.createdAt)}
+                    </Text>
                     <Text style={styles.infoSub}>
-                      {new Date(bill.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      {new Date(bill.createdAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </Text>
                   </View>
+
                   <View style={styles.infoBlockRight}>
                     <Text style={styles.infoLabel}>Customer</Text>
-                    <Text style={styles.infoValue} numberOfLines={1}>
+                    <Text
+                      style={styles.infoValue}
+                      numberOfLines={1}
+                    >
                       {bill.customerId?.name || "Walk-in Guest"}
                     </Text>
-                    <Text style={styles.infoSub}>{bill.customerId?.mobileNumber || "No Phone"}</Text>
+                    <Text style={styles.infoSub}>
+                      {bill.customerId?.mobileNumber || "No Phone"}
+                    </Text>
                   </View>
                 </View>
 
-                {/* ITEMS SECTION */}
+                {/* ITEMS */}
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Order Summary</Text>
                   <View style={styles.itemsCard}>
                     {bill.items.map((item: any, i: number) => (
-                      <View key={i} style={[styles.itemRow, i === bill.items.length - 1 && { borderBottomWidth: 0 }]}>
+                      <View
+                        key={i}
+                        style={[
+                          styles.itemRow,
+                          i === bill.items.length - 1 && {
+                            borderBottomWidth: 0,
+                          },
+                        ]}
+                      >
                         <View style={{ flex: 1 }}>
                           <Text style={styles.itemName}>{item.name}</Text>
-                          <Text style={styles.itemSub}>{item.quantity} units × {formatRupee(item.price)}</Text>
+                          <Text style={styles.itemSub}>
+                            {item.quantity} units ×{" "}
+                            {formatRupee(item.price)}
+                          </Text>
                         </View>
-                        <Text style={styles.itemTotal}>{formatRupee(item.total)}</Text>
+                        <Text style={styles.itemTotal}>
+                          {formatRupee(item.total)}
+                        </Text>
                       </View>
                     ))}
                   </View>
                 </View>
 
-                {/* BREAKDOWN SECTION */}
+                {/* BREAKDOWN */}
                 <View style={styles.breakdownCard}>
-                  <Row label="Subtotal" value={formatRupee(bill.subTotal)} />
+                  <Row
+                    label="Subtotal"
+                    value={formatRupee(bill.subTotal)}
+                  />
                   {bill.discount > 0 && (
-                    <Row label="Discount" value={`- ${formatRupee(bill.discount)}`} highlight />
+                    <Row
+                      label="Discount"
+                      value={`- ${formatRupee(bill.discount)}`}
+                      highlight
+                    />
                   )}
                   <View style={styles.dashedDivider} />
-                  <Row label="Net Total" value={formatRupee(bill.totalAmount)} bold />
-                  <Row label="Amount Paid" value={formatRupee(bill.paidAmount)} />
+                  <Row
+                    label="Net Total"
+                    value={formatRupee(bill.totalAmount)}
+                    bold
+                  />
+                  <Row
+                    label="Amount Paid"
+                    value={formatRupee(bill.paidAmount)}
+                  />
                   {bill.totalAmount - bill.paidAmount > 0 && (
-                    <Row label="Balance Due" value={formatRupee(bill.totalAmount - bill.paidAmount)} danger bold />
+                    <Row
+                      label="Balance Due"
+                      value={formatRupee(
+                        bill.totalAmount - bill.paidAmount
+                      )}
+                      danger
+                      bold
+                    />
                   )}
                 </View>
               </ScrollView>
 
-              {/* FOOTER ACTIONS */}
+              {/* FOOTER */}
               <View style={styles.footer}>
                 <TouchableOpacity
-  style={styles.secondaryBtn}
-  onPress={() => shareBillPdf(bill)}
->
-  <Feather name="share" size={18} color="#475569" />
-  <Text style={styles.secondaryBtnText}>Share</Text>
-</TouchableOpacity>
+                  style={styles.secondaryBtn}
+                  onPress={() => shareBillPdf(bill)}
+                >
+                  <Feather name="share" size={18} color="#475569" />
+                  <Text style={styles.secondaryBtnText}>Share</Text>
+                </TouchableOpacity>
 
                 <TouchableOpacity
-  style={styles.primaryBtn}
-  onPress={() => printBill58mm(bill)}
->
-  <Feather name="printer" size={18} color="#fff" />
-  <Text style={styles.primaryBtnText}>Print Bill</Text>
-</TouchableOpacity>
+                  style={styles.primaryBtn}
+                  onPress={() => printBillPdf58mm(bill)}
+                >
+                  <Feather name="printer" size={18} color="#fff" />
+                  <Text style={styles.primaryBtnText}>Print Bill</Text>
+                </TouchableOpacity>
               </View>
             </>
           )}
@@ -195,6 +282,8 @@ export default function ViewBillModal({ billId, onClose }: any) {
     </Modal>
   );
 }
+
+/* ================= STYLES ================= */
 
 const styles = StyleSheet.create({
   overlay: {
@@ -207,10 +296,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     maxHeight: "94%",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
     elevation: 20,
   },
   dragIndicator: {
@@ -266,7 +351,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 20,
   },
   summaryCard: {
     backgroundColor: "#f8fafc",
@@ -311,8 +395,6 @@ const styles = StyleSheet.create({
   infoGrid: {
     flexDirection: "row",
     marginBottom: 24,
-    backgroundColor: "#ffffff",
-    padding: 4,
   },
   infoBlock: { flex: 1 },
   infoBlockRight: { flex: 1, alignItems: "flex-end" },
@@ -340,7 +422,6 @@ const styles = StyleSheet.create({
     color: "#475569",
     textTransform: "uppercase",
     marginBottom: 12,
-    letterSpacing: 0.5,
   },
   itemsCard: {
     backgroundColor: "#ffffff",
@@ -352,7 +433,6 @@ const styles = StyleSheet.create({
   itemRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderColor: "#f1f5f9",
@@ -365,7 +445,6 @@ const styles = StyleSheet.create({
   itemSub: {
     fontSize: 12,
     color: "#94a3b8",
-    marginTop: 2,
   },
   itemTotal: {
     fontSize: 15,
@@ -400,7 +479,6 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   dashedDivider: {
-    height: 1,
     borderWidth: 1,
     borderColor: "#e2e8f0",
     borderStyle: "dashed",

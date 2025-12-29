@@ -44,7 +44,9 @@ function getYearRange(dateStr) {
 
 function getWeekStart(date) {
   const d = new Date(date);
-  d.setDate(d.getDate() - d.getDay());
+  const day = d.getDay();
+  d.setDate(d.getDate() - day);
+  d.setHours(0, 0, 0, 0);
   return d.toISOString().split("T")[0];
 }
 
@@ -54,27 +56,12 @@ function getMonthKey(date) {
 
 function getDaysInRange(start, end) {
   const days = [];
-  const current = new Date(start);
+  let current = new Date(start);
   while (current <= end) {
     days.push(current.toISOString().split("T")[0]);
     current.setDate(current.getDate() + 1);
   }
   return days;
-}
-
-function computeTopProduct(productSales) {
-  let topProduct = null;
-  let maxRevenue = 0;
-  for (let pid in productSales) {
-    if (productSales[pid].revenue > maxRevenue) {
-      maxRevenue = productSales[pid].revenue;
-      topProduct = {
-        productId: pid,
-        ...productSales[pid],
-      };
-    }
-  }
-  return topProduct;
 }
 
 function computeAnalyticsFromBills(bills) {
@@ -95,6 +82,7 @@ function computeAnalyticsFromBills(bills) {
       const pid = item.productId.toString();
       if (!productSales[pid]) {
         productSales[pid] = {
+          productId: pid,
           name: item.name,
           quantity: 0,
           revenue: 0,
@@ -110,11 +98,16 @@ function computeAnalyticsFromBills(bills) {
     }
   }
 
-  const topProduct = computeTopProduct(productSales);
+  // Convert to array and sort by QUANTITY descending (most sold first)
+  const topProducts = Object.values(productSales)
+    .sort((a, b) => b.quantity - a.quantity);
+
+  const topProduct = topProducts[0] || null; // Still the most sold product
 
   return {
     totalSales,
     topProduct,
+    topProducts, // Full list sorted by quantity sold (highest to lowest)
     biggestBill,
     debtVsSales: {
       totalDebt,
@@ -128,7 +121,6 @@ function computeAnalyticsFromBills(bills) {
    ANALYTICS ENDPOINTS
 -------------------------------------------------- */
 
-// Helper to validate authenticated shop
 function getShopId(req, res) {
   if (!req.user || !req.user._id) {
     res.status(401).json({ success: false, message: "Unauthorized - No shop found" });
@@ -186,30 +178,23 @@ export async function getWeeklyAnalytics(req, res) {
     for (let bill of bills) {
       const billDate = bill.createdAt.toISOString().split("T")[0];
       if (!dailySummaries[billDate]) {
-        dailySummaries[billDate] = { bills: [], productSales: {} };
+        dailySummaries[billDate] = [];
       }
-      dailySummaries[billDate].bills.push(bill);
-
-      for (let item of bill.items) {
-        const pid = item.productId.toString();
-        if (!dailySummaries[billDate].productSales[pid]) {
-          dailySummaries[billDate].productSales[pid] = {
-            name: item.name,
-            quantity: 0,
-            revenue: 0,
-          };
-        }
-        dailySummaries[billDate].productSales[pid].quantity += item.quantity;
-        dailySummaries[billDate].productSales[pid].revenue += item.total;
-      }
+      dailySummaries[billDate].push(bill);
     }
 
     const allDays = getDaysInRange(start, end);
     const days = allDays.map((day) => {
-      const dayBills = dailySummaries[day]?.bills || [];
+      const dayBills = dailySummaries[day] || [];
+      const dayAnalytics = computeAnalyticsFromBills(dayBills);
+
       return {
         date: day,
-        ...computeAnalyticsFromBills(dayBills),
+        totalSales: dayAnalytics.totalSales,
+        topProduct: dayAnalytics.topProduct,
+        topProducts: dayAnalytics.topProducts, // Sorted by quantity
+        biggestBill: dayAnalytics.biggestBill,
+        debtVsSales: dayAnalytics.debtVsSales,
       };
     });
 
@@ -249,29 +234,25 @@ export async function getMonthlyAnalytics(req, res) {
     for (let bill of bills) {
       const weekStart = getWeekStart(bill.createdAt);
       if (!weeklySummaries[weekStart]) {
-        weeklySummaries[weekStart] = { bills: [], productSales: {} };
+        weeklySummaries[weekStart] = [];
       }
-      weeklySummaries[weekStart].bills.push(bill);
-
-      for (let item of bill.items) {
-        const pid = item.productId.toString();
-        if (!weeklySummaries[weekStart].productSales[pid]) {
-          weeklySummaries[weekStart].productSales[pid] = {
-            name: item.name,
-            quantity: 0,
-            revenue: 0,
-          };
-        }
-        weeklySummaries[weekStart].productSales[pid].quantity += item.quantity;
-        weeklySummaries[weekStart].productSales[pid].revenue += item.total;
-      }
+      weeklySummaries[weekStart].push(bill);
     }
 
     const weekKeys = Object.keys(weeklySummaries).sort();
-    const weeks = weekKeys.map((weekStart) => ({
-      weekStart,
-      ...computeAnalyticsFromBills(weeklySummaries[weekStart].bills),
-    }));
+    const weeks = weekKeys.map((weekStart) => {
+      const weekBills = weeklySummaries[weekStart];
+      const weekAnalytics = computeAnalyticsFromBills(weekBills);
+
+      return {
+        weekStart,
+        totalSales: weekAnalytics.totalSales,
+        topProduct: weekAnalytics.topProduct,
+        topProducts: weekAnalytics.topProducts, // Sorted by quantity
+        biggestBill: weekAnalytics.biggestBill,
+        debtVsSales: weekAnalytics.debtVsSales,
+      };
+    });
 
     return res.status(200).json({
       success: true,
@@ -309,29 +290,25 @@ export async function getYearlyAnalytics(req, res) {
     for (let bill of bills) {
       const monthKey = getMonthKey(bill.createdAt);
       if (!monthlySummaries[monthKey]) {
-        monthlySummaries[monthKey] = { bills: [], productSales: {} };
+        monthlySummaries[monthKey] = [];
       }
-      monthlySummaries[monthKey].bills.push(bill);
-
-      for (let item of bill.items) {
-        const pid = item.productId.toString();
-        if (!monthlySummaries[monthKey].productSales[pid]) {
-          monthlySummaries[monthKey].productSales[pid] = {
-            name: item.name,
-            quantity: 0,
-            revenue: 0,
-          };
-        }
-        monthlySummaries[monthKey].productSales[pid].quantity += item.quantity;
-        monthlySummaries[monthKey].productSales[pid].revenue += item.total;
-      }
+      monthlySummaries[monthKey].push(bill);
     }
 
     const monthKeys = Object.keys(monthlySummaries).sort();
-    const months = monthKeys.map((month) => ({
-      month,
-      ...computeAnalyticsFromBills(monthlySummaries[month].bills),
-    }));
+    const months = monthKeys.map((month) => {
+      const monthBills = monthlySummaries[month];
+      const monthAnalytics = computeAnalyticsFromBills(monthBills);
+
+      return {
+        month,
+        totalSales: monthAnalytics.totalSales,
+        topProduct: monthAnalytics.topProduct,
+        topProducts: monthAnalytics.topProducts, // Sorted by quantity
+        biggestBill: monthAnalytics.biggestBill,
+        debtVsSales: monthAnalytics.debtVsSales,
+      };
+    });
 
     return res.status(200).json({
       success: true,

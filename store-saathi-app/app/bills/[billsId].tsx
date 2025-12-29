@@ -21,7 +21,8 @@ import { getDashboard } from "../../constants/dashboard.api";
 
 /* ================= UTILS ================= */
 import { formatRupee } from "../../utils/formatCurrency";
-import { shareBillPdf, printBillPdf } from "../../utils/billPdf";
+import { shareBillPdf } from "../../utils/billPdf";
+import { printBillPdf58mm } from "../../utils/PrintBillPdf";
 
 const { width } = Dimensions.get("window");
 
@@ -113,7 +114,7 @@ export default function BillDetailScreen() {
 
   const handlePrint = async () => {
     try {
-      await printBillPdf(bill);
+      await printBillPdf58mm(bill);
     } catch (e) {
       console.error(e);
       Alert.alert("Error", "Unable to print bill");

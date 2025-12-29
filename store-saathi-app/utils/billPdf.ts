@@ -252,3 +252,4 @@ export async function shareBillPdf(bill: any) {
     dialogTitle: "Share Bill",
   });
 }
+export const printBillPdf = shareBillPdf;
