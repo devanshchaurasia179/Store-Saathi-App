@@ -9,30 +9,50 @@ export async function printBillPdf58mm(bill: any) {
   if (!bill) return;
 
   /* =========================
-     1️⃣ FETCH SHOP NAME FROM API
+     1️⃣ FETCH SHOP DETAILS (NAME + UPI)
   ========================= */
-  let shopName = "STORE"; // fallback
+  let shopName = "STORE";
+  let upiId: string | null = null;
 
   try {
     const res = await getDashboard();
     const shop = res?.data?.dashboard?.shop;
-    if (shop?.shopName) {
-      shopName = shop.shopName;
+    if (shop) {
+      shopName = shop.shopName || shopName;
+      upiId = shop.upiId || null;
     }
   } catch (err) {
-    console.warn("Failed to fetch shop name, using fallback");
+    console.warn("Failed to fetch shop details, using fallback");
   }
 
   /* =========================
-     2️⃣ TIME FORMATTING
+     2️⃣ CALCULATE DUE & TIME
   ========================= */
+  const dueAmount = bill.totalAmount
   const billTime = new Date(bill.createdAt).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
 
   /* =========================
-     3️⃣ OPTIMIZED HTML FOR 58MM THERMAL
+     3️⃣ GENERATE UPI LINK & QR (only if due > 0 and UPI exists)
+  ========================= */
+  let upiLink = "";
+  let qrCodeUrl = "";
+
+  if (upiId) {
+    upiLink = `upi://pay?pa=${upiId}`
+      + `&pn=${encodeURIComponent(shopName)}`
+      + `&am=${dueAmount}`
+      + `&cu=INR`
+      + `&tn=${encodeURIComponent(`Bill #${bill.dailyBillNumber}`)}`;
+
+    // Reliable, fast, free QR API — 140x140 fits perfectly on 58mm
+    qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&ecc=M&data=${encodeURIComponent(upiLink)}`;
+  }
+
+  /* =========================
+     4️⃣ OPTIMIZED 58MM THERMAL HTML
   ========================= */
   const html = `
 <!DOCTYPE html>
@@ -40,15 +60,11 @@ export async function printBillPdf58mm(bill: any) {
 <head>
 <meta charset="utf-8" />
 <style>
-  @page { 
-    margin: 0; 
-    size: 58mm auto; 
-  }
+  @page { margin: 0; size: 58mm auto; }
 
   body {
-    width: 100%;
     margin: 0;
-    padding: 8px 6px; /* Reduced side padding — safer for thermal */
+    padding: 8px 6px;
     font-family: 'Courier New', Courier, monospace;
     font-size: 13px;
     line-height: 1.4;
@@ -57,33 +73,23 @@ export async function printBillPdf58mm(bill: any) {
 
   .center { text-align: center; }
   .bold { font-weight: bold; }
-  .shop-name { 
-    font-size: 17px; /* Slightly smaller to avoid overflow */
-    font-weight: bold; 
+
+  .shop-name {
+    font-size: 17px;
+    font-weight: bold;
     margin-bottom: 4px;
-    line-height: 1.2;
     word-wrap: break-word;
   }
-  .header-info { 
-    font-size: 11.5px; 
-    margin-bottom: 4px; 
-  }
+
+  .header-info { font-size: 11.5px; margin-bottom: 4px; }
 
   .divider {
     border-top: 1px dashed #000;
     margin: 10px 0;
   }
 
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12.5px;
-  }
-
-  td {
-    padding: 2px 0;
-    vertical-align: top;
-  }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  td { padding: 2px 0; vertical-align: top; }
 
   .qty { width: 18%; }
   .price { width: 40%; text-align: right; }
@@ -101,6 +107,23 @@ export async function printBillPdf58mm(bill: any) {
     border-top: 1px dashed #000;
   }
 
+  .qr-section {
+    margin: 16px 0;
+    text-align: center;
+  }
+
+  .qr-section img {
+    width: 50px;
+    height: 50px;
+    image-rendering: pixelated; /* Sharper on thermal */
+  }
+
+  .qr-note {
+    font-size: 12px;
+    margin-top: 6px;
+    font-weight: bold;
+  }
+
   .footer {
     margin-top: 16px;
     font-size: 12px;
@@ -108,7 +131,6 @@ export async function printBillPdf58mm(bill: any) {
     line-height: 1.5;
   }
 
-  /* Prevent any overflow */
   * { box-sizing: border-box; }
 </style>
 </head>
@@ -159,6 +181,14 @@ export async function printBillPdf58mm(bill: any) {
     </tr>
   </table>
 
+  <!-- UPI QR Code Section -->
+  ${qrCodeUrl ? `
+  <div class="divider"></div>
+  <div class="qr-section">
+    <img src="${qrCodeUrl}" alt="UPI QR Code" />
+    <div class="qr-note">Scan to Pay ₹${dueAmount}</div>
+  </div>` : ""}
+
   <div class="divider"></div>
 
   <div class="footer">
@@ -166,7 +196,7 @@ export async function printBillPdf58mm(bill: any) {
     <b>Visit Again</b>
   </div>
 
-  <!-- Extra space for paper cut -->
+  <!-- Extra space for clean cut -->
   <div style="height: 40px;"></div>
 </body>
 </html>
@@ -175,10 +205,7 @@ export async function printBillPdf58mm(bill: any) {
   try {
     const { uri } = await Print.printToFileAsync({
       html,
-      // Critical: Use exact printable width in points
-      // 58mm paper → actual printable ~52mm → ~147-150 points is safe
-      width: 150, // Safer than 164.4 — prevents right-side clipping
-      // height is auto for roll paper
+      width: 150, // Safe printable width for 58mm thermal (prevents cutting)
     });
 
     await Sharing.shareAsync(uri, {
