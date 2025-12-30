@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -9,13 +9,23 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+/* 📦 COMPONENTS */
 import InventoryMenu from "./InventoryMenu";
 import EditProductModal from "./EditProductModal";
+
+/* 🛠 API */
 import { updateProduct, deleteProduct } from "../../constants/inventory.api";
+
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_INVENTORY_ROW } from "../../constants/language_inventory";
+import { useLanguage } from "../../providers/LanguageProvider";
 
 const LOW_STOCK_LIMIT = 5;
 
 export default function InventoryRow({ product, onRefresh }: any) {
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_INVENTORY_ROW[language] || LANGUAGE_TEXT_INVENTORY_ROW.en;
+
   const [qty, setQty] = useState(product.quantity || 0);
   const [price, setPrice] = useState(product.price?.sellingPrice || 0);
 
@@ -23,11 +33,11 @@ export default function InventoryRow({ product, onRefresh }: any) {
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  /* ---------- STOCK STATUS ---------- */
-  let status = { text: "In Stock", color: "#16a34a", bg: "#dcfce7" };
-  if (qty == 0) status = { text: "Out of Stock", color: "#dc2626", bg: "#fee2e2" };
+  /* ---------- STOCK STATUS LOGIC ---------- */
+  let status = { text: t.inStock, color: "#16a34a", bg: "#dcfce7" };
+  if (qty == 0) status = { text: t.outOfStock, color: "#dc2626", bg: "#fee2e2" };
   else if (qty <= LOW_STOCK_LIMIT)
-    status = { text: "Low Stock", color: "#ca8a04", bg: "#fef9c3" };
+    status = { text: t.lowStock, color: "#ca8a04", bg: "#fef9c3" };
 
   /* ---------- INLINE UPDATES ---------- */
   const saveQuantity = async () => {
@@ -36,7 +46,7 @@ export default function InventoryRow({ product, onRefresh }: any) {
       setSaving(true);
       await updateProduct(product._id, { quantity: Number(qty) });
     } catch {
-      Alert.alert("Error", "Failed to update stock");
+      Alert.alert(t.errorTitle || "Error", t.errorUpdateStock);
       setQty(product.quantity);
     } finally {
       setSaving(false);
@@ -51,7 +61,7 @@ export default function InventoryRow({ product, onRefresh }: any) {
         price: { sellingPrice: Number(price) },
       });
     } catch {
-      Alert.alert("Error", "Failed to update price");
+      Alert.alert(t.errorTitle || "Error", t.errorUpdatePrice);
       setPrice(product.price?.sellingPrice);
     } finally {
       setSaving(false);
@@ -59,10 +69,10 @@ export default function InventoryRow({ product, onRefresh }: any) {
   };
 
   const confirmDelete = () => {
-    Alert.alert("Delete Product", `Remove ${product.name}?`, [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t.deleteTitle, t.deleteMsg(product.name), [
+      { text: t.cancel, style: "cancel" },
       {
-        text: "Delete",
+        text: t.delete,
         style: "destructive",
         onPress: async () => {
           await deleteProduct(product._id);
@@ -91,7 +101,7 @@ export default function InventoryRow({ product, onRefresh }: any) {
 
           {/* PRICE CONTROL */}
           <View style={styles.inputCol}>
-            <Text style={styles.label}>PRICE</Text>
+            <Text style={styles.label}>{t.priceLabel}</Text>
             <View style={styles.inputContainer}>
               <Text style={styles.currency}>₹</Text>
               <TextInput
@@ -107,7 +117,7 @@ export default function InventoryRow({ product, onRefresh }: any) {
 
           {/* STOCK CONTROL */}
           <View style={styles.inputCol}>
-            <Text style={styles.label}>STOCK</Text>
+            <Text style={styles.label}>{t.stockLabel}</Text>
             <View style={styles.inputContainer}>
               <TextInput
                 value={String(qty)}
@@ -159,7 +169,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
     marginVertical: 6,
     borderRadius: 16,
-    // Modern shadow
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -226,7 +235,7 @@ const styles = StyleSheet.create({
     marginRight: 2,
   },
   input: {
-    width: 44,
+    width: 50, // Increased slightly for regional numbers
     textAlign: "center",
     fontWeight: "700",
     color: '#1e293b',

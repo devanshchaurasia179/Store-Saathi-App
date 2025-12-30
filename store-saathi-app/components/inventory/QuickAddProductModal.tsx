@@ -1,6 +1,4 @@
-// QuickAddProductModal.tsx (Toast instead of Alert)
-
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   Modal,
   View,
@@ -13,9 +11,14 @@ import {
   Switch,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import Toast from "react-native-toast-message"; // <-- Added
+import Toast from "react-native-toast-message";
 
+/* 🛠 API */
 import { createProduct } from "../../constants/inventory.api";
+
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_QUICK_ADD } from "../../constants/language_inventory";
+import { useLanguage } from "../../providers/LanguageProvider";
 
 type Props = {
   visible: boolean;
@@ -30,6 +33,9 @@ export default function QuickAddProductModal({
   onClose,
   onSuccess,
 }: Props) {
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_QUICK_ADD[language] || LANGUAGE_TEXT_QUICK_ADD.en;
+
   const [loading, setLoading] = useState(false);
   const [showMore, setShowMore] = useState(false);
 
@@ -51,8 +57,8 @@ export default function QuickAddProductModal({
     if (!form.name.trim() || !form.price) {
       Toast.show({
         type: "error",
-        text1: "Validation Error",
-        text2: "Product name and price are required",
+        text1: t.validationError,
+        text2: t.validationMsg,
       });
       return;
     }
@@ -74,7 +80,6 @@ export default function QuickAddProductModal({
       };
 
       const response = await createProduct(payload);
-
       const newProduct = response.data?.product || response.product || response;
 
       if (!newProduct || !newProduct._id) {
@@ -83,8 +88,8 @@ export default function QuickAddProductModal({
 
       Toast.show({
         type: "success",
-        text1: "Success!",
-        text2: "Product added successfully",
+        text1: t.success,
+        text2: t.successMsg,
       });
 
       onSuccess(newProduct);
@@ -95,14 +100,14 @@ export default function QuickAddProductModal({
       if (e?.response?.status === 409) {
         Toast.show({
           type: "error",
-          text1: "Duplicate Barcode",
-          text2: "This barcode already exists in inventory",
+          text1: t.duplicateBarcode,
+          text2: t.duplicateMsg,
         });
       } else {
         Toast.show({
           type: "error",
-          text1: "Error",
-          text2: e?.message || "Failed to add product",
+          text1: t.error,
+          text2: e?.message || t.errorSave,
         });
       }
     } finally {
@@ -117,26 +122,26 @@ export default function QuickAddProductModal({
           {/* HEADER */}
           <View style={styles.header}>
             <View>
-              <Text style={styles.headerTitle}>Quick Add</Text>
-              <Text style={styles.headerSub}>New Inventory Item</Text>
+              <Text style={styles.headerTitle}>{t.title}</Text>
+              <Text style={styles.headerSub}>{t.subtitle}</Text>
             </View>
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={22} color="#fff" />
             </TouchableOpacity>
           </View>
 
-          <ScrollView contentContainerStyle={styles.body}>
+          <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
             {/* BARCODE */}
             <View style={styles.barcodeBox}>
-              <Text style={styles.label}>Scanned Barcode</Text>
+              <Text style={styles.label}>{t.scannedBarcode}</Text>
               <Text style={styles.barcode}>{barcode}</Text>
             </View>
 
             {/* NAME */}
-            <Text style={styles.label}>Product Name *</Text>
+            <Text style={styles.label}>{t.productName}</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. Coca Cola 500ml"
+              placeholder={t.namePlace}
               value={form.name}
               onChangeText={(t) => update("name", t)}
             />
@@ -144,17 +149,17 @@ export default function QuickAddProductModal({
             {/* PRICE + QTY */}
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.label}>Price *</Text>
+                <Text style={styles.label}>{t.price}</Text>
                 <TextInput
                   style={styles.input}
                   keyboardType="numeric"
-                  placeholder="₹ 0.00"
+                  placeholder={t.pricePlace}
                   value={form.price}
                   onChangeText={(t) => update("price", t)}
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.label}>Stock Qty</Text>
+                <Text style={styles.label}>{t.stockQty}</Text>
                 <TextInput
                   style={styles.input}
                   keyboardType="numeric"
@@ -166,10 +171,12 @@ export default function QuickAddProductModal({
 
             {/* TRACKING */}
             <View style={styles.switchRow}>
-              <Text style={styles.switchLabel}>Enable Stock Tracking</Text>
+              <Text style={styles.switchLabel}>{t.enableTracking}</Text>
               <Switch
                 value={form.isTrackable}
                 onValueChange={(v) => update("isTrackable", v)}
+                trackColor={{ false: "#e2e8f0", true: "#93c5fd" }}
+                thumbColor={form.isTrackable ? "#2563eb" : "#f4f3f4"}
               />
             </View>
 
@@ -181,16 +188,16 @@ export default function QuickAddProductModal({
               <Ionicons
                 name={showMore ? "chevron-up" : "chevron-down"}
                 size={16}
-                color="#555"
+                color="#2563eb"
               />
-              <Text style={styles.moreText}>
-                {showMore ? "Less Details" : "More Details"}
+              <Text style={[styles.moreText, { color: '#2563eb' }]}>
+                {showMore ? t.lessDetails : t.moreDetails}
               </Text>
             </TouchableOpacity>
 
             {showMore && (
               <>
-                <Text style={styles.label}>Category</Text>
+                <Text style={styles.label}>{t.category}</Text>
                 <TextInput
                   style={styles.input}
                   value={form.category}
@@ -199,7 +206,7 @@ export default function QuickAddProductModal({
 
                 <View style={styles.row}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.label}>Size</Text>
+                    <Text style={styles.label}>{t.size}</Text>
                     <TextInput
                       style={styles.input}
                       value={form.size}
@@ -207,7 +214,7 @@ export default function QuickAddProductModal({
                     />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.label}>Expiry Date</Text>
+                    <Text style={styles.label}>{t.expiryDate}</Text>
                     <TextInput
                       style={styles.input}
                       placeholder="YYYY-MM-DD"
@@ -223,7 +230,7 @@ export default function QuickAddProductModal({
           {/* ACTIONS */}
           <View style={styles.footer}>
             <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>{t.cancel}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -234,7 +241,7 @@ export default function QuickAddProductModal({
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.saveText}>Add Product</Text>
+                <Text style={styles.saveText}>{t.addProduct}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -244,78 +251,90 @@ export default function QuickAddProductModal({
   );
 }
 
-/* ================= STYLES (unchanged) ================= */
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
     justifyContent: "center",
     padding: 16,
   },
   container: {
     backgroundColor: "#fff",
-    borderRadius: 20,
+    borderRadius: 24,
     overflow: "hidden",
     maxHeight: "90%",
+    elevation: 20,
   },
   header: {
     backgroundColor: "#2563eb",
-    padding: 16,
+    padding: 20,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   headerTitle: {
     color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 20,
+    fontWeight: "900",
   },
   headerSub: {
-    color: "#c7d2fe",
-    fontSize: 11,
+    color: "#bfdbfe",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 2,
   },
   body: {
-    padding: 16,
+    padding: 20,
   },
   label: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#555",
-    marginBottom: 6,
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#64748b",
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
   },
   input: {
-    backgroundColor: "#f1f5f9",
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    marginBottom: 14,
+    backgroundColor: "#f8fafc",
+    borderRadius: 14,
+    padding: 14,
+    fontSize: 15,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    color: "#1e293b",
+    fontWeight: '600'
   },
   row: {
     flexDirection: "row",
     gap: 12,
   },
   barcodeBox: {
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#f1f5f9",
     borderRadius: 14,
-    padding: 12,
-    marginBottom: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#cbd5e1'
   },
   barcode: {
-    fontFamily: "monospace",
+    fontSize: 16,
     fontWeight: "bold",
-    color: "#334155",
+    color: "#1e293b",
+    letterSpacing: 1,
   },
   switchRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: "#eff6ff",
-    padding: 12,
-    borderRadius: 14,
+    padding: 14,
+    borderRadius: 16,
     marginBottom: 12,
   },
   switchLabel: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "700",
     color: "#1e40af",
   },
@@ -323,42 +342,44 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    gap: 6,
-    marginVertical: 10,
+    gap: 8,
+    marginVertical: 12,
   },
   moreText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#555",
+    fontSize: 14,
+    fontWeight: "800",
   },
   footer: {
     flexDirection: "row",
-    padding: 14,
-    gap: 10,
-    backgroundColor: "#f8fafc",
+    padding: 20,
+    gap: 12,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9'
   },
   cancelBtn: {
     flex: 1,
-    padding: 14,
+    padding: 16,
     backgroundColor: "#fff",
-    borderRadius: 14,
+    borderRadius: 16,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: "#e2e8f0",
   },
   cancelText: {
-    fontWeight: "700",
-    color: "#555",
+    fontWeight: "800",
+    color: "#64748b",
   },
   saveBtn: {
     flex: 1,
-    padding: 14,
+    padding: 16,
     backgroundColor: "#2563eb",
-    borderRadius: 14,
+    borderRadius: 16,
     alignItems: "center",
+    elevation: 4,
   },
   saveText: {
     color: "#fff",
-    fontWeight: "700",
+    fontWeight: "800",
   },
 });

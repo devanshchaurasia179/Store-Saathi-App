@@ -1,3 +1,4 @@
+import React from "react";
 import {
   Modal,
   View,
@@ -7,12 +8,17 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// Import your ProductForm component
-import ProductForm from "./ProductForm"; 
+/* 📦 COMPONENTS */
+import ProductForm from "./ProductForm";
+
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_EDIT_PRODUCT_MODAL } from "../../constants/language_inventory";
+import { useLanguage } from "../../providers/LanguageProvider";
 
 type Props = {
   visible: boolean;
@@ -28,88 +34,128 @@ export default function EditProductModal({
   onSaved,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_EDIT_PRODUCT_MODAL[language] || LANGUAGE_TEXT_EDIT_PRODUCT_MODAL.en;
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
-      >
-        <View style={styles.outerContainer}>
-          {/* HEADER SECTION */}
-          <View 
-            style={[
-              styles.header, 
-              { paddingTop: Platform.OS === 'android' ? insets.top + 20 : 20 }
-            ]}
-          >
-            <View>
-              <Text style={styles.title}>Edit Product</Text>
-              <Text style={styles.subtitle}>Update inventory and pricing details</Text>
-            </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={24} color="#64748b" />
-            </TouchableOpacity>
-          </View>
+    <Modal
+      visible={visible}
+      animationType="fade" // Consistent with your top-down flow
+      transparent
+      onRequestClose={onClose}
+    >
+      <View style={styles.overlay}>
+        {/* Backdrop: Clicking closes modal */}
+        <TouchableWithoutFeedback onPress={onClose}>
+          <View style={StyleSheet.absoluteFill} />
+        </TouchableWithoutFeedback>
 
-          {/* FORM SECTION */}
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={[
-              styles.scrollContainer,
-              { paddingBottom: insets.bottom + 20 }
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.keyboardView}
+        >
+          <View
+            style={[
+              styles.sheet,
+              { paddingTop: insets.top + 10 }
             ]}
           >
-            {/* We pass the product as initialData. 
-               ProductForm already contains the logic to prefill fields 
-               and call the update API if initialData exists.
-            */}
-            <ProductForm 
-              initialData={product} 
-              onSuccess={() => {
-                onSaved(); // Triggers refresh in parent list
-                onClose(); // Closes the modal
-              }} 
-            />
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
+            {/* HEADER */}
+            <View style={styles.header}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.title}>{t.title}</Text>
+                <Text style={styles.subtitle}>{t.subtitle}</Text>
+              </View>
+              <TouchableOpacity 
+                onPress={onClose} 
+                style={styles.closeCircle}
+              >
+                <Ionicons name="close" size={22} color="#1e293b" />
+              </TouchableOpacity>
+            </View>
+
+            {/* FORM SECTION */}
+            <ScrollView 
+               showsVerticalScrollIndicator={false}
+               contentContainerStyle={styles.formContent}
+               keyboardShouldPersistTaps="handled"
+            >
+              <ProductForm 
+                initialData={product} 
+                onSuccess={() => {
+                  onSaved(); // Triggers refresh in parent list
+                  onClose(); // Closes the modal
+                }} 
+              />
+            </ScrollView>
+
+            {/* BOTTOM HANDLE (Visual cue for Top-to-Bottom sheets) */}
+            <View style={styles.dragHandle} />
+          </View>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  outerContainer: {
+  overlay: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    justifyContent: "flex-start", // Pins sheet to the top for top-down effect
   },
-  scrollContainer: {
+  keyboardView: {
+    width: "100%",
+  },
+  sheet: {
+    backgroundColor: "#fff",
+    borderBottomLeftRadius: 32, // Curved at the bottom to match top-down theme
+    borderBottomRightRadius: 32,
     paddingHorizontal: 20,
-    paddingTop: 10,
-    flexGrow: 1,
+    maxHeight: "92%", 
+    width: "100%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    elevation: 24,
+    paddingBottom: 15,
+  },
+  dragHandle: {
+    width: 40,
+    height: 5,
+    backgroundColor: "#e2e8f0",
+    borderRadius: 10,
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 5,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    paddingHorizontal: 20,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    marginBottom: 20,
+    marginTop: 5,
   },
-  title: { 
-    fontSize: 24, 
-    fontWeight: "800", 
-    color: "#1e293b" 
+  title: {
+    fontSize: 22,
+    fontWeight: "900", // Consistent extra bold branding
+    color: "#1e3a8a", 
+    letterSpacing: -0.5,
   },
-  subtitle: { 
-    fontSize: 14, 
-    color: "#64748b", 
-    marginTop: 2 
+  subtitle: {
+    fontSize: 13,
+    color: "#64748b",
+    marginTop: 2,
+    fontWeight: "600",
   },
-  closeBtn: {
+  closeCircle: {
     backgroundColor: "#f1f5f9",
-    padding: 6,
-    borderRadius: 12,
+    padding: 8,
+    borderRadius: 25,
+  },
+  formContent: {
+    paddingBottom: 20,
+    flexGrow: 1,
   },
 });

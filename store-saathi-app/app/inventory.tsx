@@ -7,16 +7,16 @@ import {
   TextInput,
   TouchableOpacity,
   RefreshControl,
-  SafeAreaView,
   StatusBar,
   Platform,
-  ToastAndroid,
   Alert,
 } from "react-native";
-import { useMemo, useState, useCallback,useRef } from "react";
+import { useMemo, useState, useCallback, useRef } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+// Corrected Import
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
+/* 📦 COMPONENTS */
 import InventoryHeader from "../components/inventory/InventoryHeader";
 import InventoryRow from "@/components/inventory/InventoryRow";
 import AddProductModal from "@/components/inventory/AddProductModal";
@@ -24,27 +24,33 @@ import QuickAddProductModal from "@/components/inventory/QuickAddProductModal";
 import BarcodeScanner from "@/components/billing/BarcodeScanner";
 import PageLoader from "../components/PageLoader";
 
+/* 🛠 API & HOOKS */
 import { useInventory } from "../hooks/useInventory";
 import { getProductByBarcode } from "../constants/inventory.api";
+
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_INVENTORY_PAGE } from "../constants/language_inventory";
+import { useLanguage } from "../providers/LanguageProvider";
 
 export default function InventoryPage() {
   const { products, loading, refresh } = useInventory();
   const insets = useSafeAreaInsets();
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_INVENTORY_PAGE[language] || LANGUAGE_TEXT_INVENTORY_PAGE.en;
 
   /* ---------------- UI STATES ---------------- */
   const [search, setSearch] = useState("");
-  const [filter, setFilter] =
-    useState<"ALL" | "LOW" | "HIGH" | "OUT">("ALL");
+  const [filter, setFilter] = useState<"ALL" | "LOW" | "HIGH" | "OUT">("ALL");
 
   const [showAdd, setShowAdd] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-const scanningLockedRef = useRef(false);
 
-  const [lastScannedBarcode, setLastScannedBarcode] =
-    useState<string | null>(null);
-  const [productNotFound, setProductNotFound] =
-    useState(false);
+  // Use a ref for scanning lock to avoid multiple triggers during API delay
+  const scanningLockedRef = useRef(false);
+
+  const [lastScannedBarcode, setLastScannedBarcode] = useState<string | null>(null);
+  const [productNotFound, setProductNotFound] = useState(false);
 
   /* ---------------- REFRESH ---------------- */
   const onRefresh = useCallback(async () => {
@@ -59,16 +65,12 @@ const scanningLockedRef = useRef(false);
 
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter((p) =>
-        p.name?.toLowerCase().includes(q)
-      );
+      list = list.filter((p) => p.name?.toLowerCase().includes(q));
     }
 
     switch (filter) {
       case "LOW":
-        return list.filter(
-          (p) => p.quantity > 0 && p.quantity <= 5
-        );
+        return list.filter((p) => p.quantity > 0 && p.quantity <= 5);
       case "HIGH":
         return list.filter((p) => p.quantity > 5);
       case "OUT":
@@ -78,61 +80,65 @@ const scanningLockedRef = useRef(false);
     }
   }, [products, search, filter]);
 
-  /* ---------------- BARCODE SCAN HANDLER ---------------- */
+  /* ---------------- BARCODE SCAN HANDLER (FIXED) ---------------- */
   const handleScan = async (barcode: string) => {
-  if (scanningLockedRef.current) return;
-  scanningLockedRef.current = true;
+    // 1. Immediate Lock to prevent double-scanning
+    if (scanningLockedRef.current) return;
+    scanningLockedRef.current = true;
 
-  setLastScannedBarcode(barcode);
+    // 2. Immediate feedback - close scanner and set state
+    setShowScanner(false);
+    setLastScannedBarcode(barcode);
 
-  try {
-    const res = await getProductByBarcode(barcode);
-    const product = res?.data?.product;
+    try {
+      // 3. Check database for existing product
+      const res = await getProductByBarcode(barcode);
+      const product = res?.data?.product;
 
-    if (product) {
-      Alert.alert("Notice", "Product already exists");
-      setShowScanner(false);
-      scanningLockedRef.current = false;
-      return;
-    }
-  } catch (e: any) {
-    if (e?.response?.status === 404) {
-      setShowScanner(false);
-
-      // ⏳ wait for scanner to unmount
-      setTimeout(() => {
-        setProductNotFound(true);
+      if (product) {
+        // Product exists: alert user
+        Alert.alert(t.notice, t.alreadyExists);
         scanningLockedRef.current = false;
-      }, 150);
+      }
+    } catch (e: any) {
+      // 4. Handle Not Found (Status 404)
+      if (e?.response?.status === 404) {
+        // Small timeout to allow Modal unmount animation to finish cleanly
+        setTimeout(() => {
+          setProductNotFound(true);
+          scanningLockedRef.current = false;
+        }, 300);
+      } else {
+        scanningLockedRef.current = false;
+        console.error("Scanning API Error:", e);
+      }
     }
-  }
-};
-
+  };
 
   if (loading && !refreshing) {
     return <PageLoader />;
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    // Use edges prop to specify which sides to protect
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.container}>
-        {/* ================= HEADER ================= */}
+        {/* HEADER */}
         <InventoryHeader
           onAddProduct={() => setShowAdd(true)}
-          onQuickEntry={() => setShowScanner(true)}
+          onQuickEntry={() => {
+            scanningLockedRef.current = false; // Reset lock when opening
+            setShowScanner(true);
+          }}
         />
 
-        {/* ================= SEARCH + FILTER ================= */}
+        {/* SEARCH + FILTER */}
         <View style={styles.topActions}>
           <View style={styles.searchBox}>
-            <Ionicons
-              name="search-outline"
-              size={20}
-              color="#94a3b8"
-            />
+            <Ionicons name="search-outline" size={20} color="#94a3b8" />
             <TextInput
-              placeholder="Search inventory by name..."
+              placeholder={t.searchPlace}
               placeholderTextColor="#94a3b8"
               value={search}
               onChangeText={setSearch}
@@ -141,11 +147,7 @@ const scanningLockedRef = useRef(false);
             />
             {search.length > 0 && (
               <TouchableOpacity onPress={() => setSearch("")}>
-                <Ionicons
-                  name="close-circle"
-                  size={18}
-                  color="#cbd5e1"
-                />
+                <Ionicons name="close-circle" size={18} color="#cbd5e1" />
               </TouchableOpacity>
             )}
           </View>
@@ -157,22 +159,10 @@ const scanningLockedRef = useRef(false);
                 <TouchableOpacity
                   key={type}
                   onPress={() => setFilter(type)}
-                  style={[
-                    styles.pill,
-                    isActive && styles.pillActive,
-                  ]}
+                  style={[styles.pill, isActive && styles.pillActive]}
                 >
-                  <Text
-                    style={[
-                      styles.pillText,
-                      isActive && styles.pillTextActive,
-                    ]}
-                  >
-                    {type === "ALL"
-                      ? "All Items"
-                      : type === "LOW"
-                      ? "Low Stock"
-                      : "Out of Stock"}
+                  <Text style={[styles.pillText, isActive && styles.pillTextActive]}>
+                    {type === "ALL" ? t.allItems : type === "LOW" ? t.lowStock : t.outOfStock}
                   </Text>
                 </TouchableOpacity>
               );
@@ -180,7 +170,7 @@ const scanningLockedRef = useRef(false);
           </View>
         </View>
 
-        {/* ================= INVENTORY LIST ================= */}
+        {/* INVENTORY LIST */}
         <FlatList
           data={filteredProducts}
           keyExtractor={(item) => item._id}
@@ -193,36 +183,25 @@ const scanningLockedRef = useRef(false);
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={["#2563eb"]}
-              tintColor="#2563eb"
+              colors={["#1e3a8a"]}
+              tintColor="#1e3a8a"
             />
           }
           renderItem={({ item }) => (
-            <InventoryRow
-              product={item}
-              onRefresh={refresh}
-            />
+            <InventoryRow product={item} onRefresh={refresh} />
           )}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconBg}>
-                <Ionicons
-                  name="cube-outline"
-                  size={40}
-                  color="#94a3b8"
-                />
+                <Ionicons name="cube-outline" size={40} color="#94a3b8" />
               </View>
-              <Text style={styles.emptyText}>
-                No products found
-              </Text>
-              <Text style={styles.emptySubText}>
-                Try adjusting your search or filters
-              </Text>
+              <Text style={styles.emptyText}>{t.noProducts}</Text>
+              <Text style={styles.emptySubText}>{t.noProductsSub}</Text>
             </View>
           }
         />
 
-        {/* ================= MODALS ================= */}
+        {/* ADD PRODUCT MODAL (Sliding from top) */}
         <AddProductModal
           visible={showAdd}
           onClose={() => setShowAdd(false)}
@@ -232,38 +211,37 @@ const scanningLockedRef = useRef(false);
           }}
         />
 
+        {/* QUICK ADD MODAL (Triggered when barcode doesn't exist) */}
         {productNotFound && lastScannedBarcode && (
           <QuickAddProductModal
-  visible={productNotFound}
-  barcode={lastScannedBarcode}
-  onClose={() => {
-    setProductNotFound(false);
-    setLastScannedBarcode(null);
-  }}
-  onSuccess={() => {
-    setProductNotFound(false);
-    setLastScannedBarcode(null);
-    refresh();
-  }}
-/>
-
+            visible={productNotFound}
+            barcode={lastScannedBarcode}
+            onClose={() => {
+              setProductNotFound(false);
+              setLastScannedBarcode(null);
+            }}
+            onSuccess={() => {
+              setProductNotFound(false);
+              setLastScannedBarcode(null);
+              refresh();
+            }}
+          />
         )}
 
-        {/* ================= BARCODE SCANNER (FORCED TOP LAYER) ================= */}
-        {showScanner && (
-  <Modal visible transparent animationType="fade">
-    <View style={styles.scannerWrapper}>
-      <BarcodeScanner
-        onScan={handleScan}
-        onClose={() => {
-          setShowScanner(false);
-          scanningLockedRef.current = false;
-        }}
-      />
-    </View>
-  </Modal>
-)}
-
+        {/* BARCODE SCANNER MODAL */}
+        <Modal 
+          visible={showScanner} 
+          transparent 
+          animationType="slide"
+          onRequestClose={() => setShowScanner(false)}
+        >
+          <View style={styles.scannerWrapper}>
+            <BarcodeScanner
+              onScan={handleScan}
+              onClose={() => setShowScanner(false)}
+            />
+          </View>
+        </Modal>
       </View>
     </SafeAreaView>
   );
@@ -276,40 +254,34 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "#F8FAFC",
   },
   scannerWrapper: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 999, // Ensure it sits above all UI elements
-    elevation: Platform.OS === 'android' ? 10 : 0,
+    flex: 1,
+    backgroundColor: "#000",
+    zIndex: 1000,
   },
   topActions: {
-    paddingTop: 12,
+    paddingTop: 5,
     paddingHorizontal: 16,
     gap: 16,
     backgroundColor: "#fff",
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#E2E8F0",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
   },
   searchBox: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F8FAFC",
-    borderRadius: 12,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 14,
     paddingHorizontal: 12,
-    height: 48,
+    height: 50,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
@@ -317,7 +289,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 8,
     fontSize: 15,
-    fontWeight: "500",
+    fontWeight: "600",
     color: "#1E293B",
   },
   filterRow: {
@@ -326,15 +298,15 @@ const styles = StyleSheet.create({
   },
   pill: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#F8FAFC",
+    paddingVertical: 10,
+    borderRadius: 25,
+    backgroundColor: "#F1F5F9",
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
   pillActive: {
-    backgroundColor: "#2563EB",
-    borderColor: "#2563EB",
+    backgroundColor: "#1e3a8a",
+    borderColor: "#1e3a8a",
   },
   pillText: {
     fontSize: 12,
@@ -346,11 +318,11 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingTop: 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
   },
   emptyContainer: {
     alignItems: "center",
-    marginTop: 80,
+    marginTop: 100,
     paddingHorizontal: 40,
   },
   emptyIconBg: {
@@ -363,14 +335,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyText: {
-    color: "#475569",
+    color: "#1e293b",
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: "800",
   },
   emptySubText: {
     color: "#94A3B8",
     fontSize: 14,
     textAlign: "center",
-    marginTop: 4,
+    marginTop: 6,
+    fontWeight: '500'
   },
 });

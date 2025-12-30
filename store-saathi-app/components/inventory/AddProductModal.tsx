@@ -1,3 +1,4 @@
+import React from "react";
 import {
   Modal,
   View,
@@ -12,7 +13,12 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+/* 📦 COMPONENTS */
 import ProductForm from "./ProductForm";
+
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_ADD_PRODUCT_MODAL } from "../../constants/language_inventory";
+import { useLanguage } from "../../providers/LanguageProvider";
 
 type Props = {
   visible: boolean;
@@ -26,16 +32,18 @@ export default function AddProductModal({
   onAdded,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_ADD_PRODUCT_MODAL[language] || LANGUAGE_TEXT_ADD_PRODUCT_MODAL.en;
 
   return (
     <Modal
       visible={visible}
-      animationType="slide" // Slide is better for bottom sheets
+      animationType="fade" // Fade is smoother for top-down drops
       transparent
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        {/* Close the modal when clicking the backdrop */}
+        {/* Backdrop: Clicking closes modal */}
         <TouchableWithoutFeedback onPress={onClose}>
           <View style={StyleSheet.absoluteFill} />
         </TouchableWithoutFeedback>
@@ -47,27 +55,24 @@ export default function AddProductModal({
           <View
             style={[
               styles.sheet,
-              { paddingBottom: insets.bottom + 20 }
+              { paddingTop: insets.top + 10 }
             ]}
           >
-            {/* DRAG HANDLE */}
-            <View style={styles.dragHandle} />
-
             {/* HEADER */}
             <View style={styles.header}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.title}>Add New Product</Text>
-                <Text style={styles.subtitle}>Fill in details to expand your catalog</Text>
+                <Text style={styles.title}>{t.title}</Text>
+                <Text style={styles.subtitle}>{t.subtitle}</Text>
               </View>
               <TouchableOpacity 
                 onPress={onClose} 
                 style={styles.closeCircle}
               >
-                <Ionicons name="close" size={20} color="#64748b" />
+                <Ionicons name="close" size={22} color="#1e293b" />
               </TouchableOpacity>
             </View>
 
-            {/* FORM SECTION - Important: Use flexGrow: 1 */}
+            {/* FORM SECTION */}
             <ScrollView 
                showsVerticalScrollIndicator={false}
                contentContainerStyle={styles.formContent}
@@ -80,6 +85,9 @@ export default function AddProductModal({
                 }}
               />
             </ScrollView>
+
+            {/* BOTTOM HANDLE (Visual cue for Top-to-Bottom sheets) */}
+            <View style={styles.dragHandle} />
           </View>
         </KeyboardAvoidingView>
       </View>
@@ -91,27 +99,24 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.6)",
-    justifyContent: "flex-end", // Firmly anchors to bottom
+    justifyContent: "flex-start", // Pins sheet to the top
   },
   keyboardView: {
     width: "100%",
-    justifyContent: "flex-end",
   },
   sheet: {
     backgroundColor: "#fff",
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    borderBottomLeftRadius: 32, // Curved at the bottom
+    borderBottomRightRadius: 32,
     paddingHorizontal: 20,
-    paddingTop: 12,
-    // Set a dynamic height so it doesn't float in the middle
-    maxHeight: "90%", 
-    minHeight: "50%",
+    maxHeight: "92%", 
     width: "100%",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
     elevation: 24,
+    paddingBottom: 15,
   },
   dragHandle: {
     width: 40,
@@ -119,31 +124,35 @@ const styles = StyleSheet.create({
     backgroundColor: "#e2e8f0",
     borderRadius: 10,
     alignSelf: "center",
-    marginBottom: 20,
+    marginTop: 10,
+    marginBottom: 5,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
     marginBottom: 20,
+    marginTop: 5,
   },
   title: {
     fontSize: 22,
-    fontWeight: "800",
-    color: "#1e293b",
+    fontWeight: "900", // Extra bold for branding
+    color: "#1e3a8a", // Theme Blue
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 13,
     color: "#64748b",
     marginTop: 2,
+    fontWeight: "600",
   },
   closeCircle: {
     backgroundColor: "#f1f5f9",
-    padding: 6,
-    borderRadius: 20,
+    padding: 8,
+    borderRadius: 25,
   },
   formContent: {
-    paddingBottom: 40, // More space at the bottom for scrolling
+    paddingBottom: 20,
     flexGrow: 1,
-  }
+  },
 });

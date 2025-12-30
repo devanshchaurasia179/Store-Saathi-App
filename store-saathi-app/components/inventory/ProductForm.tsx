@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -11,8 +11,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+/* 🛠 API & UTILS */
 import { createProduct, updateProduct } from "../../constants/inventory.api";
 import { generateBarcode } from "../../utils/generateBarcode";
+
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_PRODUCT_FORM } from "../../constants/language_inventory";
+import { useLanguage } from "../../providers/LanguageProvider";
 
 const DEFAULT_FORM = {
   name: "",
@@ -33,6 +38,9 @@ type Props = {
 };
 
 export default function ProductForm({ onSuccess, initialData }: Props) {
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_PRODUCT_FORM[language] || LANGUAGE_TEXT_PRODUCT_FORM.en;
+
   const [form, setForm] = useState(DEFAULT_FORM);
   const [showMore, setShowMore] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -64,7 +72,7 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
 
   const handleSubmit = async () => {
     if (!form.name || !form.price.sellingPrice) {
-      Alert.alert("Required Fields", "Product Name and Selling Price cannot be empty.");
+      Alert.alert(t.requiredFields, t.requiredMsg);
       return;
     }
 
@@ -85,7 +93,10 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
       }
       onSuccess?.();
     } catch (e: any) {
-      Alert.alert("Error", e?.response?.status === 409 ? "Barcode already exists." : "Failed to save product.");
+      Alert.alert(
+        t.errorTitle || "Error", 
+        e?.response?.status === 409 ? t.errorBarcode : t.errorSave
+      );
     } finally {
       setLoading(false);
     }
@@ -96,32 +107,32 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
       {/* BASIC INFO SECTION */}
       <View style={styles.card}>
         <Field
-          label="Product Name"
+          label={t.productName}
           icon="cart-outline"
           value={form.name}
-          placeholder="e.g. Amul Gold Milk 1L"
-          onChange={(v) => update("name", v)}
+          placeholder={t.namePlace}
+          onChange={(v: string) => update("name", v)}
         />
 
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
             <Field
-              label="Selling Price"
+              label={t.sellingPrice}
               icon="cash-outline"
               value={String(form.price.sellingPrice)}
               keyboard="numeric"
               placeholder="0.00"
-              onChange={(v) => update("price", { sellingPrice: v })}
+              onChange={(v: string) => update("price", { sellingPrice: v })}
             />
           </View>
           <View style={{ flex: 1 }}>
             <Field
-              label="Opening Stock"
+              label={t.openingStock}
               icon="layers-outline"
               value={String(form.quantity)}
               keyboard="numeric"
               placeholder="0"
-              onChange={(v) => update("quantity", v)}
+              onChange={(v: string) => update("quantity", v)}
             />
           </View>
         </View>
@@ -129,7 +140,7 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
 
       {/* BARCODE SECTION */}
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Identification</Text>
+        <Text style={styles.sectionTitle}>{t.identification}</Text>
         <View style={styles.barcodeWrapper}>
           <View style={[styles.inputContainer, { flex: 1, marginBottom: 0 }, initialData && styles.disabledInput]}>
             <Ionicons name="barcode-outline" size={20} color="#94a3b8" />
@@ -137,7 +148,7 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
               value={form.barcode}
               editable={!initialData}
               style={styles.input}
-              placeholder="Barcode"
+              placeholder={t.barcode}
             />
           </View>
           {!initialData && (
@@ -151,7 +162,7 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
         </View>
         
         <View style={styles.toggleRow}>
-          <Text style={styles.toggleLabel}>Print barcode on labels</Text>
+          <Text style={styles.toggleLabel}>{t.printBarcode}</Text>
           <Switch
             value={form.isBarcodeListed}
             onValueChange={(v) => update("isBarcodeListed", v)}
@@ -161,40 +172,40 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
         </View>
       </View>
 
-      {/* ADDITIONAL DETAILS */}
+      {/* ADDITIONAL DETAILS TOGGLE */}
       <TouchableOpacity 
         style={styles.moreHeader} 
         onPress={() => setShowMore(!showMore)}
       >
-        <Text style={styles.moreTitle}>Additional Details</Text>
+        <Text style={styles.moreTitle}>{t.additionalDetails}</Text>
         <Ionicons name={showMore ? "chevron-up" : "chevron-down"} size={20} color="#2563eb" />
       </TouchableOpacity>
 
       {showMore && (
         <View style={styles.card}>
           <Field
-            label="Category"
+            label={t.category}
             icon="grid-outline"
             value={form.category}
-            placeholder="e.g. Dairy"
-            onChange={(v) => update("category", v)}
+            placeholder={t.catPlace}
+            onChange={(v: string) => update("category", v)}
           />
           <Field
-            label="Size / Variant"
+            label={t.sizeVariant}
             icon="resize-outline"
             value={form.size}
-            placeholder="e.g. 500g, Large, XL"
-            onChange={(v) => update("size", v)}
+            placeholder={t.sizePlace}
+            onChange={(v: string) => update("size", v)}
           />
           <Toggle
-            label="Enable Stock Tracking"
+            label={t.enableTracking}
             value={form.isTrackable}
-            onChange={(v) => update("isTrackable", v)}
+            onChange={(v: boolean) => update("isTrackable", v)}
           />
         </View>
       )}
 
-      {/* SUBMIT */}
+      {/* SUBMIT BUTTON */}
       <TouchableOpacity
         onPress={handleSubmit}
         disabled={loading}
@@ -204,7 +215,7 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
           <ActivityIndicator color="#fff" />
         ) : (
           <Text style={styles.submitText}>
-            {initialData ? "Update Product" : "Save Product"}
+            {initialData ? t.updateProduct : t.saveProduct}
           </Text>
         )}
       </TouchableOpacity>
@@ -247,20 +258,25 @@ const styles = StyleSheet.create({
   container: { paddingBottom: 20 },
   card: {
     backgroundColor: "#fff",
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: "#f1f5f9",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
   },
   row: { flexDirection: "row", gap: 12 },
   fieldContainer: { marginBottom: 16 },
   label: { 
     fontSize: 13, 
-    fontWeight: "700", 
-    color: "#64748b", 
+    fontWeight: "800", 
+    color: "#475569", 
     marginBottom: 8,
-    marginLeft: 4
+    marginLeft: 4,
+    textTransform: 'uppercase'
   },
   inputContainer: {
     flexDirection: "row",
@@ -268,7 +284,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8fafc",
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 12,
     height: 52,
   },
@@ -281,12 +297,12 @@ const styles = StyleSheet.create({
   },
   disabledInput: { backgroundColor: "#f1f5f9" },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#1e293b",
+    fontSize: 12,
+    fontWeight: "900",
+    color: "#94a3b8",
     marginBottom: 12,
     textTransform: "uppercase",
-    letterSpacing: 0.5
+    letterSpacing: 1
   },
   barcodeWrapper: { 
     flexDirection: "row", 
@@ -295,10 +311,10 @@ const styles = StyleSheet.create({
     alignItems: "center" 
   },
   regenBtn: {
-    backgroundColor: "#2563eb",
+    backgroundColor: "#1e3a8a",
     height: 52,
     width: 52,
-    borderRadius: 12,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -308,7 +324,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 4,
   },
-  toggleLabel: { fontSize: 14, fontWeight: "600", color: "#475569" },
+  toggleLabel: { fontSize: 14, fontWeight: "700", color: "#334155" },
   moreHeader: {
     flexDirection: "row",
     justifyContent: "center",
@@ -317,20 +333,20 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 10,
   },
-  moreTitle: { color: "#2563eb", fontWeight: "700", fontSize: 14 },
+  moreTitle: { color: "#2563eb", fontWeight: "800", fontSize: 14 },
   submit: {
-    backgroundColor: "#2563eb",
-    height: 56,
-    borderRadius: 16,
+    backgroundColor: "#1e3a8a",
+    height: 58,
+    borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
     marginTop: 10,
-    shadowColor: "#2563eb",
+    shadowColor: "#1e3a8a",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  submitDisabled: { backgroundColor: "#93c5fd" },
-  submitText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  submitDisabled: { backgroundColor: "#94a3b8" },
+  submitText: { color: "#fff", fontWeight: "900", fontSize: 16, letterSpacing: 0.5 },
 });

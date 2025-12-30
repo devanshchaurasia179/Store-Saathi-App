@@ -1,7 +1,12 @@
+import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_INVENTORY_HEADER } from "../../constants/language_inventory";
+import { useLanguage } from "../../providers/LanguageProvider";
 
 type Props = {
   onAddProduct: () => void;
@@ -15,12 +20,15 @@ export default function InventoryHeader({
   onBack,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_INVENTORY_HEADER[language] || LANGUAGE_TEXT_INVENTORY_HEADER.en;
 
   return (
     <View
       style={[
         styles.container,
-        { paddingTop: insets.top + 12 },
+        // Reduced from +12 to +4 for a tighter top fit
+        { paddingTop: insets.top + 4 },
       ]}
     >
       {/* Top Navigation Row */}
@@ -28,18 +36,16 @@ export default function InventoryHeader({
         <TouchableOpacity
           style={styles.backBtn}
           onPress={onBack ?? (() => router.back())}
+          activeOpacity={0.7}
           hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
         >
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
 
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>Inventory</Text>
-          <Text style={styles.subtitle}>Manage stock & prices easily</Text>
+          <Text style={styles.title}>{t.title}</Text>
+          <Text style={styles.subtitle}>{t.subtitle}</Text>
         </View>
-
-        {/* Empty view for flex balancing to keep title centered */}
-        <View style={{ width: 40 }} />
       </View>
 
       {/* Quick Action Buttons */}
@@ -50,8 +56,10 @@ export default function InventoryHeader({
             onPress={onAddProduct}
             activeOpacity={0.8}
           >
-            <Ionicons name="add-circle" size={18} color="#2563eb" />
-            <Text style={styles.whiteText}>Add Product</Text>
+            <View style={styles.iconCircleBlue}>
+              <Ionicons name="add" size={20} color="#2563eb" />
+            </View>
+            <Text style={styles.whiteText}>{t.addProduct}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -59,8 +67,10 @@ export default function InventoryHeader({
             onPress={onQuickEntry}
             activeOpacity={0.8}
           >
-            <Ionicons name="flash" size={18} color="#fff" />
-            <Text style={styles.blueText}>Quick Entry</Text>
+            <View style={styles.iconCircleLight}>
+              <Ionicons name="flash" size={16} color="#fff" />
+            </View>
+            <Text style={styles.blueText}>{t.quickEntry}</Text>
           </TouchableOpacity>
         </View>
 
@@ -70,7 +80,7 @@ export default function InventoryHeader({
           activeOpacity={0.8}
         >
           <Ionicons name="barcode-outline" size={20} color="#fff" />
-          <Text style={styles.blueText}>Generate Barcode Sheet</Text>
+          <Text style={styles.blueText}>{t.barcodeSheet}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -79,28 +89,38 @@ export default function InventoryHeader({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#1e3a8a", // Blue-600 theme
-    paddingBottom: 28,
+    backgroundColor: "#1e3a8a", 
+    // Reduced paddingBottom from 30 to 20
+    paddingBottom: 20,
     paddingHorizontal: 16,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    elevation: 8,
+    // Slightly smaller radius for more content space
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    elevation: 12,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    zIndex: 10,
   },
   navRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 20,
+    // Reduced marginBottom from 24 to 12
+    marginBottom: 12,
   },
   backBtn: {
+    width: 40, // Reduced from 44
+    height: 40, // Reduced from 44
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  searchIconBtn: {
     width: 40,
     height: 40,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -110,65 +130,85 @@ const styles = StyleSheet.create({
   },
   title: {
     color: "#fff",
-    fontSize: 20,
+    fontSize: 18, // Reduced from 22
     fontWeight: "900",
     letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
   subtitle: {
     color: "#bfdbfe",
-    fontSize: 12,
-    marginTop: 2,
-    fontWeight: "500",
+    fontSize: 12, // Reduced from 13
+    marginTop: 0, // Reduced from 2
+    fontWeight: "600",
+    opacity: 0.9,
   },
   actions: {
-    gap: 12,
+    gap: 8, // Reduced from 12
   },
   buttonRow: {
     flexDirection: "row",
-    gap: 12,
+    gap: 10, // Reduced from 12
   },
   whiteBtn: {
     flex: 1,
     backgroundColor: "#fff",
-    borderRadius: 16,
-    paddingVertical: 14,
+    borderRadius: 16, // Reduced from 20
+    paddingVertical: 10, // Reduced from 14
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
-    elevation: 2,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+  },
+  iconCircleBlue: {
+    width: 24, // Reduced from 28
+    height: 24, // Reduced from 28
+    borderRadius: 12,
+    backgroundColor: "#eff6ff",
+    justifyContent: "center",
+    alignItems: "center",
   },
   blueBtn: {
     flex: 1,
-    backgroundColor: "#1e40af", // Slightly darker blue for contrast
-    borderRadius: 16,
-    paddingVertical: 14,
+    backgroundColor: "#1d4ed8", 
+    borderRadius: 16, // Reduced from 20
+    paddingVertical: 10, // Reduced from 14
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.2)",
+    borderColor: "rgba(255, 255, 255, 0.15)",
+  },
+  iconCircleLight: {
+    width: 24, // Reduced from 28
+    height: 24, // Reduced from 28
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   darkBtn: {
-    backgroundColor: "rgba(0, 0, 0, 0.15)", // Translucent dark
-    borderRadius: 16,
-    paddingVertical: 14,
+    backgroundColor: "rgba(0, 0, 0, 0.2)", 
+    borderRadius: 16, // Reduced from 20
+    paddingVertical: 12, // Reduced from 15
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     gap: 10,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: "rgba(255, 255, 255, 0.08)",
   },
   whiteText: {
-    color: "#2563eb",
+    color: "#1e3a8a",
     fontWeight: "800",
-    fontSize: 14,
+    fontSize: 13, // Reduced from 14
   },
   blueText: {
     color: "#fff",
     fontWeight: "800",
-    fontSize: 14,
+    fontSize: 13, // Reduced from 14
   },
 });
