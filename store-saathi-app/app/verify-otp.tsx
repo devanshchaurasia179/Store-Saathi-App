@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   StyleSheet,
   Image,
@@ -14,6 +13,7 @@ import {
   Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+// Correct Library Import
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
@@ -36,47 +36,45 @@ export default function VerifyOtpPage() {
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
 
-const handleVerifyOtp = async () => {
-  if (!otp || otp.length !== 6) {
-    Toast.show({
-      type: "error",
-      text1: text.invalidOtp,
-    });
-    return;
-  }
-
-  try {
-    setLoading(true);
-    const res = await verifyOtp(mobileNumber!, otp);
-
-    if (res?.data?.success) {
+  const handleVerifyOtp = async () => {
+    if (!otp || otp.length !== 6) {
       Toast.show({
-        type: "success",
-        text1: text.loginSuccess,
+        type: "error",
+        text1: text.invalidOtp,
       });
-
-      await login();
-      router.replace("/dashboard");
+      return;
     }
-  } catch (error: any) {
-    // ✅ BACKEND-FIRST ERROR MESSAGE
-    const backendMessage =
-      error?.response?.data?.message ||
-      error?.response?.data?.error ||
-      text.somethingWentWrong;
 
-    Toast.show({
-      type: "error",
-      text1: backendMessage,
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      setLoading(true);
+      const res = await verifyOtp(mobileNumber!, otp);
 
+      if (res?.data?.success) {
+        Toast.show({
+          type: "success",
+          text1: text.loginSuccess,
+        });
+
+        await login();
+        router.replace("/dashboard");
+      }
+    } catch (error: any) {
+      const backendMessage =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        text.somethingWentWrong;
+
+      Toast.show({
+        type: "error",
+        text1: backendMessage,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
@@ -85,11 +83,12 @@ const handleVerifyOtp = async () => {
           contentContainerStyle={styles.scrollContent}
           bounces={false}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Top Section */}
           <View style={styles.topSection}>
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-              <Ionicons name="arrow-back" size={20} color="#2b62f1" />
+              <Ionicons name="arrow-back" size={20} color="#1E3A8A" />
               <Text style={styles.backText}>{text.back || "Back"}</Text>
             </TouchableOpacity>
 
@@ -99,7 +98,7 @@ const handleVerifyOtp = async () => {
 
             <View style={styles.imageContainer}>
               <Image
-                source={require("../assets/images/login.png")} // Use OTP illustration if you have one
+                source={require("../assets/images/login.png")} 
                 style={styles.illustration}
                 resizeMode="contain"
               />
@@ -131,8 +130,8 @@ const handleVerifyOtp = async () => {
                 value={otp}
                 onChangeText={setOtp}
                 style={styles.otpInput}
-                placeholderTextColor="#999"
-                letterSpacing={10}
+                placeholderTextColor="#94A3B8"
+                letterSpacing={Platform.OS === 'ios' ? 10 : 5}
               />
             </View>
 
@@ -148,7 +147,7 @@ const handleVerifyOtp = async () => {
               )}
             </TouchableOpacity>
 
-            <View style={{ flex: 1, minHeight: 40 }} />
+            <View style={{ height: 40 }} />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -159,13 +158,13 @@ const handleVerifyOtp = async () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f0f7ff",
+    backgroundColor: "#F8FAFC",
   },
   scrollContent: {
     flexGrow: 1,
   },
   topSection: {
-    backgroundColor: "#f0f7ff",
+    backgroundColor: "#F8FAFC",
   },
   backButton: {
     flexDirection: "row",
@@ -174,7 +173,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   backText: {
-    color: "#2b62f1",
+    color: "#1E3A8A",
     fontSize: 16,
     fontWeight: "600",
     marginLeft: 4,
@@ -199,16 +198,17 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 35,
     borderTopRightRadius: 35,
     padding: 24,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
+    shadowOffset: { width: 0, height: -10 },
     shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowRadius: 15,
+    elevation: 10,
   },
   cardTitle: {
     fontSize: 22,
-    fontWeight: "700",
-    color: "#001a33",
+    fontWeight: "800",
+    color: "#334155",
     textAlign: "center",
     marginBottom: 20,
   },
@@ -220,56 +220,63 @@ const styles = StyleSheet.create({
   line: {
     flex: 1,
     height: 1,
-    backgroundColor: "#eee",
+    backgroundColor: "#E2E8F0",
   },
   secureText: {
     marginHorizontal: 10,
     fontSize: 12,
     fontWeight: "bold",
-    color: "#778899",
+    color: "#94A3B8",
     letterSpacing: 1,
   },
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 12,
   },
   label: {
     fontSize: 12,
     fontWeight: "bold",
-    color: "#2b62f1",
+    color: "#1E3A8A",
   },
   changeNumberText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "bold",
-    color: "#e63946", // Distinct color for the edit action
+    color: "#EF4444", 
     textDecorationLine: "underline",
   },
   inputContainer: {
-    backgroundColor: "#f8f9fb",
-    borderRadius: 12,
-    height: 55,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 14,
+    height: 60,
     justifyContent: "center",
     marginBottom: 30,
     paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   otpInput: {
-    fontSize: 20,
-    color: "#333",
+    fontSize: 22,
+    color: "#1E293B",
     textAlign: "center",
     fontWeight: "bold",
   },
   button: {
-    backgroundColor: "#1e4de4",
-    borderRadius: 12,
-    height: 55,
+    backgroundColor: "#1E3A8A",
+    borderRadius: 14,
+    height: 60,
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#1E3A8A",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 5,
   },
   buttonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "700",
     letterSpacing: 0.5,
   },

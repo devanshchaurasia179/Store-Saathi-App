@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
     color: "#6b7280", // gray-500
   },
   brandBlue: {
-    color: "#2563eb", // blue-600
+    color: "#1E3A8A", // blue-600
   },
   subText: {
     marginTop: 6,

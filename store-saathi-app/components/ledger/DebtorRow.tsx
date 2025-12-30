@@ -3,13 +3,22 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
+/* 🛠 UTILS */
 import { formatRupee } from "../../utils/formatCurrency";
 import { sendWhatsAppMessage } from "../../utils/whatsapp";
 import { callCustomer } from "../../utils/call";
 
-export default function DebtorRow({ customer }: any) {
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_DEBTOR_ROW } from "../../constants/language";
+import { useLanguage } from "../../providers/LanguageProvider";
+
+export default function DebtorRow({ customer, shopName = "Our Store" }: any) {
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_DEBTOR_ROW[language] || LANGUAGE_TEXT_DEBTOR_ROW.en;
+
   const isCredit = customer.totalPending <= 0;
   const amount = Math.abs(customer.totalPending);
+  const formattedAmount = formatRupee(amount);
 
   const isValidMobile =
     customer.mobileNumber && customer.mobileNumber.length >= 10;
@@ -21,9 +30,11 @@ export default function DebtorRow({ customer }: any) {
   return (
     <View style={styles.container}>
       {/* MAIN ROW */}
-      <TouchableOpacity style={styles.row} onPress={goToLedger}>
-        <View>
-          <Text style={styles.name}>{customer.name}</Text>
+      <TouchableOpacity style={styles.row} onPress={goToLedger} activeOpacity={0.7}>
+        <View style={styles.infoCol}>
+          <Text style={styles.name} numberOfLines={1}>
+            {customer.name}
+          </Text>
           <Text
             style={[
               styles.amount,
@@ -31,104 +42,119 @@ export default function DebtorRow({ customer }: any) {
             ]}
           >
             {isCredit ? "+" : ""}
-            {formatRupee(amount)}
+            {formattedAmount}
           </Text>
         </View>
 
         <View style={styles.actions}>
-          {/* WhatsApp */}
+          {/* WhatsApp Button */}
           <TouchableOpacity
             disabled={!isValidMobile}
             onPress={() =>
               sendWhatsAppMessage(
                 customer.mobileNumber,
-                `Pending amount: ${formatRupee(amount)}`
+                t.whatsappMsg(customer.name, formattedAmount, shopName)
               )
             }
             style={[
               styles.iconBtn,
               {
-                backgroundColor: isValidMobile ? "#dcfce7" : "#e5e7eb",
+                backgroundColor: isValidMobile ? "#dcfce7" : "#f1f5f9",
               },
             ]}
           >
             <Ionicons
               name="logo-whatsapp"
               size={18}
-              color={isValidMobile ? "#16a34a" : "#9ca3af"}
+              color={isValidMobile ? "#16a34a" : "#cbd5e1"}
             />
           </TouchableOpacity>
 
-          {/* Call */}
+          {/* Call Button */}
           <TouchableOpacity
             disabled={!isValidMobile}
             onPress={() => callCustomer(customer.mobileNumber)}
             style={[
               styles.iconBtn,
               {
-                backgroundColor: isValidMobile ? "#dbeafe" : "#e5e7eb",
+                backgroundColor: isValidMobile ? "#dbeafe" : "#f1f5f9",
               },
             ]}
           >
             <Ionicons
               name="call-outline"
               size={18}
-              color={isValidMobile ? "#2563eb" : "#9ca3af"}
+              color={isValidMobile ? "#2563eb" : "#cbd5e1"}
             />
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
 
-      {/* VIEW FULL LEDGER */}
-      <TouchableOpacity onPress={goToLedger} style={styles.viewLedger}>
-        <Text style={styles.viewLedgerText}>View full ledger →</Text>
+      {/* VIEW FULL LEDGER LINK */}
+      <TouchableOpacity onPress={goToLedger} style={styles.viewLedger} activeOpacity={0.5}>
+        <Text style={styles.viewLedgerText}>{t.viewLedger} →</Text>
       </TouchableOpacity>
     </View>
   );
 }
+
 const styles = StyleSheet.create({
   container: {
     marginHorizontal: 12,
     marginVertical: 6,
     backgroundColor: "#fff",
-    borderRadius: 14,
-    paddingVertical: 6,
+    borderRadius: 16,
+    paddingVertical: 8,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
   },
   row: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 10,
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
+  },
+  infoCol: {
+    flex: 1,
+    paddingRight: 10,
   },
   name: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "600",
     color: "#1e293b",
   },
   amount: {
     marginTop: 2,
+    fontSize: 15,
     fontWeight: "700",
   },
   actions: {
     flexDirection: "row",
-    gap: 8,
+    gap: 10,
   },
   iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
   },
   viewLedger: {
     marginTop: 4,
     alignItems: "center",
-    paddingVertical: 6,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#f8fafc",
   },
   viewLedgerText: {
-    fontSize: 12,
+    fontSize: 13,
     color: "#2563eb",
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });
-

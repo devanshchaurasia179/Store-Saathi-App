@@ -1,14 +1,25 @@
+import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+
+/* 🛠 UTILS */
 import { formatRupee } from "../../utils/formatCurrency";
 import { formatTime } from "../../utils/formatTime";
-import { Ionicons } from "@expo/vector-icons";
+
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_LEDGER_CHAT } from "../../constants/language";
+import { useLanguage } from "../../providers/LanguageProvider";
 
 export default function LedgerChatBubble({
   entry,
   onViewBill,
 }: any) {
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_LEDGER_CHAT[language] || LANGUAGE_TEXT_LEDGER_CHAT.en;
+
   const isDebit = entry.type === "DEBIT";
 
+  // Debit (You Gave) aligns to the Right, Credit (You Got) to the Left
   const alignment = isDebit ? "flex-end" : "flex-start";
   const isGreen = !isDebit;
 
@@ -28,7 +39,7 @@ export default function LedgerChatBubble({
               { color: isGreen ? "#15803d" : "#991b1b" },
             ]}
           >
-            {isGreen ? "YOU GOT" : "YOU GAVE"}
+            {isGreen ? t.youGot : t.youGave}
           </Text>
 
           <Ionicons
@@ -50,13 +61,18 @@ export default function LedgerChatBubble({
         </Text>
 
         {/* NOTE */}
-        {entry.note && <Text style={styles.note}>{entry.note}</Text>}
+        {entry.note && (
+          <Text style={styles.note} numberOfLines={3}>
+            {entry.note}
+          </Text>
+        )}
 
-        {/* VIEW BILL */}
+        {/* VIEW BILL BUTTON */}
         {entry.billId && (
           <TouchableOpacity
             style={styles.billBtn}
             onPress={() => onViewBill(entry.billId)}
+            activeOpacity={0.7}
           >
             <View style={styles.billBadge}>
               <Ionicons
@@ -64,12 +80,12 @@ export default function LedgerChatBubble({
                 size={14}
                 color="#374151"
               />
-              <Text style={styles.billText}>View Full Bill</Text>
+              <Text style={styles.billText}>{t.viewBill}</Text>
             </View>
           </TouchableOpacity>
         )}
 
-        {/* TIME */}
+        {/* TIME STAMP */}
         <Text style={styles.time}>
           {formatTime(entry.createdAt)}
         </Text>
@@ -78,12 +94,12 @@ export default function LedgerChatBubble({
   );
 }
 
-
 const styles = StyleSheet.create({
   wrapper: {
     flexDirection: "row",
     marginVertical: 8,
     width: "100%",
+    paddingHorizontal: 10,
   },
   bubble: {
     maxWidth: "78%",
@@ -111,7 +127,7 @@ const styles = StyleSheet.create({
   },
   typeLabel: {
     fontSize: 10,
-    fontWeight: "800",
+    fontWeight: "900",
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
@@ -132,7 +148,7 @@ const styles = StyleSheet.create({
   billBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#ffffff",
+    backgroundColor: "rgba(255,255,255,0.7)", // Semi-transparent white
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 10,
@@ -142,13 +158,13 @@ const styles = StyleSheet.create({
   billText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#555353ff",
+    color: "#374151",
   },
   time: {
     fontSize: 10,
     color: "#64748b",
     textAlign: "right",
     marginTop: 8,
-    fontWeight: "500",
+    fontWeight: "600",
   },
 });

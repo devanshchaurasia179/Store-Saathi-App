@@ -57,6 +57,6 @@ const styles = StyleSheet.create({
     color: "#707070", // Greyish color from image
   },
   saathiText: {
-    color: "#3b71f3", // The bright blue color from image
+    color: "#1E3A8A", // The bright blue color from image
   },
 });

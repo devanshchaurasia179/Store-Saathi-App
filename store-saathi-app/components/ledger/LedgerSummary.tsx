@@ -1,6 +1,12 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+
+/* 🛠 UTILS */
 import { formatRupee } from "../../utils/formatCurrency";
+
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_LEDGER_SUMMARY } from "../../constants/language";
+import { useLanguage } from "../../providers/LanguageProvider";
 
 interface Props {
   youGet: number;
@@ -8,21 +14,27 @@ interface Props {
 }
 
 export default function LedgerSummary({ youGet, youGive }: Props) {
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_LEDGER_SUMMARY[language] || LANGUAGE_TEXT_LEDGER_SUMMARY.en;
+
   return (
     <View style={styles.wrapper}>
       <View style={styles.card}>
-        {/* YOU GET */}
+        {/* YOU GET SECTION */}
         <View style={[styles.block, styles.getBlock]}>
-          <Text style={styles.labelGet}>You will get</Text>
-          <Text style={styles.amountGet}>
+          <Text style={styles.labelGet}>{t.youGet}</Text>
+          <Text style={styles.amountGet} numberOfLines={1} adjustsFontSizeToFit>
             {formatRupee(youGet)}
           </Text>
         </View>
 
-        {/* YOU GIVE */}
+        {/* VERTICAL DIVIDER */}
+        <View style={styles.divider} />
+
+        {/* YOU GIVE SECTION */}
         <View style={[styles.block, styles.giveBlock]}>
-          <Text style={styles.labelGive}>You will give</Text>
-          <Text style={styles.amountGive}>
+          <Text style={styles.labelGive}>{t.youGive}</Text>
+          <Text style={styles.amountGive} numberOfLines={1} adjustsFontSizeToFit>
             {formatRupee(youGive)}
           </Text>
         </View>
@@ -33,52 +45,65 @@ export default function LedgerSummary({ youGet, youGive }: Props) {
 
 const styles = StyleSheet.create({
   wrapper: {
-    marginTop: -70,
-    paddingHorizontal: 12,
+    marginTop: -55, // Adjusted to sit perfectly on the curved header
+    paddingHorizontal: 16,
     zIndex: 10,
   },
   card: {
     backgroundColor: "#fff",
-    borderRadius: 20,
+    borderRadius: 24,
     overflow: "hidden",
     flexDirection: "row",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
+    alignItems: "center",
+    elevation: 8,
+    shadowColor: "#1e3a8a",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
   },
   block: {
     flex: 1,
-    paddingVertical: 18,
+    paddingVertical: 22,
     alignItems: "center",
+    justifyContent: "center",
   },
   getBlock: {
-    backgroundColor: "#ecfdf5",
+    backgroundColor: "#f0fdf4", // Very light emerald
   },
   giveBlock: {
-    backgroundColor: "#fef2f2",
+    backgroundColor: "#fef2f2", // Very light rose
+  },
+  divider: {
+    width: 1,
+    height: "60%",
+    backgroundColor: "#e2e8f0",
   },
   labelGet: {
-    fontSize: 12,
-    color: "#047857",
-    fontWeight: "600",
+    fontSize: 11,
+    color: "#15803d",
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   labelGive: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#b91c1c",
-    fontWeight: "600",
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   amountGet: {
-    marginTop: 4,
-    fontSize: 22,
-    fontWeight: "800",
+    marginTop: 6,
+    fontSize: 24,
+    fontWeight: "900",
     color: "#16a34a",
   },
   amountGive: {
-    marginTop: 4,
-    fontSize: 22,
-    fontWeight: "800",
+    marginTop: 6,
+    fontSize: 24,
+    fontWeight: "900",
     color: "#dc2626",
   },
 });

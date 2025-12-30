@@ -31,15 +31,6 @@ const shopSchema = new mongoose.Schema(
 
     storeCategory: {
       type: String,
-      enum: [
-        "Kirana",
-        "General Store",
-        "Medical",
-        "Bakery",
-        "Paan shop",
-        "Stationery",
-        "Other",
-      ],
       default: "Kirana",
     },
 

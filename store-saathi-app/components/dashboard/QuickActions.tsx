@@ -1,30 +1,45 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Linking } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_QUICK_ACTIONS } from "../../constants/language";
+import { useLanguage } from "../../providers/LanguageProvider";
+
 export default function QuickActions() {
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_QUICK_ACTIONS[language] || LANGUAGE_TEXT_QUICK_ACTIONS.en;
+
+  const handleSupport = () => {
+    // Opens the dialer with your support number
+    Linking.openURL("tel:+919015422926");
+  };
+
   const actions = [
     {
-      title: "Inventory",
+      title: t.inventory,
       icon: "cube-outline",
       Icon: Ionicons,
-      onPress: () => router.push("/inventory"), // ✅ FIXED
+      onPress: () => router.push("/inventory"),
     },
     {
-      title: "Ledger",
+      title: t.ledger,
       icon: "account-group-outline",
       Icon: MaterialCommunityIcons,
       onPress: () => router.push("/ledger"),
     },
     {
-      title: "Analytics",
+      title: t.analytics,
       icon: "bar-chart-outline",
       Icon: Ionicons,
-      onPress: () => {
-        router.push("/analytics")
-        // wire later
-      },
+      onPress: () => router.push("/analytics"),
+    },
+    {
+      title: t.support,
+      icon: "headset-outline",
+      Icon: Ionicons,
+      onPress: handleSupport,
     },
   ];
 
@@ -40,11 +55,11 @@ export default function QuickActions() {
           <View style={styles.iconWrapper}>
             <action.Icon
               name={action.icon as any}
-              size={26}
+              size={24} // Adjusted size slightly to fit 4 items
               color="#1e4de4"
             />
           </View>
-          <Text style={styles.actionTitle}>
+          <Text style={styles.actionTitle} numberOfLines={1}>
             {action.title}
           </Text>
         </TouchableOpacity>
@@ -53,17 +68,15 @@ export default function QuickActions() {
   );
 }
 
-
-
 const styles = StyleSheet.create({
   container: {
     backgroundColor: "#fff",
     marginHorizontal: 12,
-    padding: 16,
+    padding: 12, // Slightly reduced padding for 4 items
     borderRadius: 16,
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 8, // Tighter gap for better fit
     elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -74,17 +87,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8f9fb",
     borderRadius: 14,
-    paddingVertical: 18,
+    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
   },
   iconWrapper: {
-    marginBottom: 8,
-    height: 32,
+    marginBottom: 6,
+    height: 28,
     justifyContent: "center",
   },
   actionTitle: {
-    fontSize: 14,
+    fontSize: 11, // Reduced font size to ensure text doesn't overflow on small screens
     fontWeight: "700",
     color: "#444",
   },

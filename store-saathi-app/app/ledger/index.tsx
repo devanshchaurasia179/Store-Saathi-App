@@ -18,9 +18,15 @@ import DebtorRow from "../../components/ledger/DebtorRow";
 import AddCustomerModal from "../../components/ledger/AddCustomerModal";
 import PageLoader from "../../components/PageLoader";
 
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_LEDGER_LIST } from "../../constants/language";
+import { useLanguage } from "../../providers/LanguageProvider";
+
 export default function LedgerListScreen() {
   const { customers, loading, refresh } = useLedgerCustomers();
   const insets = useSafeAreaInsets();
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_LEDGER_LIST[language] || LANGUAGE_TEXT_LEDGER_LIST.en;
 
   const [viewType, setViewType] = useState<"CUSTOMER" | "SUPPLIER">("CUSTOMER");
   const [search, setSearch] = useState("");
@@ -69,27 +75,31 @@ export default function LedgerListScreen() {
       <LedgerHeader />
       <LedgerSummary youGet={youGet} youGive={youGive} />
 
-      {/* SEGMENTED TOGGLE (Blue-600 Focus) */}
+      {/* SEGMENTED TOGGLE */}
       <View style={styles.toggleRow}>
-        {["CUSTOMER", "SUPPLIER"].map((t) => (
-          <TouchableOpacity
-            key={t}
-            style={[styles.toggleBtn, viewType === t && styles.toggleActive]}
-            onPress={() => setViewType(t as any)}
-          >
-            <Text style={[styles.toggleText, viewType === t && styles.toggleTextActive]}>
-              {t === "CUSTOMER" ? "Customers" : "Suppliers"}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        <TouchableOpacity
+          style={[styles.toggleBtn, viewType === "CUSTOMER" && styles.toggleActive]}
+          onPress={() => setViewType("CUSTOMER")}
+        >
+          <Text style={[styles.toggleText, viewType === "CUSTOMER" && styles.toggleTextActive]}>
+            {t.customers}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.toggleBtn, viewType === "SUPPLIER" && styles.toggleActive]}
+          onPress={() => setViewType("SUPPLIER")}
+        >
+          <Text style={[styles.toggleText, viewType === "SUPPLIER" && styles.toggleTextActive]}>
+            {t.suppliers}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.actionRow}>
-        {/* SEARCH BOX */}
         <View style={styles.searchBox}>
           <Ionicons name="search" size={18} color="#94a3b8" />
           <TextInput
-            placeholder="Search by name or mobile..."
+            placeholder={t.searchPlaceholder}
             placeholderTextColor="#94a3b8"
             value={search}
             onChangeText={setSearch}
@@ -97,19 +107,13 @@ export default function LedgerListScreen() {
           />
         </View>
 
-        {/* SORT PILLS (Blue-600 Theme) */}
         <View style={styles.filterPills}>
           <TouchableOpacity 
             style={[styles.pill, sortType === "DUE" && styles.pillActive]}
             onPress={() => setSortType("DUE")}
           >
-            <Ionicons 
-               name="arrow-down-circle-outline" 
-               size={14} 
-               color={sortType === "DUE" ? "#fff" : "#64748b"} 
-            />
             <Text style={[styles.pillText, sortType === "DUE" && styles.pillTextActive]}>
-              Most Due
+              {t.mostDue}
             </Text>
           </TouchableOpacity>
           
@@ -117,13 +121,8 @@ export default function LedgerListScreen() {
             style={[styles.pill, sortType === "ADVANCE" && styles.pillActive]}
             onPress={() => setSortType("ADVANCE")}
           >
-            <Ionicons 
-               name="arrow-up-circle-outline" 
-               size={14} 
-               color={sortType === "ADVANCE" ? "#fff" : "#64748b"} 
-            />
             <Text style={[styles.pillText, sortType === "ADVANCE" && styles.pillTextActive]}>
-              Most Advance
+              {t.mostAdvance}
             </Text>
           </TouchableOpacity>
         </View>
@@ -142,14 +141,14 @@ export default function LedgerListScreen() {
         showsVerticalScrollIndicator={false}
       />
 
-      {/* THEME FAB (Blue-600) */}
+      {/* FAB */}
       <TouchableOpacity
         style={[styles.fab, { bottom: insets.bottom > 0 ? insets.bottom + 10 : 24 }]}
         onPress={() => setShowAdd(true)}
       >
         <Ionicons name="person-add" size={22} color="#fff" />
         <Text style={styles.fabText}>
-          Add {viewType === "CUSTOMER" ? "Customer" : "Supplier"}
+          {t.addBtn(viewType === "SUPPLIER")}
         </Text>
       </TouchableOpacity>
 

@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   StyleSheet,
   Image,
@@ -14,6 +13,7 @@ import {
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
+// Correct Library Import
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
@@ -23,7 +23,7 @@ import { useAuth } from "../providers/AuthProvider";
 import { useLanguage } from "../providers/LanguageProvider";
 import { LANGUAGE_TEXT } from "../constants/language";
 
-const { width, height } = Dimensions.get("window");
+const { width } = Dimensions.get("window");
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,65 +35,65 @@ export default function LoginPage() {
   const [mobileNumber, setMobileNumber] = useState("");
   const [loading, setLoading] = useState(false);
 
-const handleSendOtp = async () => {
-  if (mobileNumber.length !== 10) {
-    Toast.show({
-      type: "error",
-      text1: text.invalidMobile,
-    });
-    return;
-  }
-
-  setLoading(true);
-  try {
-    const res = await sendOtp(mobileNumber);
-
-    if (res?.data?.success) {
+  const handleSendOtp = async () => {
+    if (mobileNumber.length !== 10) {
       Toast.show({
-        type: "success",
-        text1: text.otpSentSuccess,
+        type: "error",
+        text1: text.invalidMobile,
       });
+      return;
+    }
 
-      router.push({
-        pathname: "/verify-otp",
-        params: { mobileNumber },
-      });
-    } else {
+    setLoading(true);
+    try {
+      const res = await sendOtp(mobileNumber);
+      if (res?.data?.success) {
+        Toast.show({
+          type: "success",
+          text1: text.otpSentSuccess,
+        });
+        router.push({
+          pathname: "/verify-otp",
+          params: { mobileNumber },
+        });
+      } else {
+        Toast.show({
+          type: "error",
+          text1: text.somethingWentWrong,
+        });
+      }
+    } catch (error) {
       Toast.show({
         type: "error",
         text1: text.somethingWentWrong,
       });
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    Toast.show({
-      type: "error",
-      text1: text.somethingWentWrong,
-    });
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    // Applied left and right edges to handle horizontal safe areas (like landscape or dynamic island)
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
+        // keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20} // Optional tweak if input is hidden
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           bounces={false}
           showsVerticalScrollIndicator={false}
+          // Important for forms: allows keyboard to dismiss when clicking outside input
+          keyboardShouldPersistTaps="handled"
         >
-          {/* Top Section: Blue background area */}
           <View style={styles.topSection}>
             {!isAuthenticated && (
               <TouchableOpacity
                 style={styles.backButton}
                 onPress={() => router.replace("/")}
               >
-                <Ionicons name="arrow-back" size={20} color="#2b62f1" />
+                <Ionicons name="arrow-back" size={20} color="#1E3A8A" />
                 <Text style={styles.backText}>{text.back || "Back"}</Text>
               </TouchableOpacity>
             )}
@@ -111,7 +111,6 @@ const handleSendOtp = async () => {
             </View>
           </View>
 
-          {/* Login Card: White background area extending to bottom */}
           <View style={styles.loginCard}>
             <Text style={styles.cardTitle}>{text.loginTitle}</Text>
 
@@ -132,7 +131,7 @@ const handleSendOtp = async () => {
                 value={mobileNumber}
                 onChangeText={setMobileNumber}
                 style={styles.input}
-                placeholderTextColor="#999"
+                placeholderTextColor="#94A3B8"
               />
             </View>
 
@@ -148,8 +147,8 @@ const handleSendOtp = async () => {
               )}
             </TouchableOpacity>
 
-            {/* Spacer to ensure the card feels full even on very tall screens */}
-            <View style={{ flex: 1, minHeight: 40 }} />
+            {/* Spacer for better scrolling on small screens */}
+            <View style={{ height: 40 }} />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -160,13 +159,13 @@ const handleSendOtp = async () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f0f7ff",
+    backgroundColor: '#F8FAFC',
   },
   scrollContent: {
     flexGrow: 1,
   },
   topSection: {
-    backgroundColor: "#f0f7ff",
+    backgroundColor: '#F8FAFC',
     paddingBottom: 10,
   },
   backButton: {
@@ -176,7 +175,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   backText: {
-    color: "#2b62f1",
+    color: "#1E3A8A",
     fontSize: 16,
     fontWeight: "600",
     marginLeft: 4,
@@ -197,21 +196,22 @@ const styles = StyleSheet.create({
   },
   loginCard: {
     backgroundColor: "#fff",
-    flex: 1, // Stretches to the bottom of the ScrollView
+    flex: 1,
     borderTopLeftRadius: 35,
     borderTopRightRadius: 35,
     padding: 24,
-    paddingBottom: Platform.OS === "ios" ? 40 : 24, // Account for bottom area
+    // Add extra padding at the bottom for iOS home indicator
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
+    shadowOffset: { width: 0, height: -10 },
     shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowRadius: 15,
+    elevation: 10,
   },
   cardTitle: {
     fontSize: 22,
-    fontWeight: "700",
-    color: "#001a33",
+    fontWeight: "800",
+    color: "#334155",
     textAlign: "center",
     marginBottom: 20,
   },
@@ -223,51 +223,59 @@ const styles = StyleSheet.create({
   line: {
     flex: 1,
     height: 1,
-    backgroundColor: "#eee",
+    backgroundColor: "#E2E8F0",
   },
   secureText: {
     marginHorizontal: 10,
     fontSize: 12,
     fontWeight: "bold",
-    color: "#778899",
+    color: "#94A3B8",
     letterSpacing: 1,
   },
   label: {
     fontSize: 12,
     fontWeight: "bold",
-    color: "#2b62f1",
+    color: "#1E3A8A",
     marginBottom: 8,
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f8f9fb",
-    borderRadius: 12,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 14,
     paddingHorizontal: 16,
-    height: 55,
+    height: 60,
     marginBottom: 30,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   countryCode: {
     fontSize: 16,
-    color: "#666",
+    color: "#475569",
     marginRight: 10,
     fontWeight: "600",
   },
   input: {
     flex: 1,
     fontSize: 16,
-    color: "#333",
+    color: "#1E293B",
+    fontWeight: "500",
   },
   button: {
-    backgroundColor: "#1e4de4",
-    borderRadius: 12,
-    height: 55,
+    backgroundColor: "#1E3A8A",
+    borderRadius: 14,
+    height: 60,
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#1E3A8A",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 5,
   },
   buttonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "700",
     letterSpacing: 0.5,
   },

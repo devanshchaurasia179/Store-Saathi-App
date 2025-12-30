@@ -1,15 +1,28 @@
-import { View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from "react-native";
+import React, { useEffect, useState, useMemo, useRef } from "react";
+import { 
+  View, 
+  Text, 
+  ScrollView, 
+  StyleSheet, 
+  KeyboardAvoidingView, 
+  Platform 
+} from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { useMemo, useState, useRef, useEffect } from "react";
 
+/* 📦 COMPONENTS */
 import PageLoader from "../../components/PageLoader";
 import LedgerChatHeader from "../../components/ledger/LedgerChatHeader";
 import LedgerChatBubble from "../../components/ledger/LedgerChatBubble";
 import LedgerInputBar from "../../components/ledger/LedgerInputBar";
 import ViewBillModal from "../../components/bills/ViewBillModal";
 
+/* 🛠 HOOKS & UTILS */
 import { useCustomerLedger } from "../../hooks/useLedger";
 import { formatDate } from "../../utils/formatDate";
+
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_LEDGER_DETAIL } from "../../constants/language";
+import { useLanguage } from "../../providers/LanguageProvider";
 
 /* ---------- group entries by date ---------- */
 function groupByDate(entries: any[] = []) {
@@ -25,6 +38,9 @@ function groupByDate(entries: any[] = []) {
 export default function LedgerDetailPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const scrollRef = useRef<ScrollView>(null);
+  
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_LEDGER_DETAIL[language] || LANGUAGE_TEXT_LEDGER_DETAIL.en;
 
   const {
     customer,
@@ -46,9 +62,21 @@ export default function LedgerDetailPage() {
   // Auto-scroll to bottom when new entries are added
   useEffect(() => {
     if (entries?.length > 0) {
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 200);
     }
   }, [entries]);
+
+  /**
+   * Helper to handle Today/Yesterday labels in date separators
+   */
+  const getDisplayDate = (dateKey: string) => {
+    const today = new Date().toDateString();
+    const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+    if (dateKey === today) return t.today;
+    if (dateKey === yesterday) return t.yesterday;
+    return formatDate(dateKey, true);
+  };
 
   if (loading) return <PageLoader />;
 
@@ -56,13 +84,13 @@ export default function LedgerDetailPage() {
     <KeyboardAvoidingView 
       behavior={Platform.OS === "ios" ? "padding" : undefined} 
       style={styles.container}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
     >
-      {/* HEADER */}
+      {/* HEADER (Already localized) */}
       <LedgerChatHeader
-  customer={customer}
-  onRefresh={refresh}
-/>
-
+        customer={customer}
+        onRefresh={refresh}
+      />
 
       {/* CHAT AREA */}
       <ScrollView
@@ -72,8 +100,10 @@ export default function LedgerDetailPage() {
       >
         {Object.keys(groupedEntries).length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyEmoji}>📑</Text>
-            <Text style={styles.empty}>No transactions found for this customer</Text>
+            <View style={styles.emptyIconCircle}>
+                <Text style={styles.emptyEmoji}>🧾</Text>
+            </View>
+            <Text style={styles.empty}>{t.noTransactions}</Text>
           </View>
         ) : (
           Object.entries(groupedEntries).map(([date, dayEntries]) => (
@@ -82,7 +112,7 @@ export default function LedgerDetailPage() {
               <View style={styles.dateWrap}>
                 <View style={styles.dateLine} />
                 <Text style={styles.dateText}>
-                  {formatDate(date, true)}
+                  {getDisplayDate(date)}
                 </Text>
                 <View style={styles.dateLine} />
               </View>
@@ -100,7 +130,7 @@ export default function LedgerDetailPage() {
         )}
       </ScrollView>
 
-      {/* INPUT BAR */}
+      {/* INPUT BAR (Already localized) */}
       <LedgerInputBar
         onAddCredit={addNewCredit}
         onAddDebit={addNewDebit}
@@ -121,12 +151,12 @@ export default function LedgerDetailPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc", // Softer slate background
+    backgroundColor: "#F1F5F9", // Modern slate-50 background
   },
   chatScroll: {
     paddingHorizontal: 16,
     paddingTop: 10,
-    paddingBottom: 140, // Space for the floating InputBar
+    paddingBottom: 160, // Increased for floating bar breathing room
   },
   daySection: {
     marginBottom: 8,
@@ -135,38 +165,49 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginVertical: 20,
+    marginVertical: 24,
   },
   dateLine: {
-    flex: 0.2,
+    flex: 1,
     height: 1,
-    backgroundColor: "#e2e8f0",
+    backgroundColor: "#CBD5E1",
+    opacity: 0.5,
   },
   dateText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#64748b",
-    backgroundColor: "#f1f5f9",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginHorizontal: 10,
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#64748B",
+    backgroundColor: "#E2E8F0",
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 12,
+    marginHorizontal: 12,
     textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   emptyContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 100,
+    marginTop: 120,
+  },
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
   },
   emptyEmoji: {
-    fontSize: 40,
-    marginBottom: 10,
-    opacity: 0.5,
+    fontSize: 32,
   },
   empty: {
-    fontSize: 14,
-    color: "#94a3b8",
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#94A3B8",
     textAlign: "center",
+    maxWidth: "70%",
   },
 });

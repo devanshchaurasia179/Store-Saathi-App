@@ -5,16 +5,13 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   Platform,
-  FlatList,
-  SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-
-// Corrected relative paths based on your file structure
+import PageLoader from "@/components/PageLoader";
 import { useAnalytics } from "../hooks/useAnalytics";
 import { formatRupee } from "../utils/formatCurrency";
 import ViewBillModal from "../components/bills/ViewBillModal";
@@ -23,18 +20,16 @@ const QUICK_FILTERS = ["Today", "Yesterday"] as const;
 
 export default function AnalyticsScreen() {
   const router = useRouter();
-  
-  // States
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showPicker, setShowPicker] = useState(false);
   const [mode, setMode] = useState<"daily" | "weekly" | "monthly" | "yearly">("daily");
-  
-  // Modal States
   const [isBillModalVisible, setIsBillModalVisible] = useState(false);
   const [selectedBillId, setSelectedBillId] = useState<string | null>(null);
+  
+  // State to manage showing more products
+  const [showAllProducts, setShowAllProducts] = useState(false);
 
   const dateParam = mode === "daily" || mode === "weekly" ? selectedDate.toISOString().split("T")[0] : undefined;
-
   const { data, loading, error, refetch } = useAnalytics(mode, dateParam);
 
   const onDateChange = (event: DateTimePickerEvent, date?: Date) => {
@@ -62,14 +57,7 @@ export default function AnalyticsScreen() {
     setMode("daily");
   };
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#2563eb" />
-        <Text style={styles.loadingText}>Loading analytics...</Text>
-      </View>
-    );
-  }
+  if (loading) return <PageLoader />;
 
   if (error) {
     return (
@@ -86,17 +74,20 @@ export default function AnalyticsScreen() {
   const products = data?.topProducts || [];
   const biggestBill = data?.biggestBill;
 
+  // Logic for slicing top 5 products
+  const displayedProducts = showAllProducts ? products : products.slice(0, 5);
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         
         {/* TOP NAVIGATION BAR */}
         <View style={styles.navBar}>
           <TouchableOpacity onPress={() => router.push("/dashboard")} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color="#1e293b" />
+            <Ionicons name="arrow-back" size={24} color="#1E3A8A" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.calendarBtn} onPress={() => setShowPicker(true)}>
-            <Ionicons name="calendar-outline" size={22} color="#2563eb" />
+            <Ionicons name="calendar-outline" size={22} color="#1E3A8A" />
           </TouchableOpacity>
         </View>
 
@@ -209,14 +200,9 @@ export default function AnalyticsScreen() {
                 onPress={() => handleOpenBill(biggestBill._id)}
               >
                 <Text style={styles.detailsBtnText}>See Bill Details</Text>
-                <Ionicons name="chevron-forward" size={14} color="#2563eb" />
+                <Ionicons name="chevron-forward" size={14} color="#1E3A8A" />
               </TouchableOpacity>
             </View>
-            
-            <View style={styles.divider} />
-            <Text style={styles.itemsPreview} numberOfLines={1}>
-              Items: {biggestBill.items.map((i: any) => i.name).join(", ")}
-            </Text>
           </View>
         )}
 
@@ -232,34 +218,47 @@ export default function AnalyticsScreen() {
           {products.length === 0 ? (
             <Text style={styles.emptyText}>No products sold in this period</Text>
           ) : (
-            <FlatList
-              data={products}
-              keyExtractor={(item) => item.productId}
-              scrollEnabled={false}
-              renderItem={({ item, index }) => (
-                <View style={[styles.productItem, index === products.length - 1 && { marginBottom: 0 }]}>
-                  <View style={styles.rankCircle}>
-                    <Text style={styles.rankText}>{index + 1}</Text>
-                  </View>
-                  <View style={styles.productInfo}>
-                    <Text style={styles.productName} numberOfLines={2}>
-                      {item.name}
-                    </Text>
-                    <View style={styles.productStats}>
-                      <Text style={styles.qtyText}>Qty: {item.quantity}</Text>
-                      <Text style={styles.revenueText}>{formatRupee(item.revenue)}</Text>
+            <View>
+                {displayedProducts.map((item: any, index: number) => (
+                    <View key={item.productId} style={[styles.productItem, index === displayedProducts.length - 1 && !(!showAllProducts && products.length > 5) && { marginBottom: 0 }]}>
+                        <View style={styles.rankCircle}>
+                            <Text style={styles.rankText}>{index + 1}</Text>
+                        </View>
+                        <View style={styles.productInfo}>
+                            <Text style={styles.productName} numberOfLines={2}>
+                                {item.name}
+                            </Text>
+                            <View style={styles.productStats}>
+                                <Text style={styles.qtyText}>Qty: {item.quantity}</Text>
+                                <Text style={styles.revenueText}>{formatRupee(item.revenue)}</Text>
+                            </View>
+                        </View>
                     </View>
-                  </View>
-                </View>
-              )}
-            />
+                ))}
+
+                {/* See More / See Less Button */}
+                {products.length > 5 && (
+                  <TouchableOpacity 
+                    style={styles.seeMoreBtn} 
+                    onPress={() => setShowAllProducts(!showAllProducts)}
+                  >
+                    <Text style={styles.seeMoreText}>
+                        {showAllProducts ? "Show Top 5 Only" : `See More (${products.length - 5} more)`}
+                    </Text>
+                    <Ionicons 
+                        name={showAllProducts ? "chevron-up" : "chevron-down"} 
+                        size={16} 
+                        color="#1E3A8A" 
+                    />
+                  </TouchableOpacity>
+                )}
+            </View>
           )}
         </View>
 
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* BILL MODAL COMPONENT */}
       {selectedBillId && (
         <ViewBillModal
           billId={selectedBillId}
@@ -271,57 +270,71 @@ export default function AnalyticsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#f8fafc" },
+  safeArea: { flex: 1, backgroundColor: "#F8FAFC" },
   container: { flex: 1, paddingHorizontal: 16 },
+  navBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8, marginBottom: 10 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20 },
-  loadingText: { marginTop: 12, fontSize: 16, color: "#64748b" },
   errorText: { fontSize: 16, color: "#dc2626", textAlign: "center", marginBottom: 16 },
-  retryBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: "#2563eb", borderRadius: 8 },
+  retryBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: "#1E3A8A", borderRadius: 8 },
   retryText: { color: "#fff", fontWeight: "600" },
-  navBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10, marginBottom: 10 },
   backBtn: { padding: 8, marginLeft: -8 },
   header: { marginBottom: 15 },
-  screenTitle: { fontSize: 28, fontWeight: "800", color: "#1e293b" },
-  dateSub: { fontSize: 14, color: "#64748b", marginTop: 2 },
+  screenTitle: { fontSize: 28, fontWeight: "800", color: "#1E293B" },
+  dateSub: { fontSize: 14, color: "#64748B", marginTop: 2 },
   calendarBtn: { padding: 10, backgroundColor: "#fff", borderRadius: 12, elevation: 2, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
   quickFilters: { flexDirection: "row", gap: 8, marginBottom: 12 },
-  miniTab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: "#e2e8f0" },
-  activeMiniTab: { backgroundColor: "#cbd5e1" },
+  miniTab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: "#E2E8F0" },
+  activeMiniTab: { backgroundColor: "#CBD5E1" },
   miniTabText: { fontSize: 12, fontWeight: "600", color: "#475569" },
-  tabs: { flexDirection: "row", backgroundColor: "#e2e8f0", borderRadius: 12, padding: 4, marginBottom: 20 },
+  tabs: { flexDirection: "row", backgroundColor: "#E2E8F0", borderRadius: 12, padding: 4, marginBottom: 20 },
   tab: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 10 },
   activeTab: { backgroundColor: "#fff", elevation: 2 },
-  tabText: { fontSize: 13, fontWeight: "600", color: "#64748b" },
-  activeTabText: { color: "#2563eb" },
+  tabText: { fontSize: 13, fontWeight: "600", color: "#64748B" },
+  activeTabText: { color: "#1E3A8A" },
   card: { backgroundColor: "#fff", padding: 16, borderRadius: 16, marginBottom: 16, elevation: 3, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 },
-  mainCard: { backgroundColor: "#2563eb" },
-  cardLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.8, color: "#94a3b8" },
+  mainCard: { backgroundColor: "#1E3A8A" },
+  cardLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.8, color: "#94A3B8" },
   cardLabelMain: { fontSize: 11, fontWeight: "700", letterSpacing: 0.8, color: "rgba(255,255,255,0.7)" },
   mainValue: { fontSize: 32, fontWeight: "800", color: "#fff", marginTop: 4 },
   row: { flexDirection: "row", gap: 12, marginBottom: 16 },
   statsCard: { flex: 1, backgroundColor: "#fff", padding: 16, borderRadius: 16, elevation: 2 },
-  smallLabel: { fontSize: 12, color: "#64748b", marginVertical: 6 },
-  greenValue: { color: "#16a34a", fontSize: 18, fontWeight: "700" },
-  redValue: { color: "#dc2626", fontSize: 18, fontWeight: "700" },
-  iconCircleGreen: { width: 28, height: 28, borderRadius: 14, backgroundColor: "#dcfce7", alignItems: "center", justifyContent: "center" },
-  iconCircleRed: { width: 28, height: 28, borderRadius: 14, backgroundColor: "#fee2e2", alignItems: "center", justifyContent: "center" },
+  smallLabel: { fontSize: 12, color: "#64748B", marginVertical: 6 },
+  greenValue: { color: "#16A34A", fontSize: 18, fontWeight: "700" },
+  redValue: { color: "#DC2626", fontSize: 18, fontWeight: "700" },
+  iconCircleGreen: { width: 28, height: 28, borderRadius: 14, backgroundColor: "#DCFCE7", alignItems: "center", justifyContent: "center" },
+  iconCircleRed: { width: 28, height: 28, borderRadius: 14, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center" },
   billContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
-  billAmount: { fontSize: 24, fontWeight: "800", color: "#1e293b" },
-  billSubText: { fontSize: 12, color: "#64748b", marginTop: 2 },
-  detailsBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#eff6ff', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  detailsBtnText: { color: '#2563eb', fontSize: 12, fontWeight: '700', marginRight: 2 },
-  tag: { backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
-  tagText: { fontSize: 10, fontWeight: "700", color: '#64748b' },
-  divider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 12 },
-  itemsPreview: { fontSize: 13, color: '#64748b', fontStyle: 'italic' },
+  billAmount: { fontSize: 24, fontWeight: "800", color: "#1E293B" },
+  billSubText: { fontSize: 12, color: "#64748B", marginTop: 2 },
+  detailsBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  detailsBtnText: { color: '#1E3A8A', fontSize: 12, fontWeight: '700', marginRight: 2 },
+  tag: { backgroundColor: '#F1F5F9', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+  tagText: { fontSize: 10, fontWeight: "700", color: '#64748B' },
   productHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   productItem: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
-  rankCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#e0e7ff", alignItems: "center", justifyContent: "center", marginRight: 12 },
-  rankText: { fontSize: 14, fontWeight: "700", color: "#4f46e5" },
+  rankCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", marginRight: 12 },
+  rankText: { fontSize: 14, fontWeight: "700", color: "#1E3A8A" },
   productInfo: { flex: 1 },
-  productName: { fontSize: 16, fontWeight: "600", color: "#1e293b", marginBottom: 4 },
+  productName: { fontSize: 16, fontWeight: "600", color: "#1E293B", marginBottom: 4 },
   productStats: { flexDirection: "row", justifyContent: "space-between" },
-  qtyText: { fontSize: 14, color: "#64748b" },
-  revenueText: { fontSize: 14, fontWeight: "700", color: "#1e293b" },
-  emptyText: { fontSize: 15, color: "#94a3b8", textAlign: "center", paddingVertical: 20 },
+  qtyText: { fontSize: 14, color: "#64748B" },
+  revenueText: { fontSize: 14, fontWeight: "700", color: "#1E293B" },
+  emptyText: { fontSize: 15, color: "#94A3B8", textAlign: "center", paddingVertical: 20 },
+  
+  // NEW STYLES
+  seeMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    gap: 4
+  },
+  seeMoreText: {
+    color: '#1E3A8A',
+    fontSize: 14,
+    fontWeight: '700',
+  }
 });

@@ -3,26 +3,58 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_PROFILE_CARD } from "../../constants/language";
+import { useLanguage } from "../../providers/LanguageProvider";
+
 export default function ProfileCard({ shop }: any) {
-  const ownerName = shop?.ownerName?.trim() || "Partner";
-  const shopName = shop?.shopName?.trim() || "My Shop";
-  const completion = typeof shop?.profileCompletion === "number" ? shop.profileCompletion : 0;
+  const { language } = useLanguage();
+  
+  // Fetch current translations based on selected language
+  const t = LANGUAGE_TEXT_PROFILE_CARD[language] || LANGUAGE_TEXT_PROFILE_CARD.en;
+
+  // Logic: Fallback to localized "Partner" if ownerName is empty
+  const ownerName = shop?.ownerName?.trim() || t.partner;
+  
+  // Logic: Fallback to localized "My Shop" if shopName is empty
+  const shopName = shop?.shopName?.trim() || t.myShop;
+  
+  const completion =
+    typeof shop?.profileCompletion === "number"
+      ? shop.profileCompletion
+      : 0;
 
   const isComplete = completion >= 100;
+
+  /**
+   * Helper to format Name + Honorific correctly
+   * Example: "Rahul, Ji" (Hindi) vs "Rahul Garu" (Telugu)
+   */
+  const renderOwnerHeader = () => {
+    if (language === 'te') {
+      return `${ownerName} ${t.ji}`;
+    }
+    return `${ownerName}, ${t.ji}`;
+  };
 
   return (
     <View style={styles.cardContainer}>
       {/* TOP ROW */}
       <View style={styles.topRow}>
         <View style={styles.textContainer}>
-          <Text style={styles.namasteText}>Namaste</Text>
+          <Text style={styles.namasteText}>{t.greeting}</Text>
+
           <Text style={styles.ownerName} numberOfLines={1}>
-            {ownerName}, Ji
+            {renderOwnerHeader()}
           </Text>
 
           {shopName ? (
             <View style={styles.shopBadge}>
-              <Ionicons name="business" size={12} color="rgba(255,255,255,0.7)" />
+              <Ionicons
+                name="business"
+                size={12}
+                color="rgba(255,255,255,0.7)"
+              />
               <Text style={styles.shopName} numberOfLines={1}>
                 {shopName}
               </Text>
@@ -31,27 +63,34 @@ export default function ProfileCard({ shop }: any) {
         </View>
 
         <View style={styles.avatarContainer}>
-          <View style={[styles.avatarCircle, isComplete && styles.avatarComplete]}>
-            {/* Using widely supported icons to ensure they don't go missing */}
-            <Ionicons 
-              name={"person"} 
-              size={isComplete ? 28 : 24} 
-              color={isComplete ? "#fff" : "#fff"} 
+          <View
+            style={[
+              styles.avatarCircle,
+              isComplete && styles.avatarComplete,
+            ]}
+          >
+            <Ionicons
+              name="person"
+              size={isComplete ? 28 : 24}
+              color="#fff"
             />
           </View>
 
-          {/* Show warning dot only if incomplete */}
           {!isComplete && <View style={styles.statusDot} />}
         </View>
       </View>
 
-      {/* PROGRESS SECTION - Hidden if 100% */}
+      {/* PROGRESS SECTION */}
       {!isComplete ? (
         <>
           <View style={styles.progressSection}>
             <View style={styles.progressHeader}>
-              <Text style={styles.progressLabel}>Profile completion</Text>
-              <Text style={styles.progressPercentage}>{completion}%</Text>
+              <Text style={styles.progressLabel}>
+                {t.profileCompletion}
+              </Text>
+              <Text style={styles.progressPercentage}>
+                {completion}%
+              </Text>
             </View>
 
             <View style={styles.progressBarBackground}>
@@ -69,14 +108,21 @@ export default function ProfileCard({ shop }: any) {
             onPress={() => router.push("/profile")}
             activeOpacity={0.7}
           >
-            <Text style={styles.linkText}>Complete profile →</Text>
+            <Text style={styles.linkText}>
+              {t.completeProfile} →
+            </Text>
           </TouchableOpacity>
         </>
       ) : (
-        /* Show Verified Badge only if 100% */
         <View style={styles.verifiedBadge}>
-            <Ionicons name="checkmark-circle" size={14} color="#FFD700" />
-            <Text style={styles.verifiedText}>VERIFIED BUSINESS PARTNER</Text>
+          <Ionicons
+            name="checkmark-circle"
+            size={14}
+            color="#FFD700"
+          />
+          <Text style={styles.verifiedText}>
+            {t.verifiedBusinessPartner}
+          </Text>
         </View>
       )}
     </View>
@@ -85,12 +131,12 @@ export default function ProfileCard({ shop }: any) {
 
 const styles = StyleSheet.create({
   cardContainer: {
-    paddingTop: 60,
-    backgroundColor: "#1e3a8a", 
+    paddingTop: 40,
+    backgroundColor: "#1e3a8a",
     padding: 24,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
-    paddingBottom: 40, 
+    paddingBottom: 40,
   },
   topRow: {
     flexDirection: "row",
@@ -115,8 +161,8 @@ const styles = StyleSheet.create({
     textTransform: "capitalize",
   },
   shopBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     marginTop: 4,
   },
@@ -186,24 +232,24 @@ const styles = StyleSheet.create({
   },
   linkButton: {
     marginTop: 16,
-    marginBottom:10,
-    alignSelf: 'flex-start'
+    marginBottom: 10,
+    alignSelf: "flex-start",
   },
   linkText: {
-    color: "#FFAB91", 
+    color: "#FFAB91",
     fontSize: 14,
     fontWeight: "700",
   },
   verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 20,
     gap: 6,
-    backgroundColor: 'rgba(255,215,0,0.1)',
+    backgroundColor: "rgba(255,215,0,0.1)",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    alignSelf: 'flex-start'
+    alignSelf: "flex-start",
   },
   verifiedText: {
     color: "#FFD700",

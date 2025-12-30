@@ -1,6 +1,11 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_MOST_SOLD } from "../../constants/language";
+import { useLanguage } from "../../providers/LanguageProvider";
 
 type Item = {
   name: string;
@@ -8,35 +13,43 @@ type Item = {
 };
 
 export default function MostSoldCard({ items }: { items: Item[] }) {
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_MOST_SOLD[language] || LANGUAGE_TEXT_MOST_SOLD.en;
+
+  // Render for Empty State
   if (!items || items.length === 0) {
     return (
       <View style={styles.card}>
         <View style={styles.headerRow}>
           <View style={styles.titleGroup}>
             <MaterialCommunityIcons name="trending-up" size={20} color="#10b981" />
-            <Text style={styles.title}>Most Sold Products</Text>
+            <Text style={styles.title}>{t.title}</Text>
           </View>
         </View>
-        <Text style={styles.emptyText}>No sales data yet</Text>
+        <Text style={styles.emptyText}>{t.noData}</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.card}>
-      {/* 1. Refined Header Section */}
+      {/* 1. Header Section */}
       <View style={styles.headerRow}>
         <View style={styles.titleGroup}>
           <MaterialCommunityIcons name="trending-up" size={20} color="#10b981" />
-          <Text style={styles.title}>Most Sold Products</Text>
+          <Text style={styles.title}>{t.title}</Text>
         </View>
-        <TouchableOpacity style={styles.analyticsLink}>
-          <Text style={styles.analyticsText}>View analytics</Text>
+        <TouchableOpacity 
+          style={styles.analyticsLink}
+          onPress={() => router.push("/analytics")}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.analyticsText}>{t.viewAnalytics}</Text>
           <Ionicons name="arrow-forward" size={14} color="#1e4de4" />
         </TouchableOpacity>
       </View>
 
-      {/* 2. List of Products with Subtle Spacing */}
+      {/* 2. List of Products */}
       {items.map((item, index) => (
         <View key={index}>
           <View style={styles.row}>
@@ -44,7 +57,7 @@ export default function MostSoldCard({ items }: { items: Item[] }) {
               {item.name}
             </Text>
             <Text style={styles.qty}>
-              {item.totalSold} <Text style={styles.soldLabel}>sold</Text>
+              {item.totalSold} <Text style={styles.soldLabel}>{t.sold}</Text>
             </Text>
           </View>
           
@@ -59,7 +72,7 @@ export default function MostSoldCard({ items }: { items: Item[] }) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: "#fff",
-    marginHorizontal: 12, // Standard dashboard grid margin
+    marginHorizontal: 12,
     marginTop: 12,
     borderRadius: 16,
     padding: 16,
@@ -91,14 +104,14 @@ const styles = StyleSheet.create({
   },
   analyticsText: {
     fontSize: 14,
-    color: "#1e4de4", // Primary brand blue
+    color: "#1e4de4",
     fontWeight: "600",
   },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 14, // Increased padding for a spacious, modern feel
+    paddingVertical: 14,
   },
   name: {
     fontSize: 14,
@@ -118,12 +131,13 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: "#f1f3f5", // Light divider to maintain a clean aesthetic
+    backgroundColor: "#f1f3f5",
   },
   emptyText: {
     fontSize: 13,
     color: "#9ca3af",
     textAlign: "center",
     marginTop: 10,
+    marginBottom: 5,
   },
 });

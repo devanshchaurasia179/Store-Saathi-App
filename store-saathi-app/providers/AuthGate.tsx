@@ -1,3 +1,4 @@
+// providers/AuthGate.tsx
 import { useEffect } from "react";
 import { useRouter, useSegments } from "expo-router";
 import { useAuth } from "./AuthProvider";
@@ -13,20 +14,24 @@ export default function AuthGate({ children }: any) {
     const route = segments[0];
 
     const isPublicRoute =
-      route === undefined ||      // index.tsx
+      route === undefined || // index
+      route === "language" ||
       route === "login" ||
       route === "verify-otp";
 
     // ❌ Not logged in → block protected routes
     if (!isAuthenticated && !isPublicRoute) {
-      router.replace("/login");
+      router.replace("/");
       return;
     }
 
-    // ❌ Logged in → block login & index ONLY
+    // ❌ Logged in → block auth flow screens
     if (
       isAuthenticated &&
-      (route === "login" || route === undefined)
+      (route === undefined ||
+        route === "language" ||
+        route === "login" ||
+        route === "verify-otp")
     ) {
       router.replace("/dashboard");
     }

@@ -3,32 +3,57 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
+/* 🛠 UTILS */
 import { formatDate } from "../../utils/formatDate";
 import { formatRupee } from "../../utils/formatCurrency";
+
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_RECENT_BILLS } from "../../constants/language";
+import { useLanguage } from "../../providers/LanguageProvider";
+
+/* 📦 COMPONENTS */
 import ViewBillModal from "../bills/ViewBillModal";
 
-export default function RecentBills({ bills = [], text }: any) {
+export default function RecentBills({ bills = [] }: any) {
   const router = useRouter();
+  const { language } = useLanguage();
   const [activeBillId, setActiveBillId] = useState<string | null>(null);
-const groupBillsByDate = (bills: any[] = []) => {
-  const groups: Record<string, any[]> = {};
 
-  bills.forEach((bill) => {
-    const dateKey = new Date(bill.createdAt).toDateString();
-    if (!groups[dateKey]) groups[dateKey] = [];
-    groups[dateKey].push(bill);
-  });
+  // Pick the correct translation set
+  const t = LANGUAGE_TEXT_RECENT_BILLS[language] || LANGUAGE_TEXT_RECENT_BILLS.en;
 
-  return groups;
-};
+  const groupBillsByDate = (billsList: any[] = []) => {
+    const groups: Record<string, any[]> = {};
 
+    billsList.forEach((bill) => {
+      const dateKey = new Date(bill.createdAt).toDateString();
+      if (!groups[dateKey]) groups[dateKey] = [];
+      groups[dateKey].push(bill);
+    });
+
+    return groups;
+  };
 
   const groupedBills = useMemo(
     () => groupBillsByDate(bills),
     [bills]
   );
 
+  // Logic: Do not render if there are no bills
   if (!bills.length) return null;
+
+  /**
+   * Helper to show "Today" or "Yesterday" instead of full date 
+   * if it matches current time
+   */
+  const getRelativeDate = (dateStr: string) => {
+    const today = new Date().toDateString();
+    const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+    if (dateStr === today) return t.today;
+    if (dateStr === yesterday) return t.yesterday;
+    return formatDate(dateStr);
+  };
 
   return (
     <>
@@ -42,16 +67,17 @@ const groupBillsByDate = (bills: any[] = []) => {
               color="#1e4de4"
             />
             <Text style={styles.headerText}>
-              {text?.recentBills || "Recent Bills"}
+              {t.recentBills}
             </Text>
           </View>
 
           <TouchableOpacity
             style={styles.seeMoreGroup}
             onPress={() => router.push("/history")}
+            activeOpacity={0.6}
           >
             <Text style={styles.seeMoreText}>
-              {text?.seeMore || "See more"}
+              {t.seeMore}
             </Text>
             <Ionicons name="arrow-forward" size={14} color="#1e4de4" />
           </TouchableOpacity>
@@ -64,7 +90,7 @@ const groupBillsByDate = (bills: any[] = []) => {
             <View style={styles.dateSeparatorContainer}>
               <View style={styles.dateBadge}>
                 <Text style={styles.dateText}>
-                  {formatDate(date)}
+                  {getRelativeDate(date)}
                 </Text>
               </View>
             </View>
@@ -79,7 +105,7 @@ const groupBillsByDate = (bills: any[] = []) => {
               >
                 <View style={styles.billInfo}>
                   <Text style={styles.billNumber}>
-                    {text?.bill || "Bill"} #{bill.dailyBillNumber}
+                    {t.bill} #{bill.dailyBillNumber}
                   </Text>
 
                   <View style={styles.timeGroup}>

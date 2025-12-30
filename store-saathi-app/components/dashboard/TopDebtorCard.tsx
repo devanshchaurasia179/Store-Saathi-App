@@ -1,3 +1,4 @@
+import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import {
   Ionicons,
@@ -5,16 +6,44 @@ import {
   MaterialCommunityIcons,
 } from "@expo/vector-icons";
 import { router } from "expo-router";
+
+/* 🛠 UTILS */
 import { sendWhatsAppMessage } from "../../utils/whatsapp";
 import { callCustomer } from "../../utils/call";
 
-export default function TopDebtorCard({ debtor }: any) {
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_DEBTOR_CARD } from "../../constants/language";
+import { useLanguage } from "../../providers/LanguageProvider";
+
+type Props = {
+  debtor: any;
+  shopName?: string;
+  ownerName?: string;
+};
+
+export default function TopDebtorCard({
+  debtor,
+  shopName,
+  ownerName,
+}: Props) {
+  const { language } = useLanguage();
+
+  // fallback language
+  const t =
+    LANGUAGE_TEXT_DEBTOR_CARD[language] ||
+    LANGUAGE_TEXT_DEBTOR_CARD.en;
+
+  // guard
   if (!debtor || debtor.isSupplier) return null;
 
-  const { name, amount, mobileNumber, _id } = debtor;
+  const { name, amount, mobileNumber } = debtor;
 
   const formattedAmount = amount?.toLocaleString("en-IN") || "0";
   const hasMobile = Boolean(mobileNumber);
+
+  // SAFETY FALLBACKS
+  const safeShopName = shopName?.trim() || "Our Store";
+  const safeOwnerName = ownerName?.trim() || "";
 
   return (
     <View style={styles.cardContainer}>
@@ -25,10 +54,10 @@ export default function TopDebtorCard({ debtor }: any) {
           size={20}
           color="#FFC107"
         />
-        <Text style={styles.headerText}>Top Debtor</Text>
+        <Text style={styles.headerText}>{t.topDebtor}</Text>
       </View>
 
-      {/* Info */}
+      {/* Info Box */}
       <View style={styles.infoBox}>
         <View style={styles.debtorDetails}>
           <Text style={styles.debtorName}>{name}</Text>
@@ -37,6 +66,7 @@ export default function TopDebtorCard({ debtor }: any) {
 
         {/* Actions */}
         <View style={styles.actionRow}>
+          {/* WhatsApp */}
           <TouchableOpacity
             disabled={!hasMobile}
             style={[
@@ -47,13 +77,19 @@ export default function TopDebtorCard({ debtor }: any) {
             onPress={() =>
               sendWhatsAppMessage(
                 mobileNumber,
-                `Hello ${name}, your pending amount is ₹${formattedAmount}.`
+                t.whatsappMsg(
+                  name,
+                  formattedAmount,
+                  safeShopName,
+                  safeOwnerName
+                )
               )
             }
           >
             <FontAwesome name="whatsapp" size={20} color="#25D366" />
           </TouchableOpacity>
 
+          {/* Call */}
           <TouchableOpacity
             disabled={!hasMobile}
             style={[
@@ -68,12 +104,13 @@ export default function TopDebtorCard({ debtor }: any) {
         </View>
       </View>
 
-      {/* OPEN LEDGER */}
+      {/* Footer */}
       <TouchableOpacity
         style={styles.footerButton}
         onPress={() => router.push(`/ledger`)}
+        activeOpacity={0.6}
       >
-        <Text style={styles.footerText}>See ledger →</Text>
+        <Text style={styles.footerText}>{t.seeLedger} →</Text>
       </TouchableOpacity>
     </View>
   );
@@ -86,11 +123,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     padding: 16,
     borderRadius: 16,
-    elevation: 3,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    elevation: 3,
   },
   headerRow: {
     flexDirection: "row",
@@ -149,6 +186,7 @@ const styles = StyleSheet.create({
   },
   footerButton: {
     marginTop: 12,
+    alignSelf: "flex-start",
   },
   footerText: {
     color: "#1e4de4",
