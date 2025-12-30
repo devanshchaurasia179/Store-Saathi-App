@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -13,38 +13,45 @@ import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
+/* 🛠 HOOKS & UTILS */
 import { useBills } from "../../hooks/useBills";
 import PageLoader from "../../components/PageLoader";
 import ViewBillModal from "../../components/bills/ViewBillModal";
 import { formatRupee } from "../../utils/formatCurrency";
 
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_BILLS_HISTORY } from "../../constants/language_history";
+import { useLanguage } from "../../providers/LanguageProvider";
+
 /* ---------- helpers ---------- */
 const isSameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
-
-const getGroupTitle = (dateStr: string) => {
-  const date = new Date(dateStr);
-  const today = new Date();
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  if (date.toDateString() === today.toDateString()) return "Today";
-  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
-
-  return date.toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-};
 
 export default function BillsHistoryScreen() {
   const { bills, loading } = useBills();
   const insets = useSafeAreaInsets();
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_BILLS_HISTORY[language] || LANGUAGE_TEXT_BILLS_HISTORY.en;
 
   const [selectedBillId, setSelectedBillId] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(20);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showPicker, setShowPicker] = useState(false);
+
+  const getGroupTitle = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) return t.today;
+    if (date.toDateString() === yesterday.toDateString()) return t.yesterday;
+
+    return date.toLocaleDateString(language === 'hi' ? 'hi-IN' : 'en-IN', {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
 
   const filteredBills = useMemo(() => {
     let list = bills;
@@ -61,7 +68,7 @@ export default function BillsHistoryScreen() {
       groups[title].push(bill);
       return groups;
     }, {});
-  }, [filteredBills]);
+  }, [filteredBills, language]); // Added language as dependency to refresh titles
 
   if (loading) return <PageLoader />;
 
@@ -75,7 +82,7 @@ export default function BillsHistoryScreen() {
           <Ionicons name="arrow-back" size={24} color="#1e293b" />
         </TouchableOpacity>
 
-        <Text style={styles.title}>History</Text>
+        <Text style={styles.title}>{t.history}</Text>
 
         <TouchableOpacity
           style={[styles.headerIcon, selectedDate && styles.headerIconActive]}
@@ -91,21 +98,20 @@ export default function BillsHistoryScreen() {
 
       {/* DATE PICKER */}
       {showPicker && (
-  <DateTimePicker
-    value={selectedDate || new Date()}
-    mode="date"
-    display="calendar"
-    // 🔹 This line restricts the picker to today's date
-    maximumDate={new Date()} 
-    onChange={(_, date) => {
-      setShowPicker(false);
-      if (date) {
-        setSelectedDate(date);
-        setVisibleCount(20);
-      }
-    }}
-  />
-)}
+        <DateTimePicker
+          value={selectedDate || new Date()}
+          mode="date"
+          display="calendar"
+          maximumDate={new Date()} 
+          onChange={(_, date) => {
+            setShowPicker(false);
+            if (date) {
+              setSelectedDate(date);
+              setVisibleCount(20);
+            }
+          }}
+        />
+      )}
 
       {/* ACTIVE FILTER CHIP */}
       {selectedDate && (
@@ -113,7 +119,7 @@ export default function BillsHistoryScreen() {
           <View style={styles.dateChip}>
             <Ionicons name="funnel" size={14} color="#2563eb" />
             <Text style={styles.chipText}>
-              {selectedDate.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' })}
+              {selectedDate.toLocaleDateString(language === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short' })}
             </Text>
             <TouchableOpacity onPress={() => setSelectedDate(null)} style={styles.chipClose}>
               <Ionicons name="close-circle" size={18} color="#94a3b8" />
@@ -136,11 +142,9 @@ export default function BillsHistoryScreen() {
             <View style={styles.emptyIconCircle}>
               <Ionicons name="document-text-outline" size={40} color="#cbd5e1" />
             </View>
-            <Text style={styles.emptyTitle}>No bills found</Text>
+            <Text style={styles.emptyTitle}>{t.noBills}</Text>
             <Text style={styles.emptySubtitle}>
-              {selectedDate 
-                ? "Try picking a different date or clear the filter." 
-                : "Your billed transactions will appear here."}
+              {selectedDate ? t.clearFilterSub : t.defaultEmptySub}
             </Text>
           </View>
         }
@@ -165,9 +169,9 @@ export default function BillsHistoryScreen() {
                     <Ionicons name="receipt-outline" size={20} color="#2563eb" />
                   </View>
                   <View>
-                    <Text style={styles.billNo}>Bill #{bill.dailyBillNumber}</Text>
+                    <Text style={styles.billNo}>{t.billNo(bill.dailyBillNumber)}</Text>
                     <Text style={styles.time}>
-                      {new Date(bill.createdAt).toLocaleTimeString([], {
+                      {new Date(bill.createdAt).toLocaleTimeString(language === 'hi' ? 'hi-IN' : 'en-US', {
                         hour: "2-digit",
                         minute: "2-digit",
                         hour12: true,
@@ -178,7 +182,7 @@ export default function BillsHistoryScreen() {
 
                 <View style={styles.cardRight}>
                   <Text style={styles.amount}>{formatRupee(bill.totalAmount)}</Text>
-                  <StatusBadge status={bill.paymentStatus} />
+                  <StatusBadge status={bill.paymentStatus} translations={t.status} />
                 </View>
               </Pressable>
             ))}
@@ -190,7 +194,7 @@ export default function BillsHistoryScreen() {
               onPress={() => setVisibleCount((p) => p + 20)}
               style={styles.loadMore}
             >
-              <Text style={styles.loadMoreText}>LOAD PREVIOUS BILLS</Text>
+              <Text style={styles.loadMoreText}>{t.loadMore}</Text>
               <Ionicons name="chevron-down" size={16} color="#475569" />
             </TouchableOpacity>
           ) : null
@@ -207,23 +211,25 @@ export default function BillsHistoryScreen() {
   );
 }
 
-const StatusBadge = ({ status }: { status: string }) => {
+const StatusBadge = ({ status, translations }: { status: string; translations: any }) => {
   const map: any = {
-    PAID: { bg: "#dcfce7", text: "#166534", icon: "checkmark-circle" },
-    PARTIAL: { bg: "#fef3c7", text: "#92400e", icon: "time" },
-    UNPAID: { bg: "#fee2e2", text: "#991b1b", icon: "alert-circle" },
+    PAID: { bg: "#dcfce7", text: "#166534", icon: "checkmark-circle", label: translations.PAID },
+    PARTIAL: { bg: "#fef3c7", text: "#92400e", icon: "time", label: translations.PARTIAL },
+    UNPAID: { bg: "#fee2e2", text: "#991b1b", icon: "alert-circle", label: translations.UNPAID },
   };
 
+  const current = map[status] || map.UNPAID;
+
   return (
-    <View style={[styles.badge, { backgroundColor: map[status]?.bg }]}>
+    <View style={[styles.badge, { backgroundColor: current.bg }]}>
       <Ionicons
-        name={map[status]?.icon}
+        name={current.icon}
         size={10}
-        color={map[status]?.text}
+        color={current.text}
         style={{ marginRight: 4 }}
       />
-      <Text style={[styles.badgeText, { color: map[status]?.text }]}>
-        {status}
+      <Text style={[styles.badgeText, { color: current.text }]}>
+        {current.label}
       </Text>
     </View>
   );

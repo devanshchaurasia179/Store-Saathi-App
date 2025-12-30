@@ -15,23 +15,31 @@ import {
   Feather,
 } from "@expo/vector-icons";
 
+/* 🛠 UTILS & API */
 import { getBillById } from "../../constants/bills.api";
 import { formatRupee } from "../../utils/formatCurrency";
 import { formatDate } from "../../utils/formatDate";
 import { shareBillPdf } from "../../utils/billPdf";
-import { printBill  } from "../../utils/thermalPrinter";
+import { printBill } from "../../utils/thermalPrinter";
+
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_VIEW_BILL } from "../../constants/language_viewBill";
+import { useLanguage } from "../../providers/LanguageProvider";
 
 export default function ViewBillModal({ billId, onClose }: any) {
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_VIEW_BILL[language] || LANGUAGE_TEXT_VIEW_BILL.en;
+
   const [bill, setBill] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Helper for sharing the bill (text share)
-  const onShare = async () => {
+  // Helper for sharing the bill summary as text
+  const onShareText = async () => {
     try {
       await Share.share({
-        message: `Bill Summary for ID: #${bill?.dailyBillNumber}
-Total: ${formatRupee(bill?.totalAmount)}
-Status: ${bill?.paymentStatus}`,
+        message: `${t.invoiceDetails} #${bill?.dailyBillNumber}
+${t.netTotal}: ${formatRupee(bill?.totalAmount)}
+Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
       });
     } catch (error) {
       console.log(error);
@@ -82,7 +90,6 @@ Status: ${bill?.paymentStatus}`,
     >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          {/* DRAG INDICATOR */}
           <View style={styles.dragIndicator} />
 
           {/* HEADER */}
@@ -96,7 +103,7 @@ Status: ${bill?.paymentStatus}`,
                 />
               </View>
               <View>
-                <Text style={styles.headerTitle}>Invoice Details</Text>
+                <Text style={styles.headerTitle}>{t.invoiceDetails}</Text>
                 <Text style={styles.headerSub}>
                   ID: #{bill?.dailyBillNumber || "..."}
                 </Text>
@@ -110,7 +117,7 @@ Status: ${bill?.paymentStatus}`,
           {loading ? (
             <View style={styles.loader}>
               <ActivityIndicator size="large" color="#4f46e5" />
-              <Text style={styles.loaderText}>Loading Bill...</Text>
+              <Text style={styles.loaderText}>{t.loadingBill}</Text>
             </View>
           ) : (
             <>
@@ -120,7 +127,7 @@ Status: ${bill?.paymentStatus}`,
               >
                 {/* SUMMARY CARD */}
                 <View style={styles.summaryCard}>
-                  <Text style={styles.summaryLabel}>Total Payable</Text>
+                  <Text style={styles.summaryLabel}>{t.totalPayable}</Text>
                   <Text style={styles.summaryAmount}>
                     {formatRupee(bill.totalAmount)}
                   </Text>
@@ -158,7 +165,7 @@ Status: ${bill?.paymentStatus}`,
                         },
                       ]}
                     >
-                      {bill.paymentStatus}
+                      {t.status[bill.paymentStatus]}
                     </Text>
                   </View>
                 </View>
@@ -166,12 +173,12 @@ Status: ${bill?.paymentStatus}`,
                 {/* INFO GRID */}
                 <View style={styles.infoGrid}>
                   <View style={styles.infoBlock}>
-                    <Text style={styles.infoLabel}>Issued On</Text>
+                    <Text style={styles.infoLabel}>{t.issuedOn}</Text>
                     <Text style={styles.infoValue}>
                       {formatDate(bill.createdAt)}
                     </Text>
                     <Text style={styles.infoSub}>
-                      {new Date(bill.createdAt).toLocaleTimeString([], {
+                      {new Date(bill.createdAt).toLocaleTimeString(language === 'hi' ? 'hi-IN' : 'en-US', {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
@@ -179,22 +186,22 @@ Status: ${bill?.paymentStatus}`,
                   </View>
 
                   <View style={styles.infoBlockRight}>
-                    <Text style={styles.infoLabel}>Customer</Text>
+                    <Text style={styles.infoLabel}>{t.customer}</Text>
                     <Text
                       style={styles.infoValue}
                       numberOfLines={1}
                     >
-                      {bill.customerId?.name || "Walk-in Guest"}
+                      {bill.customerId?.name || t.walkIn}
                     </Text>
                     <Text style={styles.infoSub}>
-                      {bill.customerId?.mobileNumber || "No Phone"}
+                      {bill.customerId?.mobileNumber || t.noPhone}
                     </Text>
                   </View>
                 </View>
 
                 {/* ITEMS */}
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Order Summary</Text>
+                  <Text style={styles.sectionTitle}>{t.orderSummary}</Text>
                   <View style={styles.itemsCard}>
                     {bill.items.map((item: any, i: number) => (
                       <View
@@ -209,7 +216,7 @@ Status: ${bill?.paymentStatus}`,
                         <View style={{ flex: 1 }}>
                           <Text style={styles.itemName}>{item.name}</Text>
                           <Text style={styles.itemSub}>
-                            {item.quantity} units ×{" "}
+                            {item.quantity} {t.units} ×{" "}
                             {formatRupee(item.price)}
                           </Text>
                         </View>
@@ -224,29 +231,29 @@ Status: ${bill?.paymentStatus}`,
                 {/* BREAKDOWN */}
                 <View style={styles.breakdownCard}>
                   <Row
-                    label="Subtotal"
+                    label={t.subtotal}
                     value={formatRupee(bill.subTotal)}
                   />
                   {bill.discount > 0 && (
                     <Row
-                      label="Discount"
+                      label={t.discount}
                       value={`- ${formatRupee(bill.discount)}`}
                       highlight
                     />
                   )}
                   <View style={styles.dashedDivider} />
                   <Row
-                    label="Net Total"
+                    label={t.netTotal}
                     value={formatRupee(bill.totalAmount)}
                     bold
                   />
                   <Row
-                    label="Amount Paid"
+                    label={t.amountPaid}
                     value={formatRupee(bill.paidAmount)}
                   />
                   {bill.totalAmount - bill.paidAmount > 0 && (
                     <Row
-                      label="Balance Due"
+                      label={t.balanceDue}
                       value={formatRupee(
                         bill.totalAmount - bill.paidAmount
                       )}
@@ -264,7 +271,7 @@ Status: ${bill?.paymentStatus}`,
                   onPress={() => shareBillPdf(bill)}
                 >
                   <Feather name="share" size={18} color="#475569" />
-                  <Text style={styles.secondaryBtnText}>Share</Text>
+                  <Text style={styles.secondaryBtnText}>{t.share}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -272,7 +279,7 @@ Status: ${bill?.paymentStatus}`,
                   onPress={() => printBill(bill)}
                 >
                   <Feather name="printer" size={18} color="#fff" />
-                  <Text style={styles.primaryBtnText}>Print Bill</Text>
+                  <Text style={styles.primaryBtnText}>{t.print}</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -282,9 +289,7 @@ Status: ${bill?.paymentStatus}`,
     </Modal>
   );
 }
-
-/* ================= STYLES ================= */
-
+// Styles remain unchanged
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,

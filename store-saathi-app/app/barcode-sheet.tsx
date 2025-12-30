@@ -3,35 +3,42 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  SafeAreaView,
   StatusBar,
-  Platform,
+  Dimensions,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
-
-import BarcodeSVG from "../components/BarcodeSVG";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import PageLoader from "@/components/PageLoader";
 import { getDashboard } from "../constants/dashboard.api";
 import { getProducts } from "../constants/inventory.api";
 import { nanoid } from "nanoid/non-secure";
 import { generateBarcode } from "../utils/generateBarcode";
 
-/* ================= CONFIG ================= */
-const BARCODE_PER_PAGE = 21; // ✅ 3 x 8
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_BARCODE_SHEET } from "../constants/language_inventory";
+import { useLanguage } from "../providers/LanguageProvider";
+
+const { width } = Dimensions.get("window");
+const BARCODE_PER_PAGE = 21; 
 const EXTRA_BLANK_BARCODES = 5;
 
 export default function BarcodeSheet() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { language } = useLanguage();
+  
+  // Pick the current language text
+  const t = LANGUAGE_TEXT_BARCODE_SHEET[language] || LANGUAGE_TEXT_BARCODE_SHEET.en;
+
   const [products, setProducts] = useState<any[]>([]);
   const [shopName, setShopName] = useState("My Shop");
   const [loading, setLoading] = useState(true);
 
-  /* ---------------- FETCH DATA ---------------- */
   useEffect(() => {
     async function fetchData() {
       try {
@@ -40,9 +47,7 @@ export default function BarcodeSheet() {
           getProducts(),
         ]);
 
-        setShopName(
-          dashboardRes.data.dashboard?.shop?.shopName || "My Shop"
-        );
+        setShopName(dashboardRes.data.dashboard?.shop?.shopName || "My Shop");
 
         const listed = productRes.data.products.filter(
           (p: any) => p.isBarcodeListed && p.barcode
@@ -63,99 +68,53 @@ export default function BarcodeSheet() {
         setLoading(false);
       }
     }
-
     fetchData();
   }, []);
 
-  /* ---------------- PDF GENERATION ---------------- */
   const downloadPDF = async () => {
     const html = `
     <html>
       <head>
         <style>
           * { box-sizing: border-box; }
-          body { 
-            font-family: 'Helvetica', Arial; 
-            margin: 0; 
-            padding: 15mm; 
-            background-color: white;
-          }
-          h3 { 
-            text-align: center; 
-            margin-bottom: 8mm; 
+          body { font-family: 'Helvetica', Arial; margin: 0; padding: 15mm; background-color: white; }
+          .header-container { text-align: center; margin-bottom: 8mm; }
+          .shop-title { 
             text-transform: uppercase; 
-            letter-spacing: 2px;
-            font-size: 14px;
+            letter-spacing: 2px; 
+            font-size: 16px; 
+            font-weight: bold;
+            margin: 0;
+            color: black;
           }
-          .grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            /* Standard A4 is 297mm height. 7 rows x 38mm = 266mm + margins */
-            grid-template-rows: repeat(7, 38mm); 
-            gap: 5mm;
-            width: 100%;
-          }
-          .label {
-            border: 0.2px solid #ccc; /* Light border for easy cutting */
-            padding: 4mm;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            border-radius: 1mm;
-          }
-          .name { 
+          .sub-script { 
             font-size: 9px; 
-            font-weight: bold; 
-            margin-bottom: 3mm; 
-            height: 12px; 
-            overflow: hidden; 
-            color: #333;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            width: 100%;
+            color: black; 
+            display: block; 
+            margin-top: 2px;
+            font-weight: bold;
           }
-          img { 
-            height: 18mm; /* Fixed height to prevent stretching */
-            width: auto; 
-            max-width: 100%; 
-          }
-          .b-code {
-            font-size: 8px;
-            margin-top: 1mm;
-            color: #666;
-          }
-          .footer {
-            position: absolute;
-            bottom: 10mm;
-            left: 0;
-            right: 0;
-            text-align: center;
-            font-size: 8px;
-            color: #aaa;
-          }
+          .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(7, 38mm); gap: 5mm; width: 100%; }
+          .label { border: 0.2px solid #ccc; padding: 4mm; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 1mm; }
+          .name { font-size: 9px; font-weight: bold; margin-bottom: 3mm; height: 12px; overflow: hidden; color: black; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
+          img { height: 18mm; width: auto; max-width: 100%; }
+          .b-code { font-size: 8px; margin-top: 1mm; color: black; font-weight: bold; }
         </style>
       </head>
       <body>
-        <h3>${shopName}</h3>
+        <div class="header-container">
+          <p class="shop-title">${shopName}</p>
+          <span class="sub-script">${t.poweredBy} Store Saathi</span>
+        </div>
         <div class="grid">
-          ${products
-            .slice(0, BARCODE_PER_PAGE)
-            .map(
-              (p) => `
+          ${products.slice(0, BARCODE_PER_PAGE).map((p) => `
             <div class="label">
-              <div class="name">
-                ${p.name ? `${p.name}${p.size ? " - " + p.size : ""}` : "&nbsp;"}
-              </div>
+              <div class="name">${p.name ? `${p.name}${p.size ? " - " + p.size : ""}` : "&nbsp;"}</div>
               <img src="https://barcode.tec-it.com/barcode.ashx?data=${p.barcode}&code=Code128" />
               <div class="b-code">${p.barcode}</div>
             </div>
-          `
-            )
-            .join("")}
+          `).join("")}
         </div>
-        <div class="footer">Powered by Store Saathi - 1/1</div>
       </body>
     </html>
     `;
@@ -166,91 +125,63 @@ export default function BarcodeSheet() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#000" />
-        <Text style={styles.loadingText}>Loading barcodes…</Text>
-      </View>
+      <PageLoader/>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
-      <View style={styles.container}>
-        
-        {/* HEADER */}
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backBtn} 
-            onPress={() => router.back()}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="arrow-back" size={24} color="#1f2937" />
-          </TouchableOpacity>
+    <View style={[styles.mainContainer, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      
+      {/* HEADER */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Ionicons name="chevron-back" size={28} color="#1E3A8A" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{t.headerTitle}</Text>
+        <View style={{ width: 28 }} /> 
+      </View>
 
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Barcode Sheet</Text>
-            <Text style={styles.headerSubtitle}>{products.length} Labels Generated</Text>
+      <View style={styles.content}>
+        <View style={styles.illustrationContainer}>
+          <View style={styles.iconCircle}>
+            <Ionicons name="barcode-outline" size={80} color="#1E3A8A" />
           </View>
-
-          <TouchableOpacity style={styles.downloadBtn} onPress={downloadPDF}>
-            <Ionicons name="cloud-download-outline" size={18} color="#fff" />
-            <Text style={styles.downloadText}>PDF</Text>
-          </TouchableOpacity>
         </View>
 
-        {/* PREVIEW */}
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.pageShadow}>
-            <View style={styles.page}>
-              <Text style={styles.shopTitle}>{shopName}</Text>
+        <View style={styles.textSection}>
+          <Text style={styles.mainTitle}>{t.readyTitle}</Text>
+          <Text style={styles.description}>
+            {t.descStart}<Text style={styles.boldText}>{products.length}</Text>{t.descEnd}
+          </Text>
+        </View>
 
-              <View style={styles.grid}>
-                {products.slice(0, BARCODE_PER_PAGE).map((p) => (
-                  <View key={p._id} style={styles.label}>
-                    <BarcodeCard product={p} />
-                  </View>
-                ))}
-              </View>
+        {/* SINGLE LARGE DOWNLOAD BUTTON */}
+        <TouchableOpacity style={styles.mainDownloadBtn} onPress={downloadPDF}>
+          <Ionicons name="cloud-download" size={24} color="#fff" />
+          <Text style={styles.mainDownloadText}>{t.downloadBtn}</Text>
+        </TouchableOpacity>
 
-              <Text style={styles.footerText}>Powered by Store Saathi</Text>
-            </View>
+        <View style={styles.infoCard}>
+          <Ionicons name="print-outline" size={20} color="#1E3A8A" />
+          <View>
+            <Text style={styles.infoText}>{t.formatInfo}</Text>
+            <Text style={styles.infoText}>{t.recommendInfo}</Text>
           </View>
-        </ScrollView>
+        </View>
       </View>
-    </SafeAreaView>
-  );
-}
 
-function BarcodeCard({ product }: any) {
-  const title = product.name
-    ? product.size
-      ? `${product.name} - ${product.size}`
-      : product.name
-    : "";
-
-  return (
-    <View style={{ alignItems: "center", width: "100%" }}>
-      <Text numberOfLines={1} style={styles.cardTitle}>
-        {title || " "}
-      </Text>
-      <BarcodeSVG value={product.barcode} height={50} />
-      <Text style={styles.barcodeValue}>{product.barcode}</Text>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
+        <Text style={styles.footerText}>{t.poweredBy} <Text style={{fontWeight: '800'}}>Store Saathi</Text></Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  mainContainer: {
     flex: 1,
-    backgroundColor: "#fff",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#f3f4f6", // Light grey background to make the "page" pop
+    backgroundColor: "#F8FAFC",
   },
   center: {
     flex: 1,
@@ -258,104 +189,109 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   loadingText: {
-    marginTop: 20,
+    marginTop: 15,
     fontSize: 14,
-    color: "#6b7280",
+    fontWeight: "600",
+    color: "#1E3A8A",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical:40,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-    ...Platform.select({
-        ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 3 },
-        android: { elevation: 3 }
-    })
+    height: 60,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1E293B",
   },
   backBtn: {
     padding: 4,
   },
-  headerTitleContainer: {
+  content: {
     flex: 1,
     alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 30,
   },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#111827",
+  illustrationContainer: {
+    marginBottom: 40,
   },
-  headerSubtitle: {
-    fontSize: 11,
-    color: "#6b7280",
-  },
-  downloadBtn: {
-    flexDirection: "row",
-    backgroundColor: "#2563eb", // Professional Blue
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  downloadText: {
-    color: "#fff",
-    marginLeft: 6,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  scrollContent: {
-    paddingVertical: 20,
-    alignItems: "center",
-  },
-  pageShadow: {
-    // Mimics a real sheet of paper
+  iconCircle: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
     backgroundColor: "#fff",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-      },
-      android: { elevation: 8 },
-    }),
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 4,
+    shadowColor: "#1E3A8A",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
   },
- page: {
-    width: 350, 
-    aspectRatio: 1 / 1.414, // Exact A4 Proportions
-    backgroundColor: "#fff",
-    padding: 15,
+  textSection: {
+    alignItems: "center",
+    marginBottom: 40,
   },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  label: {
-    width: "31%", // Leaves exactly enough gap for 3 columns
-    height: 90,
+  mainTitle: {
+    fontSize: 26,
+    fontWeight: "900",
+    color: "#1E293B",
     marginBottom: 12,
-    borderWidth: 0.5,
-    borderColor: "#e5e7eb", // Softer border
-    borderRadius: 4,
-    padding: 6,
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#fff",
   },
-  cardTitle: {
-    fontSize: 7,
-    fontWeight: "700",
+  description: {
+    fontSize: 16,
+    color: "#64748B",
     textAlign: "center",
-    color: "#1f2937",
-    height: 12,
+    lineHeight: 24,
   },
-  barcodeValue: {
-    fontSize: 8,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    color: "#4b5563",
-    marginTop: 2,
+  boldText: {
+    color: "#1E3A8A",
+    fontWeight: "800",
+  },
+  mainDownloadBtn: {
+    flexDirection: "row",
+    backgroundColor: "#1E3A8A",
+    width: "100%",
+    height: 60,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    elevation: 8,
+    shadowColor: "#1E3A8A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  mainDownloadText: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  infoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 30,
+    backgroundColor: "#E0E7FF",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 14,
+    gap: 12,
+  },
+  infoText: {
+    fontSize: 13,
+    color: "#1E3A8A",
+    fontWeight: "600",
+    lineHeight: 18,
+  },
+  footer: {
+    alignItems: "center",
+  },
+  footerText: {
+    fontSize: 14,
+    color: "#94A3B8",
   },
 });
