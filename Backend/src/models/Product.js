@@ -23,7 +23,7 @@ const productSchema = new mongoose.Schema(
 
     isBarcodeListed: {
       type: Boolean,
-      default: true,
+      default: false,
       index: true,
     },
 

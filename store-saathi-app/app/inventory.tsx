@@ -1,5 +1,4 @@
 import {
-  Modal,
   View,
   Text,
   StyleSheet,
@@ -8,15 +7,13 @@ import {
   TouchableOpacity,
   RefreshControl,
   StatusBar,
-  Platform,
   Alert,
 } from "react-native";
 import { useMemo, useState, useCallback, useRef } from "react";
 import { Ionicons } from "@expo/vector-icons";
-// Corrected Import
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-/* 📦 COMPONENTS */
+/* COMPONENTS */
 import InventoryHeader from "../components/inventory/InventoryHeader";
 import InventoryRow from "@/components/inventory/InventoryRow";
 import AddProductModal from "@/components/inventory/AddProductModal";
@@ -24,11 +21,11 @@ import QuickAddProductModal from "@/components/inventory/QuickAddProductModal";
 import BarcodeScanner from "@/components/billing/BarcodeScanner";
 import PageLoader from "../components/PageLoader";
 
-/* 🛠 API & HOOKS */
+/* API & HOOKS */
 import { useInventory } from "../hooks/useInventory";
 import { getProductByBarcode } from "../constants/inventory.api";
 
-/* 🔤 LANGUAGE */
+/* LANGUAGE */
 import { LANGUAGE_TEXT_INVENTORY_PAGE } from "../constants/language_inventory";
 import { useLanguage } from "../providers/LanguageProvider";
 
@@ -38,28 +35,25 @@ export default function InventoryPage() {
   const { language } = useLanguage();
   const t = LANGUAGE_TEXT_INVENTORY_PAGE[language] || LANGUAGE_TEXT_INVENTORY_PAGE.en;
 
-  /* ---------------- UI STATES ---------------- */
+  /* UI STATES */
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"ALL" | "LOW" | "HIGH" | "OUT">("ALL");
-
   const [showAdd, setShowAdd] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Use a ref for scanning lock to avoid multiple triggers during API delay
   const scanningLockedRef = useRef(false);
-
   const [lastScannedBarcode, setLastScannedBarcode] = useState<string | null>(null);
   const [productNotFound, setProductNotFound] = useState(false);
 
-  /* ---------------- REFRESH ---------------- */
+  /* REFRESH */
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await refresh();
     setRefreshing(false);
   }, [refresh]);
 
-  /* ---------------- FILTER LOGIC ---------------- */
+  /* FILTER LOGIC */
   const filteredProducts = useMemo(() => {
     let list = [...products];
 
@@ -80,39 +74,46 @@ export default function InventoryPage() {
     }
   }, [products, search, filter]);
 
-  /* ---------------- BARCODE SCAN HANDLER (FIXED) ---------------- */
+  /* BARCODE SCAN HANDLER */
   const handleScan = async (barcode: string) => {
-    // 1. Immediate Lock to prevent double-scanning
     if (scanningLockedRef.current) return;
     scanningLockedRef.current = true;
 
-    // 2. Immediate feedback - close scanner and set state
-    setShowScanner(false);
+    setShowScanner(false); // Hide scanner immediately
     setLastScannedBarcode(barcode);
 
     try {
-      // 3. Check database for existing product
       const res = await getProductByBarcode(barcode);
       const product = res?.data?.product;
 
       if (product) {
-        // Product exists: alert user
-        Alert.alert(t.notice, t.alreadyExists);
+        Alert.alert(t.notice || "Notice", t.alreadyExists || "This product already exists in inventory.");
         scanningLockedRef.current = false;
       }
     } catch (e: any) {
-      // 4. Handle Not Found (Status 404)
       if (e?.response?.status === 404) {
-        // Small timeout to allow Modal unmount animation to finish cleanly
         setTimeout(() => {
           setProductNotFound(true);
           scanningLockedRef.current = false;
         }, 300);
       } else {
         scanningLockedRef.current = false;
-        console.error("Scanning API Error:", e);
+        console.error("Scan API Error:", e);
       }
     }
+  };
+
+  /* SCANNER CONTROLS */
+  const openScanner = () => {
+    scanningLockedRef.current = false;
+    setLastScannedBarcode(null);
+    setProductNotFound(false);
+    setShowScanner(true);
+  };
+
+  const closeScanner = () => {
+    setShowScanner(false);
+    scanningLockedRef.current = false;
   };
 
   if (loading && !refreshing) {
@@ -120,21 +121,19 @@ export default function InventoryPage() {
   }
 
   return (
-    // Use edges prop to specify which sides to protect
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.container}>
+
         {/* HEADER */}
         <InventoryHeader
           onAddProduct={() => setShowAdd(true)}
-          onQuickEntry={() => {
-            scanningLockedRef.current = false; // Reset lock when opening
-            setShowScanner(true);
-          }}
+          onQuickEntry={openScanner}
         />
 
         {/* SEARCH + FILTER */}
         <View style={styles.topActions}>
+          {/* ... search and filter unchanged ... */}
           <View style={styles.searchBox}>
             <Ionicons name="search-outline" size={20} color="#94a3b8" />
             <TextInput
@@ -153,55 +152,83 @@ export default function InventoryPage() {
           </View>
 
           <View style={styles.filterRow}>
-            {(["ALL", "LOW", "OUT"] as const).map((type) => {
-              const isActive = filter === type;
-              return (
-                <TouchableOpacity
-                  key={type}
-                  onPress={() => setFilter(type)}
-                  style={[styles.pill, isActive && styles.pillActive]}
-                >
-                  <Text style={[styles.pillText, isActive && styles.pillTextActive]}>
-                    {type === "ALL" ? t.allItems : type === "LOW" ? t.lowStock : t.outOfStock}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+            {(["ALL", "LOW", "OUT"] as const).map((type) => (
+              <TouchableOpacity
+                key={type}
+                onPress={() => setFilter(type)}
+                style={[styles.pill, filter === type && styles.pillActive]}
+              >
+                <Text style={[styles.pillText, filter === type && styles.pillTextActive]}>
+                  {type === "ALL" ? t.allItems : type === "LOW" ? t.lowStock : t.outOfStock}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
-        {/* INVENTORY LIST */}
-        <FlatList
-          data={filteredProducts}
-          keyExtractor={(item) => item._id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + 100 },
-          ]}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={["#1e3a8a"]}
-              tintColor="#1e3a8a"
-            />
-          }
-          renderItem={({ item }) => (
-            <InventoryRow product={item} onRefresh={refresh} />
-          )}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <View style={styles.emptyIconBg}>
-                <Ionicons name="cube-outline" size={40} color="#94a3b8" />
-              </View>
-              <Text style={styles.emptyText}>{t.noProducts}</Text>
-              <Text style={styles.emptySubText}>{t.noProductsSub}</Text>
+        {/* BARCODE SCANNER - Always mounted */}
+        <View style={[
+          styles.scannerContainer,
+          !showScanner && styles.scannerHidden
+        ]}>
+          <BarcodeScanner
+            onScan={handleScan}
+            onClose={closeScanner}
+          />
+          {showScanner && (
+            <View style={styles.scanHint}>
+              <Ionicons name="scan" size={14} color="#fff" />
+              <Text style={styles.scanText}>Align barcode within frame</Text>
             </View>
-          }
-        />
+          )}
+        </View>
 
-        {/* ADD PRODUCT MODAL (Sliding from top) */}
+        {/* DARK OVERLAY ONLY BELOW THE SCANNER */}
+        {showScanner && (
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={closeScanner}
+            style={styles.darkOverlayBelowScanner}
+          />
+        )}
+
+        {/* INVENTORY LIST */}
+        <View style={[
+          styles.listContainer,
+          showScanner && styles.listDimmed // Optional: slightly dim the list
+        ]}>
+          <FlatList
+            data={filteredProducts}
+            keyExtractor={(item) => item._id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingBottom: insets.bottom + 100 },
+            ]}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={["#1e3a8a"]}
+                tintColor="#1e3a8a"
+              />
+            }
+            renderItem={({ item }) => (
+              <InventoryRow product={item} onRefresh={refresh} />
+            )}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <View style={styles.emptyIconBg}>
+                  <Ionicons name="cube-outline" size={40} color="#94a3b8" />
+                </View>
+                <Text style={styles.emptyText}>{t.noProducts}</Text>
+                <Text style={styles.emptySubText}>{t.noProductsSub}</Text>
+              </View>
+            }
+          />
+        </View>
+
+        {/* MODALS */}
         <AddProductModal
           visible={showAdd}
           onClose={() => setShowAdd(false)}
@@ -211,37 +238,19 @@ export default function InventoryPage() {
           }}
         />
 
-        {/* QUICK ADD MODAL (Triggered when barcode doesn't exist) */}
-        {productNotFound && lastScannedBarcode && (
-          <QuickAddProductModal
-            visible={productNotFound}
-            barcode={lastScannedBarcode}
-            onClose={() => {
-              setProductNotFound(false);
-              setLastScannedBarcode(null);
-            }}
-            onSuccess={() => {
-              setProductNotFound(false);
-              setLastScannedBarcode(null);
-              refresh();
-            }}
-          />
-        )}
-
-        {/* BARCODE SCANNER MODAL */}
-        <Modal 
-          visible={showScanner} 
-          transparent 
-          animationType="slide"
-          onRequestClose={() => setShowScanner(false)}
-        >
-          <View style={styles.scannerWrapper}>
-            <BarcodeScanner
-              onScan={handleScan}
-              onClose={() => setShowScanner(false)}
-            />
-          </View>
-        </Modal>
+        <QuickAddProductModal
+          visible={productNotFound}
+          barcode={lastScannedBarcode || ""}
+          onClose={() => {
+            setProductNotFound(false);
+            setLastScannedBarcode(null);
+          }}
+          onSuccess={() => {
+            setProductNotFound(false);
+            setLastScannedBarcode(null);
+            refresh();
+          }}
+        />
       </View>
     </SafeAreaView>
   );
@@ -255,11 +264,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F8FAFC",
-  },
-  scannerWrapper: {
-    flex: 1,
-    backgroundColor: "#000",
-    zIndex: 1000,
   },
   topActions: {
     paddingTop: 5,
@@ -295,6 +299,7 @@ const styles = StyleSheet.create({
   filterRow: {
     flexDirection: "row",
     gap: 10,
+    flexWrap: "wrap",
   },
   pill: {
     paddingHorizontal: 16,
@@ -315,6 +320,54 @@ const styles = StyleSheet.create({
   },
   pillTextActive: {
     color: "#FFF",
+  },
+
+  // SCANNER
+  scannerContainer: {
+    height: 220,
+    backgroundColor: "#020617",
+    position: "relative",
+    zIndex: 1000, // Above everything
+  },
+  scannerHidden: {
+    height: 0,
+    overflow: "hidden",
+  },
+  scanHint: {
+    position: "absolute",
+    top: 12,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+    zIndex: 1001,
+  },
+  scanText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+
+  // DARK OVERLAY - ONLY BELOW SCANNER
+  darkOverlayBelowScanner: {
+    position: "absolute",
+    top: 220 + (StatusBar.currentHeight || 0) + 150, // Approx position below header + search + scanner
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    zIndex: 999,
+  },
+
+  // LIST
+  listContainer: {
+    flex: 1,
+    zIndex: 1,
+  },
+  listDimmed: {
+    opacity: 0.6, // Optional subtle dimming
   },
   listContent: {
     paddingTop: 12,
@@ -344,6 +397,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     marginTop: 6,
-    fontWeight: '500'
+    fontWeight: "500",
   },
 });
