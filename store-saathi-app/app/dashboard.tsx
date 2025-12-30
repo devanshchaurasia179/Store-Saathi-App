@@ -1,8 +1,19 @@
 import React, { useEffect, useState } from "react";
-import { View, ScrollView, StyleSheet, RefreshControl, StatusBar, TouchableOpacity, Text } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  FlatList,
+  Alert,
+  ActivityIndicator,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  StatusBar,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, Feather } from "@expo/vector-icons";
 
 // API & Auth
 import { getDashboard } from "../constants/dashboard.api";
@@ -34,21 +45,25 @@ export default function DashboardPage() {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
     fetchData();
   };
 
+  const goToPrinterTest = () => {
+    router.push("/PrintTest"); // Adjust path if your PrintTest screen is elsewhere
+  };
+
   if (loading) return <PageLoader />;
 
   return (
     <View style={styles.container}>
-      {/* Ensures the top status bar matches the brand blue */}
       <StatusBar barStyle="light-content" backgroundColor="#1e4de4" />
       
-      {/* Immersive Top Background */}
       <View style={styles.topBackground} />
 
       <SafeAreaView style={styles.safeArea} edges={["left", "right"]}>
@@ -62,7 +77,7 @@ export default function DashboardPage() {
           {/* 1. Profile Section */}
           <ProfileCard shop={dashboard?.shop} />
 
-          {/* 2. Floating Top Debtor Card - Note the negative margin */}
+          {/* 2. Floating Top Debtor Card */}
           <View style={styles.overlappingCard}>
             <TopDebtorCard debtor={dashboard?.topDebtor} />
           </View>
@@ -72,14 +87,24 @@ export default function DashboardPage() {
             <QuickActions />
           </View>
 
-          {/* 4. Primary Action: Create Bill */}
-          <TouchableOpacity 
-            style={styles.createBillButton}
-            onPress={() => router.push("/billing")}
-          >
-            <Ionicons name="barcode-outline" size={20} color="#fff" />
-            <Text style={styles.createBillText}>Create Bill</Text>
-          </TouchableOpacity>
+          {/* 4. Primary Actions: Create Bill + Test Printer */}
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity 
+              style={styles.createBillButton}
+              onPress={() => router.push("/billing")}
+            >
+              <Ionicons name="barcode-outline" size={20} color="#fff" />
+              <Text style={styles.createBillText}>Create Bill</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.testPrinterButton}
+              onPress={goToPrinterTest}
+            >
+              <Feather name="printer" size={20} color="#fff" />
+              <Text style={styles.testPrinterText}>Test Printer</Text>
+            </TouchableOpacity>
+          </View>
 
           {/* 5. Operational Alerts: Low Stock */}
           <LowStockList items={dashboard?.lowStock || []} />
@@ -100,7 +125,7 @@ export default function DashboardPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f0f7ff", // Dashboard light blue tint
+    backgroundColor: "#f0f7ff",
   },
   safeArea: {
     flex: 1,
@@ -108,17 +133,30 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 40,
   },
+  topBackground: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 220,
+    backgroundColor: "#1e4de4",
+  },
   overlappingCard: {
-    marginTop: -40, // Pulls the debtor card higher onto the blue header
+    marginTop: -40,
     zIndex: 10,
   },
   sectionMargin: {
     marginTop: 8,
   },
-  createBillButton: {
-    backgroundColor: "#1e3a8a", // Vibrant action blue
+  actionButtonsContainer: {
+    flexDirection: "row",
+    gap: 12,
     marginHorizontal: 12,
     marginVertical: 12,
+  },
+  createBillButton: {
+    flex: 1,
+    backgroundColor: "#1e3a8a",
     padding: 16,
     borderRadius: 12,
     flexDirection: "row",
@@ -132,6 +170,27 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   createBillText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  testPrinterButton: {
+    flex: 1,
+    backgroundColor: "#7c3aed", // Purple to distinguish from Create Bill
+    padding: 16,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  testPrinterText: {
     color: "#fff",
     fontSize: 18,
     fontWeight: "700",

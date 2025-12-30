@@ -19,7 +19,7 @@ import { getBillById } from "../../constants/bills.api";
 import { formatRupee } from "../../utils/formatCurrency";
 import { formatDate } from "../../utils/formatDate";
 import { shareBillPdf } from "../../utils/billPdf";
-import { printBillPdf58mm } from "../../utils/PrintBillPdf";
+import { printBill  } from "../../utils/thermalPrinter";
 
 export default function ViewBillModal({ billId, onClose }: any) {
   const [bill, setBill] = useState<any>(null);
@@ -269,7 +269,7 @@ Status: ${bill?.paymentStatus}`,
 
                 <TouchableOpacity
                   style={styles.primaryBtn}
-                  onPress={() => printBillPdf58mm(bill)}
+                  onPress={() => printBill(bill)}
                 >
                   <Feather name="printer" size={18} color="#fff" />
                   <Text style={styles.primaryBtnText}>Print Bill</Text>
