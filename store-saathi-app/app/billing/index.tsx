@@ -13,18 +13,26 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
+/* 📦 COMPONENTS */
 import BarcodeScanner from "../../components/billing/BarcodeScanner";
 import BillItemsList from "../../components/billing/BillItemsList";
 import BillSummary from "../../components/billing/BillSummary";
 import QuickAddProductModal from "../../components/inventory/QuickAddProductModal";
-import AddCustomerModal from "../../components/ledger/AddCustomerModal"; // ← Added import
+import AddCustomerModal from "../../components/ledger/AddCustomerModal";
 
+/* 🛠 HOOKS & API */
 import { useBilling } from "../../hooks/useBilling";
 import { getProducts } from "../../constants/inventory.api";
 import { getLedgerCustomers } from "../../constants/ledger.api";
 
-/* ================= PAGE ================= */
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_BILLING } from "../../constants/language_billing";
+import { useLanguage } from "../../providers/LanguageProvider";
+
 export default function BillingPage() {
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_BILLING[language] || LANGUAGE_TEXT_BILLING.en;
+
   /* ---------------- BILLING HOOK ---------------- */
   const {
     items,
@@ -47,7 +55,7 @@ export default function BillingPage() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [customerOpen, setCustomerOpen] = useState(false);
-  const [addCustomerModalVisible, setAddCustomerModalVisible] = useState(false); // ← New state
+  const [addCustomerModalVisible, setAddCustomerModalVisible] = useState(false);
 
   /* ---------------- PRODUCT STATES ---------------- */
   const [products, setProducts] = useState<any[]>([]);
@@ -59,7 +67,6 @@ export default function BillingPage() {
     getLedgerCustomers()
       .then((res) => {
         const all = res.data.customers || [];
-        // Exclude suppliers
         const onlyCustomers = all.filter((c: any) => !c.isSupplier);
         setCustomers(onlyCustomers);
       })
@@ -90,7 +97,7 @@ export default function BillingPage() {
   }, [products, productSearch]);
 
   const selectedCustomer =
-    customers.find((c) => c._id === customerId)?.name || "Walk-in Customer";
+    customers.find((c) => c._id === customerId)?.name || t.walkInCustomer;
 
   /* ---------------- ADD PRODUCT ---------------- */
   const addProductToBill = (product: any) => {
@@ -98,13 +105,11 @@ export default function BillingPage() {
 
     setItems((prev) => {
       const existing = prev.find((i) => i.productId === productId);
-
       if (existing) {
         return prev.map((i) =>
           i.productId === productId ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
-
       return [
         ...prev,
         {
@@ -124,41 +129,35 @@ export default function BillingPage() {
   const handleCheckout = async () => {
     try {
       const res = await checkout(customerId || null);
-
       const bill = res?.bill;
-
-      if (!bill?._id) {
-        console.warn("Invalid bill returned", res);
-        return;
-      }
-
+      if (!bill?._id) return;
       router.replace(`/bills/${bill._id}`);
     } catch (err) {
       console.error("Checkout failed", err);
     }
   };
 
-  /* ================= UI ================= */
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={24} />
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={24} color="#1e293b" />
         </TouchableOpacity>
 
         <View>
-          <Text style={styles.title}>New Bill</Text>
-          <Text style={styles.subtitle}>TERMINAL ACTIVE</Text>
+          <Text style={styles.title}>{t.title}</Text>
+          <Text style={styles.subtitle}>{t.terminalActive}</Text>
         </View>
 
         <TouchableOpacity
           style={styles.searchBtn}
           onPress={() => setProductOpen(true)}
         >
-          <Text style={styles.searchBtnText}>Search Product</Text>
+          <Ionicons name="search" size={14} color="#2563eb" style={{ marginRight: 4 }} />
+          <Text style={styles.searchBtnText}>{t.searchProduct}</Text>
         </TouchableOpacity>
       </View>
 
@@ -166,40 +165,48 @@ export default function BillingPage() {
       <View style={styles.scanner}>
         <BarcodeScanner onScan={handleScan} />
         <View style={styles.scanHint}>
-          <Ionicons name="scan" size={12} color="#fff" />
-          <Text style={styles.scanText}>Align Barcode</Text>
+          <Ionicons name="scan" size={14} color="#fff" />
+          <Text style={styles.scanText}>{t.alignBarcode}</Text>
         </View>
       </View>
 
       {/* BODY */}
       <View style={styles.body}>
-        {/* CUSTOMER */}
+        {/* CUSTOMER BOX */}
         <TouchableOpacity
           style={styles.customerBox}
           onPress={() => setCustomerOpen(true)}
         >
-          <Ionicons name="person" size={16} />
-          <Text style={styles.customerText}>{selectedCustomer}</Text>
+          <View style={styles.customerIconWrap}>
+            <Ionicons name="person" size={16} color="#475569" />
+          </View>
+          <View>
+             <Text style={styles.customerLabel}>{t.customer}</Text>
+             <Text style={styles.customerText}>{selectedCustomer}</Text>
+          </View>
           <Ionicons
-            name="search"
-            size={14}
+            name="chevron-down"
+            size={16}
+            color="#94a3b8"
             style={{ marginLeft: "auto" }}
           />
         </TouchableOpacity>
 
-        {/* ITEMS */}
+        {/* ITEMS LIST */}
         <View style={{ flex: 1 }}>
           {items.length === 0 ? (
             <View style={styles.empty}>
-              <Ionicons name="add-circle-outline" size={32} />
-              <Text style={styles.emptyText}>Scanner Ready</Text>
+              <View style={styles.emptyIconBg}>
+                <Ionicons name="barcode-outline" size={40} color="#cbd5e1" />
+              </View>
+              <Text style={styles.emptyText}>{t.scannerReady}</Text>
             </View>
           ) : (
             <BillItemsList items={items} setItems={setItems} />
           )}
         </View>
 
-        {/* SUMMARY */}
+        {/* SUMMARY SECTION */}
         <View style={styles.summary}>
           <BillSummary
             subTotal={subTotal}
@@ -214,10 +221,10 @@ export default function BillingPage() {
         </View>
       </View>
 
-      {/* CUSTOMER SEARCH WITH ADD OPTION */}
+      {/* CUSTOMER SEARCH OVERLAY */}
       <SearchOverlay
         visible={customerOpen}
-        title="Search Customer"
+        title={t.searchCustomer}
         value={customerSearch}
         onChange={setCustomerSearch}
         onClose={() => {
@@ -231,10 +238,11 @@ export default function BillingPage() {
           setCustomerSearch("");
         }}
         walkInOption
+        walkInLabel={t.walkInCustomer}
         renderItem={(c: any) => (
           <>
             <Text style={styles.itemTitle}>{c.name}</Text>
-            <Text style={styles.itemSub}>{c.mobileNumber || "No mobile"}</Text>
+            <Text style={styles.itemSub}>{c.mobileNumber || t.noPhone}</Text>
           </>
         )}
         extraTopOption={
@@ -245,16 +253,18 @@ export default function BillingPage() {
               setAddCustomerModalVisible(true);
             }}
           >
-            <Ionicons name="add-circle-outline" size={18} color="#2563eb" />
-            <Text style={styles.addNewText}>Add New Customer</Text>
+            <View style={styles.addIconCircle}>
+                <Ionicons name="add" size={18} color="#2563eb" />
+            </View>
+            <Text style={styles.addNewText}>{t.addNewCustomer}</Text>
           </TouchableOpacity>
         }
       />
 
-      {/* PRODUCT SEARCH */}
+      {/* PRODUCT SEARCH OVERLAY */}
       <SearchOverlay
         visible={productOpen}
-        title="Search Product"
+        title={t.searchProduct}
         value={productSearch}
         onChange={setProductSearch}
         onClose={() => setProductOpen(false)}
@@ -271,9 +281,10 @@ export default function BillingPage() {
         )}
       />
 
-      {/* QUICK ADD PRODUCT */}
+      {/* QUICK ADD MODAL */}
       {productNotFound && lastScannedBarcode && (
         <QuickAddProductModal
+          visible={productNotFound}
           barcode={lastScannedBarcode}
           onClose={() => setProductNotFound(false)}
           onSuccess={(newProduct) => {
@@ -282,27 +293,23 @@ export default function BillingPage() {
         />
       )}
 
-      {/* ADD NEW CUSTOMER MODAL */}
+      {/* ADD CUSTOMER MODAL */}
       <AddCustomerModal
         visible={addCustomerModalVisible}
         isSupplier={false}
         onClose={() => setAddCustomerModalVisible(false)}
         onAdded={() => {
-          // Refresh customer list after adding a new one
-          getLedgerCustomers()
-            .then((res) => {
-              const all = res.data.customers || [];
-              const onlyCustomers = all.filter((c: any) => !c.isSupplier);
-              setCustomers(onlyCustomers);
-            })
-            .catch(() => {});
+          getLedgerCustomers().then((res) => {
+            const all = res.data.customers || [];
+            setCustomers(all.filter((c: any) => !c.isSupplier));
+          });
         }}
       />
     </SafeAreaView>
   );
 }
 
-/* ================= SEARCH OVERLAY ================= */
+/* ================= SEARCH OVERLAY COMPONENT ================= */
 function SearchOverlay({
   visible,
   title,
@@ -313,7 +320,8 @@ function SearchOverlay({
   onSelect,
   renderItem,
   walkInOption,
-  extraTopOption, // ← New prop
+  walkInLabel,
+  extraTopOption,
 }: any) {
   if (!visible) return null;
 
@@ -322,34 +330,32 @@ function SearchOverlay({
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <View style={styles.searchHeader}>
-            <Ionicons name="search" size={14} />
+            <Ionicons name="search" size={18} color="#94a3b8" />
             <TextInput
               autoFocus
               placeholder={title}
+              placeholderTextColor="#94a3b8"
               value={value}
               onChangeText={onChange}
               style={styles.input}
             />
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={16} />
+            <TouchableOpacity onPress={onClose} style={styles.closeBtnIcon}>
+              <Ionicons name="close" size={20} color="#64748b" />
             </TouchableOpacity>
           </View>
 
           <ScrollView keyboardShouldPersistTaps="handled">
-            {/* Add New Customer Option */}
             {extraTopOption}
-
-            {/* Walk-in Option */}
             {walkInOption && (
               <TouchableOpacity
                 onPress={() => onSelect({ _id: "" })}
                 style={styles.walkIn}
               >
-                <Text style={styles.walkInText}>Walk-in customer</Text>
+                <Ionicons name="people-outline" size={18} color="#2563eb" style={{marginRight: 10}} />
+                <Text style={styles.walkInText}>{walkInLabel}</Text>
               </TouchableOpacity>
             )}
 
-            {/* Customer/Product List */}
             {items.map((item: any) => (
               <TouchableOpacity
                 key={item._id}
@@ -369,147 +375,180 @@ function SearchOverlay({
 /* ================= STYLES ================= */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
-
   header: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderColor: "#eee",
+    borderColor: "#f1f5f9",
     gap: 12,
   },
-
-  title: { fontSize: 14, fontWeight: "700" },
-  subtitle: {
-    fontSize: 9,
-    color: "#2563eb",
-    fontWeight: "700",
+  backBtn: {
+    padding: 4,
+    marginLeft: -4,
   },
-
+  title: { fontSize: 17, fontWeight: "800", color: "#0f172a" },
+  subtitle: {
+    fontSize: 10,
+    color: "#2563eb",
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
   searchBtn: {
     marginLeft: "auto",
     backgroundColor: "#eff6ff",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 20,
   },
   searchBtnText: {
-    fontSize: 10,
-    fontWeight: "800",
+    fontSize: 11,
+    fontWeight: "700",
     color: "#2563eb",
   },
-
-  scanner: { height: "22%", backgroundColor: "#020617" },
+  scanner: { height: "24%", backgroundColor: "#020617" },
   scanHint: {
     position: "absolute",
-    top: 8,
+    bottom: 12,
     alignSelf: "center",
     flexDirection: "row",
-    gap: 4,
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 6,
   },
-  scanText: { fontSize: 8, color: "#fff", fontWeight: "700" },
-
+  scanText: { fontSize: 10, color: "#fff", fontWeight: "700" },
   body: {
     flex: 1,
     backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    marginTop: -16,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    marginTop: -20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 5,
   },
-
   customerBox: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
-    margin: 16,
+    padding: 14,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 10,
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    gap: 12,
     borderWidth: 1,
-    borderRadius: 12,
-    gap: 8,
-    borderColor: "#eee",
+    borderColor: "#f1f5f9",
   },
-
-  customerText: { fontSize: 12, fontWeight: "700" },
-
+  customerIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+  },
+  customerLabel: { fontSize: 9, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' },
+  customerText: { fontSize: 13, fontWeight: "700", color: '#1e293b' },
   empty: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 12,
   },
-  emptyText: { fontSize: 12, fontWeight: "700" },
-
+  emptyIconBg: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: { fontSize: 14, fontWeight: "700", color: '#94a3b8' },
   summary: {
     borderTopWidth: 1,
-    borderColor: "#eee",
+    borderColor: "#f1f5f9",
     padding: 16,
+    backgroundColor: '#fff'
   },
-
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
     justifyContent: "flex-start",
-    paddingTop: 80,
+    paddingTop: 60,
   },
-
   sheet: {
     backgroundColor: "#fff",
     marginHorizontal: 16,
-    borderRadius: 16,
+    borderRadius: 24,
     overflow: "hidden",
-    maxHeight: "70%",
+    maxHeight: "80%",
+    elevation: 10,
   },
-
   searchHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    padding: 12,
-    borderBottomWidth: 1,
-    borderColor: "#eee",
-  },
-
-  input: { flex: 1, fontSize: 12 },
-
-  listItem: {
-    padding: 12,
+    gap: 10,
+    padding: 16,
     borderBottomWidth: 1,
     borderColor: "#f1f5f9",
   },
-
-  itemTitle: { fontWeight: "700", fontSize: 12 },
-  itemSub: { fontSize: 10, color: "#64748b" },
-
+  closeBtnIcon: { padding: 4 },
+  input: { flex: 1, fontSize: 15, color: '#1e293b', fontWeight: '600' },
+  listItem: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderColor: "#f8fafc",
+  },
+  itemTitle: { fontWeight: "700", fontSize: 14, color: '#1e293b' },
+  itemSub: { fontSize: 12, color: "#64748b", marginTop: 2 },
   productRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-
-  price: { fontWeight: "700", color: "#2563eb" },
-
+  price: { fontWeight: "800", color: "#2563eb", fontSize: 15 },
   walkIn: {
-    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
     borderBottomWidth: 1,
-    borderColor: "#eee",
+    borderColor: "#f1f5f9",
   },
   walkInText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "700",
     color: "#2563eb",
   },
-
-  // New styles for Add New Customer option
   addNewOption: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 14,
-    gap: 10,
-    backgroundColor: "#eff6ff",
+    padding: 16,
+    gap: 12,
+    backgroundColor: "#f0f7ff",
     borderBottomWidth: 1,
-    borderColor: "#eee",
+    borderColor: "#dbeafe",
+  },
+  addIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addNewText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
     color: "#2563eb",
   },

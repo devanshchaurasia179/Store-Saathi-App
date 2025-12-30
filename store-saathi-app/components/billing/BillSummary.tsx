@@ -8,6 +8,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+/* 🛠 UTILS */
+import { formatRupee } from "../../utils/formatCurrency";
+
+/* 🔤 LANGUAGE */
+import { LANGUAGE_TEXT_BILL_SUMMARY } from "../../constants/language_billing";
+import { useLanguage } from "../../providers/LanguageProvider";
+
 type Props = {
   subTotal: number;
   discount: number;
@@ -29,8 +36,10 @@ export default function BillSummary({
   onCheckout,
   disabled = false,
 }: Props) {
-  
-  // Requirement: Paid Amount should default to Total Amount
+  const { language } = useLanguage();
+  const t = LANGUAGE_TEXT_BILL_SUMMARY[language] || LANGUAGE_TEXT_BILL_SUMMARY.en;
+
+  // Requirement: Paid Amount should default to Total Amount when items change
   useEffect(() => {
     if (totalAmount > 0) {
       setPaidAmount(totalAmount);
@@ -43,9 +52,10 @@ export default function BillSummary({
     <View style={styles.container}>
       {/* COMPACT INPUT SECTION */}
       <View style={styles.inputGrid}>
+        {/* DISCOUNT INPUT */}
         <View style={styles.compactInputGroup}>
           <Ionicons name="pricetag-outline" size={12} color="#64748b" />
-          <Text style={styles.compactLabel}>Discount</Text>
+          <Text style={styles.compactLabel}>{t.discount}</Text>
           <TextInput
             keyboardType="numeric"
             placeholder="0"
@@ -56,9 +66,10 @@ export default function BillSummary({
           />
         </View>
 
+        {/* RECEIVED AMOUNT INPUT */}
         <View style={styles.compactInputGroup}>
           <Ionicons name="cash-outline" size={12} color="#64748b" />
-          <Text style={styles.compactLabel}>Received</Text>
+          <Text style={styles.compactLabel}>{t.received}</Text>
           <TextInput
             keyboardType="numeric"
             placeholder="0"
@@ -73,15 +84,15 @@ export default function BillSummary({
       {/* COMPACT SUMMARY BOX */}
       <View style={styles.summaryRow}>
         <View>
-          <Text style={styles.subText}>Subtotal: ₹{subTotal}</Text>
+          <Text style={styles.subText}>{t.subtotal}: {formatRupee(subTotal)}</Text>
           {dueAmount > 0 && (
-            <Text style={styles.dueText}>Due: ₹{dueAmount}</Text>
+            <Text style={styles.dueText}>{t.due}: {formatRupee(dueAmount)}</Text>
           )}
         </View>
         
         <View style={styles.totalContainer}>
-          <Text style={styles.totalLabel}>TOTAL</Text>
-          <Text style={styles.totalValue}>₹{totalAmount.toLocaleString()}</Text>
+          <Text style={styles.totalLabel}>{t.total}</Text>
+          <Text style={styles.totalValue}>{formatRupee(totalAmount)}</Text>
         </View>
       </View>
 
@@ -96,7 +107,7 @@ export default function BillSummary({
         ]}
       >
         <Text style={[styles.checkoutText, disabled && styles.disabledText]}>
-          {disabled ? "CART EMPTY" : "COMPLETE BILL"}
+          {disabled ? t.cartEmpty : t.completeBill}
         </Text>
         {!disabled && <Ionicons name="chevron-forward" size={16} color="#fff" />}
       </TouchableOpacity>
@@ -108,6 +119,7 @@ const styles = StyleSheet.create({
   container: {
     paddingTop: 8,
     gap: 10,
+    backgroundColor: '#fff', // Ensures visibility on light/dark themes
   },
 
   inputGrid: {
@@ -122,7 +134,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f1f5f9",
     borderRadius: 10,
     paddingHorizontal: 10,
-    height: 38, // Reduced height
+    height: 38,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
@@ -176,14 +188,14 @@ const styles = StyleSheet.create({
   },
 
   totalValue: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "900",
     color: "#2563eb",
   },
 
   checkoutBtn: {
     backgroundColor: "#2563eb",
-    height: 48, // Slimmer button
+    height: 52, 
     borderRadius: 12,
     flexDirection: "row",
     justifyContent: "center",
@@ -194,13 +206,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 3,
+    marginBottom: 4,
   },
 
   checkoutText: {
     color: "#fff",
     fontWeight: "800",
-    fontSize: 13,
-    letterSpacing: 1,
+    fontSize: 14,
+    letterSpacing: 0.5,
   },
 
   disabledBtn: {
