@@ -25,8 +25,8 @@ export default function QuickActions() {
     },
     {
       title: t.ledger,
-      icon: "account-group-outline",
-      Icon: MaterialCommunityIcons,
+      icon: "book",
+      Icon: Ionicons,
       onPress: () => router.push("/ledger"),
     },
     {

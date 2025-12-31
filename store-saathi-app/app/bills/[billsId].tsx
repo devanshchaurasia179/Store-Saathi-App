@@ -11,7 +11,7 @@ import {
   Platform,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import QRCode from "react-native-qrcode-svg";
 
@@ -23,6 +23,7 @@ import { getDashboard } from "../../constants/dashboard.api";
 import { formatRupee } from "../../utils/formatCurrency";
 import { shareBillPdf } from "../../utils/billPdf";
 import { printBill } from "../../utils/thermalPrinter";
+import { formatDate } from "../../utils/formatDate";
 
 /* 🔤 LANGUAGE */
 import { LANGUAGE_TEXT_BILL_DETAIL } from "../../constants/language_billing";
@@ -74,22 +75,42 @@ export default function BillDetailScreen() {
     fetchData();
   }, [billId]);
 
-  /* ---------------- PDF ACTIONS ---------------- */
+  /* ---------------- PDF & PRINT ACTIONS ---------------- */
   const handleShare = async () => {
     try {
       await shareBillPdf(bill);
     } catch (e) {
+      console.error(e);
       Alert.alert("Error", t.errorShare);
     }
   };
 
   const handlePrint = async () => {
     try {
+      // ✅ This now triggers the Thermal Printer utility exactly like ViewBillModal
       await printBill(bill);
     } catch (e) {
+      console.error(e);
       Alert.alert("Error", t.errorPrint);
     }
   };
+
+  /* ---------------- HELPERS ---------------- */
+  const Row = ({ label, value, bold, danger, highlight }: any) => (
+    <View style={styles.row}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <Text
+        style={[
+          styles.rowValue,
+          bold && styles.boldText,
+          danger && { color: "#ef4444" },
+          highlight && { color: "#10b981" },
+        ]}
+      >
+        {value}
+      </Text>
+    </View>
+  );
 
   /* ---------------- LOADING ---------------- */
   if (loading) {
@@ -114,9 +135,8 @@ export default function BillDetailScreen() {
     );
   }
 
-  const billAmount = bill.totalAmount;
-  const upiUrl = upiId && billAmount > 0
-      ? `upi://pay?pa=${upiId}&pn=Shop&am=${billAmount}&cu=INR`
+  const upiUrl = upiId && bill.totalAmount > 0
+      ? `upi://pay?pa=${upiId}&pn=Shop&am=${bill.totalAmount}&cu=INR`
       : null;
 
   const isPaid = bill.paymentStatus === "PAID";
@@ -148,7 +168,7 @@ export default function BillDetailScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* MAIN CARD */}
+        {/* MAIN CARD (Ticket Style) */}
         <View style={styles.ticketCard}>
           <View style={[
               styles.statusBadge,
@@ -197,7 +217,7 @@ export default function BillDetailScreen() {
           </View>
         </View>
 
-        {/* ITEMS */}
+        {/* ITEMS SECTION */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>{t.billedItems}</Text>
@@ -206,7 +226,7 @@ export default function BillDetailScreen() {
 
           {bill.items.map((item: any, idx: number) => (
             <View
-              key={item.productId}
+              key={idx}
               style={[
                 styles.itemRow,
                 idx === bill.items.length - 1 && { borderBottomWidth: 0 },
@@ -215,7 +235,7 @@ export default function BillDetailScreen() {
               <View style={styles.itemInfo}>
                 <Text style={styles.itemName}>{item.name}</Text>
                 <Text style={styles.itemMeta}>
-                  {item.quantity} {t.unitX} {formatRupee(item.price)}
+                  {item.quantity} {t.unitX || 'Unit'} {formatRupee(item.price)}
                 </Text>
               </View>
               <Text style={styles.itemPrice}>{formatRupee(item.total)}</Text>
@@ -223,12 +243,35 @@ export default function BillDetailScreen() {
           ))}
         </View>
 
+        {/* BREAKDOWN CARD (Newly added to match ViewBillModal) */}
+        <View style={styles.breakdownCard}>
+             <Row label="Subtotal" value={formatRupee(bill.subTotal)} />
+             {bill.discount > 0 && (
+               <Row 
+                 label="Discount" 
+                 value={`- ${formatRupee(bill.discount)}`} 
+                 highlight 
+               />
+             )}
+             <View style={styles.dashedDivider} />
+             <Row label="Net Total" value={formatRupee(bill.totalAmount)} bold />
+             <Row label="Amount Paid" value={formatRupee(bill.paidAmount)} />
+             {bill.totalAmount - bill.paidAmount > 0 && (
+               <Row 
+                 label="Balance Due" 
+                 value={formatRupee(bill.totalAmount - bill.paidAmount)} 
+                 danger 
+                 bold 
+               />
+             )}
+        </View>
+
         {/* UPI QR */}
         {upiUrl && (
           <View style={styles.qrSection}>
             <Text style={styles.qrTitle}>{t.qrTitle}</Text>
             <Text style={styles.qrSub}>
-              {t.qrInstructions(formatRupee(billAmount))}
+              {t.qrInstructions(formatRupee(bill.totalAmount))}
             </Text>
             <View style={styles.qrWrapper}>
               <QRCode
@@ -334,9 +377,28 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontWeight: "900", color: "#1e293b" },
   itemCount: { fontSize: 12, color: "#94a3b8", fontWeight: '700' },
   itemRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 14, borderBottomWidth: 1, borderColor: "#f1f5f9" },
+  itemInfo: { flex: 1 },
   itemName: { fontSize: 14, fontWeight: "700", color: '#334155' },
   itemMeta: { fontSize: 12, color: "#64748b", marginTop: 2, fontWeight: '600' },
   itemPrice: { fontSize: 14, fontWeight: "800", color: '#0f172a' },
+  
+  /* Breakdown Styles */
+  breakdownCard: {
+    backgroundColor: "#fff",
+    marginHorizontal: 20,
+    marginTop: 16,
+    padding: 20,
+    borderRadius: 28,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#f1f5f9'
+  },
+  row: { flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
+  rowLabel: { fontSize: 13, fontWeight: "600", color: "#64748b" },
+  rowValue: { fontSize: 15, fontWeight: "600", color: "#1e293b" },
+  boldText: { fontSize: 17, fontWeight: "900", color: "#0f172a" },
+  dashedDivider: { borderWidth: 1, borderColor: "#f1f5f9", borderStyle: "dashed", marginVertical: 16 },
+
   qrSection: { backgroundColor: "#fff", margin: 20, padding: 24, borderRadius: 28, alignItems: "center", elevation: 2 },
   qrTitle: { fontSize: 18, fontWeight: "900", color: '#1e3a8a', marginBottom: 4 },
   qrSub: { fontSize: 13, color: "#64748b", textAlign: "center", marginBottom: 24, fontWeight: '600', paddingHorizontal: 10 },

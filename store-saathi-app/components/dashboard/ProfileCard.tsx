@@ -28,13 +28,16 @@ export default function ProfileCard({ shop }: any) {
 
   /**
    * Helper to format Name + Honorific correctly
-   * Example: "Rahul, Ji" (Hindi) vs "Rahul Garu" (Telugu)
    */
   const renderOwnerHeader = () => {
     if (language === 'te') {
       return `${ownerName} ${t.ji}`;
     }
     return `${ownerName}, ${t.ji}`;
+  };
+
+  const handleProfileNavigation = () => {
+    router.push("/profile");
   };
 
   return (
@@ -62,7 +65,12 @@ export default function ProfileCard({ shop }: any) {
           ) : null}
         </View>
 
-        <View style={styles.avatarContainer}>
+        {/* INTERACTIVE AVATAR */}
+        <TouchableOpacity 
+          style={styles.avatarContainer} 
+          onPress={handleProfileNavigation}
+          activeOpacity={0.8}
+        >
           <View
             style={[
               styles.avatarCircle,
@@ -77,7 +85,7 @@ export default function ProfileCard({ shop }: any) {
           </View>
 
           {!isComplete && <View style={styles.statusDot} />}
-        </View>
+        </TouchableOpacity>
       </View>
 
       {/* PROGRESS SECTION */}
@@ -105,7 +113,7 @@ export default function ProfileCard({ shop }: any) {
 
           <TouchableOpacity
             style={styles.linkButton}
-            onPress={() => router.push("/profile")}
+            onPress={handleProfileNavigation}
             activeOpacity={0.7}
           >
             <Text style={styles.linkText}>
