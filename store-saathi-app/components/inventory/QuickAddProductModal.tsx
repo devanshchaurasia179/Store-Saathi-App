@@ -20,6 +20,9 @@ import { createProduct } from "../../constants/inventory.api";
 import { LANGUAGE_TEXT_QUICK_ADD } from "../../constants/language_inventory";
 import { useLanguage } from "../../providers/LanguageProvider";
 
+/* 🆕 UNIT OPTIONS */
+const UNIT_OPTIONS = ["unit", "kg", "g", "litre", "ml", "box", "pack"];
+
 type Props = {
   visible: boolean;
   barcode: string;
@@ -43,6 +46,7 @@ export default function QuickAddProductModal({
     name: "",
     price: "",
     quantity: "0",
+    unit: "unit", // 🆕
     category: "Other",
     size: "",
     expiryDate: "",
@@ -72,6 +76,7 @@ export default function QuickAddProductModal({
         isBarcodeListed: true,
         isTrackable: form.isTrackable,
         quantity: Number(form.quantity) || 0,
+        unit: form.unit, // 🆕
         category: form.category || "Other",
         size: form.size || "",
         expiryDate: form.expiryDate || null,
@@ -130,7 +135,10 @@ export default function QuickAddProductModal({
             </TouchableOpacity>
           </View>
 
-          <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={styles.body}
+            showsVerticalScrollIndicator={false}
+          >
             {/* BARCODE */}
             <View style={styles.barcodeBox}>
               <Text style={styles.label}>{t.scannedBarcode}</Text>
@@ -169,6 +177,33 @@ export default function QuickAddProductModal({
               </View>
             </View>
 
+            {/* 🆕 UNIT DROPDOWN */}
+            <Text style={styles.label}>{t.unit || "UNIT"}</Text>
+            <View style={styles.unitRow}>
+              {UNIT_OPTIONS.map((u) => {
+                const active = form.unit === u;
+                return (
+                  <TouchableOpacity
+                    key={u}
+                    onPress={() => update("unit", u)}
+                    style={[
+                      styles.unitChip,
+                      active && styles.unitChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.unitText,
+                        active && styles.unitTextActive,
+                      ]}
+                    >
+                      {u}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
             {/* TRACKING */}
             <View style={styles.switchRow}>
               <Text style={styles.switchLabel}>{t.enableTracking}</Text>
@@ -190,7 +225,7 @@ export default function QuickAddProductModal({
                 size={16}
                 color="#2563eb"
               />
-              <Text style={[styles.moreText, { color: '#2563eb' }]}>
+              <Text style={[styles.moreText, { color: "#2563eb" }]}>
                 {showMore ? t.lessDetails : t.moreDetails}
               </Text>
             </TouchableOpacity>
@@ -251,6 +286,8 @@ export default function QuickAddProductModal({
   );
 }
 
+/* ---------- STYLES ---------- */
+
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -291,8 +328,8 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#64748b",
     marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   input: {
     backgroundColor: "#f8fafc",
@@ -303,7 +340,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
     color: "#1e293b",
-    fontWeight: '600'
+    fontWeight: "600",
   },
   row: {
     flexDirection: "row",
@@ -315,8 +352,8 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: '#cbd5e1'
+    borderStyle: "dashed",
+    borderColor: "#cbd5e1",
   },
   barcode: {
     fontSize: 16,
@@ -349,13 +386,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
   },
+
+  /* 🆕 UNIT STYLES */
+  unitRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  unitChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: "#f1f5f9",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  unitChipActive: {
+    backgroundColor: "#2563eb",
+    borderColor: "#2563eb",
+  },
+  unitText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#334155",
+    textTransform: "uppercase",
+  },
+  unitTextActive: {
+    color: "#fff",
+  },
+
   footer: {
     flexDirection: "row",
     padding: 20,
     gap: 12,
     backgroundColor: "#fff",
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9'
+    borderTopColor: "#f1f5f9",
   },
   cancelBtn: {
     flex: 1,

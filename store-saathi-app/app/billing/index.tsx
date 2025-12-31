@@ -110,15 +110,24 @@ export default function BillingPage() {
           i.productId === productId ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
-      return [
-        ...prev,
-        {
-          productId: productId,
-          name: product.name,
-          price: product.price.sellingPrice,
-          quantity: 1,
-        },
-      ];
+     return [
+  ...prev,
+  {
+    productId: productId,
+    name: product.name,
+    price: product.price.sellingPrice,
+
+    // ✅ PASS UNIT FROM BACKEND
+    unit: product.unit || "unit",
+
+    // ✅ STORE QUANTITY IN BASE UNITS
+    quantity:
+      product.unit === "kg" || product.unit === "litre"
+        ? 1000 // 1kg / 1 litre
+        : 1,    // unit/pcs
+  },
+];
+
     });
 
     setProductOpen(false);

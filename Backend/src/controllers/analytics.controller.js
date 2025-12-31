@@ -14,7 +14,7 @@ function getDateRange(dateStr) {
 
 function getWeekRange(dateStr) {
   const date = dateStr ? new Date(dateStr) : new Date();
-  const day = date.getDay(); // 0 = Sunday
+  const day = date.getDay();
   const start = new Date(date);
   start.setDate(start.getDate() - day);
   start.setHours(0, 0, 0, 0);
@@ -51,7 +51,7 @@ function getWeekStart(date) {
 }
 
 function getMonthKey(date) {
-  return date.toISOString().slice(0, 7); // YYYY-MM
+  return date.toISOString().slice(0, 7);
 }
 
 function getDaysInRange(start, end) {
@@ -64,32 +64,45 @@ function getDaysInRange(start, end) {
   return days;
 }
 
+/* --------------------------------------------------
+   🔥 UNIT-SAFE ANALYTICS CORE
+-------------------------------------------------- */
 function computeAnalyticsFromBills(bills) {
   let totalSales = 0;
-  let productSales = {};
   let biggestBill = null;
   let maxBillAmount = 0;
   let totalDebt = 0;
   let totalCollected = 0;
 
-  for (let bill of bills) {
+  /**
+   * KEY CHANGE:
+   * productKey = productId + "::" + unit
+   */
+  const productSales = {};
+
+  for (const bill of bills) {
     totalSales += bill.totalAmount;
+
     const debt = bill.totalAmount - bill.paidAmount;
     if (debt > 0) totalDebt += debt;
     totalCollected += bill.paidAmount;
 
-    for (let item of bill.items) {
-      const pid = item.productId.toString();
-      if (!productSales[pid]) {
-        productSales[pid] = {
-          productId: pid,
+    for (const item of bill.items) {
+      const unit = item.unit || "unit";
+      const productKey = `${item.productId}::${unit}`;
+
+      if (!productSales[productKey]) {
+        productSales[productKey] = {
+          productId: item.productId,
           name: item.name,
+          unit,
           quantity: 0,
           revenue: 0,
         };
       }
-      productSales[pid].quantity += item.quantity;
-      productSales[pid].revenue += item.total;
+
+      productSales[productKey].quantity += item.quantity;
+      productSales[productKey].revenue += item.total;
     }
 
     if (bill.totalAmount > maxBillAmount) {
@@ -98,16 +111,16 @@ function computeAnalyticsFromBills(bills) {
     }
   }
 
-  // Convert to array and sort by QUANTITY descending (most sold first)
-  const topProducts = Object.values(productSales)
-    .sort((a, b) => b.quantity - a.quantity);
+  const topProducts = Object.values(productSales).sort(
+    (a, b) => b.quantity - a.quantity
+  );
 
-  const topProduct = topProducts[0] || null; // Still the most sold product
+  const topProduct = topProducts[0] || null;
 
   return {
     totalSales,
     topProduct,
-    topProducts, // Full list sorted by quantity sold (highest to lowest)
+    topProducts,
     biggestBill,
     debtVsSales: {
       totalDebt,
@@ -118,17 +131,22 @@ function computeAnalyticsFromBills(bills) {
 }
 
 /* --------------------------------------------------
-   ANALYTICS ENDPOINTS
+   AUTH
 -------------------------------------------------- */
-
 function getShopId(req, res) {
   if (!req.user || !req.user._id) {
-    res.status(401).json({ success: false, message: "Unauthorized - No shop found" });
+    res.status(401).json({
+      success: false,
+      message: "Unauthorized - No shop found",
+    });
     return null;
   }
   return req.user._id;
 }
 
+/* --------------------------------------------------
+   DAILY ANALYTICS
+-------------------------------------------------- */
 export async function getDailyAnalytics(req, res) {
   try {
     const shopId = getShopId(req, res);
@@ -142,22 +160,23 @@ export async function getDailyAnalytics(req, res) {
       createdAt: { $gte: start, $lte: end },
     }).lean();
 
-    const analytics = computeAnalyticsFromBills(bills);
-
     return res.status(200).json({
       success: true,
       date: start.toISOString().split("T")[0],
-      ...analytics,
+      ...computeAnalyticsFromBills(bills),
     });
   } catch (error) {
     console.error("Get Daily Analytics Error:", error.message);
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message: "Failed to fetch daily analytics",
     });
   }
 }
 
+/* --------------------------------------------------
+   WEEKLY ANALYTICS
+-------------------------------------------------- */
 export async function getWeeklyAnalytics(req, res) {
   try {
     const shopId = getShopId(req, res);
@@ -173,32 +192,19 @@ export async function getWeeklyAnalytics(req, res) {
 
     const overall = computeAnalyticsFromBills(bills);
 
-    // Daily breakdown
-    let dailySummaries = {};
-    for (let bill of bills) {
-      const billDate = bill.createdAt.toISOString().split("T")[0];
-      if (!dailySummaries[billDate]) {
-        dailySummaries[billDate] = [];
-      }
-      dailySummaries[billDate].push(bill);
+    const dailyMap = {};
+    for (const bill of bills) {
+      const day = bill.createdAt.toISOString().split("T")[0];
+      if (!dailyMap[day]) dailyMap[day] = [];
+      dailyMap[day].push(bill);
     }
 
-    const allDays = getDaysInRange(start, end);
-    const days = allDays.map((day) => {
-      const dayBills = dailySummaries[day] || [];
-      const dayAnalytics = computeAnalyticsFromBills(dayBills);
+    const days = getDaysInRange(start, end).map((day) => ({
+      date: day,
+      ...computeAnalyticsFromBills(dailyMap[day] || []),
+    }));
 
-      return {
-        date: day,
-        totalSales: dayAnalytics.totalSales,
-        topProduct: dayAnalytics.topProduct,
-        topProducts: dayAnalytics.topProducts, // Sorted by quantity
-        biggestBill: dayAnalytics.biggestBill,
-        debtVsSales: dayAnalytics.debtVsSales,
-      };
-    });
-
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       startDate: start.toISOString().split("T")[0],
       endDate: end.toISOString().split("T")[0],
@@ -207,13 +213,16 @@ export async function getWeeklyAnalytics(req, res) {
     });
   } catch (error) {
     console.error("Get Weekly Analytics Error:", error.message);
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message: "Failed to fetch weekly analytics",
     });
   }
 }
 
+/* --------------------------------------------------
+   MONTHLY ANALYTICS
+-------------------------------------------------- */
 export async function getMonthlyAnalytics(req, res) {
   try {
     const shopId = getShopId(req, res);
@@ -227,49 +236,39 @@ export async function getMonthlyAnalytics(req, res) {
       createdAt: { $gte: start, $lte: end },
     }).lean();
 
-    const overall = computeAnalyticsFromBills(bills);
-
-    // Weekly breakdown
-    let weeklySummaries = {};
-    for (let bill of bills) {
-      const weekStart = getWeekStart(bill.createdAt);
-      if (!weeklySummaries[weekStart]) {
-        weeklySummaries[weekStart] = [];
-      }
-      weeklySummaries[weekStart].push(bill);
+    const weeklyMap = {};
+    for (const bill of bills) {
+      const week = getWeekStart(bill.createdAt);
+      if (!weeklyMap[week]) weeklyMap[week] = [];
+      weeklyMap[week].push(bill);
     }
 
-    const weekKeys = Object.keys(weeklySummaries).sort();
-    const weeks = weekKeys.map((weekStart) => {
-      const weekBills = weeklySummaries[weekStart];
-      const weekAnalytics = computeAnalyticsFromBills(weekBills);
-
-      return {
+    const weeks = Object.keys(weeklyMap)
+      .sort()
+      .map((weekStart) => ({
         weekStart,
-        totalSales: weekAnalytics.totalSales,
-        topProduct: weekAnalytics.topProduct,
-        topProducts: weekAnalytics.topProducts, // Sorted by quantity
-        biggestBill: weekAnalytics.biggestBill,
-        debtVsSales: weekAnalytics.debtVsSales,
-      };
-    });
+        ...computeAnalyticsFromBills(weeklyMap[weekStart]),
+      }));
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       startDate: start.toISOString().split("T")[0],
       endDate: end.toISOString().split("T")[0],
-      ...overall,
+      ...computeAnalyticsFromBills(bills),
       weeks,
     });
   } catch (error) {
     console.error("Get Monthly Analytics Error:", error.message);
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message: "Failed to fetch monthly analytics",
     });
   }
 }
 
+/* --------------------------------------------------
+   YEARLY ANALYTICS
+-------------------------------------------------- */
 export async function getYearlyAnalytics(req, res) {
   try {
     const shopId = getShopId(req, res);
@@ -283,43 +282,30 @@ export async function getYearlyAnalytics(req, res) {
       createdAt: { $gte: start, $lte: end },
     }).lean();
 
-    const overall = computeAnalyticsFromBills(bills);
-
-    // Monthly breakdown
-    let monthlySummaries = {};
-    for (let bill of bills) {
-      const monthKey = getMonthKey(bill.createdAt);
-      if (!monthlySummaries[monthKey]) {
-        monthlySummaries[monthKey] = [];
-      }
-      monthlySummaries[monthKey].push(bill);
+    const monthlyMap = {};
+    for (const bill of bills) {
+      const month = getMonthKey(bill.createdAt);
+      if (!monthlyMap[month]) monthlyMap[month] = [];
+      monthlyMap[month].push(bill);
     }
 
-    const monthKeys = Object.keys(monthlySummaries).sort();
-    const months = monthKeys.map((month) => {
-      const monthBills = monthlySummaries[month];
-      const monthAnalytics = computeAnalyticsFromBills(monthBills);
-
-      return {
+    const months = Object.keys(monthlyMap)
+      .sort()
+      .map((month) => ({
         month,
-        totalSales: monthAnalytics.totalSales,
-        topProduct: monthAnalytics.topProduct,
-        topProducts: monthAnalytics.topProducts, // Sorted by quantity
-        biggestBill: monthAnalytics.biggestBill,
-        debtVsSales: monthAnalytics.debtVsSales,
-      };
-    });
+        ...computeAnalyticsFromBills(monthlyMap[month]),
+      }));
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       startDate: start.toISOString().split("T")[0],
       endDate: end.toISOString().split("T")[0],
-      ...overall,
+      ...computeAnalyticsFromBills(bills),
       months,
     });
   } catch (error) {
     console.error("Get Yearly Analytics Error:", error.message);
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message: "Failed to fetch yearly analytics",
     });

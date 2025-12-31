@@ -19,10 +19,10 @@ export default function LowStockList({ items }: any) {
       {/* 1. Header with Language Support */}
       <View style={styles.headerRow}>
         <View style={styles.titleGroup}>
-          <MaterialCommunityIcons 
-            name="alert-circle-outline" 
-            size={20} 
-            color="#f97316" 
+          <MaterialCommunityIcons
+            name="alert-circle-outline"
+            size={20}
+            color="#f97316"
           />
           <Text style={styles.headerText}>{t.lowStock}</Text>
         </View>
@@ -30,14 +30,20 @@ export default function LowStockList({ items }: any) {
       </View>
 
       {/* 2. List of Items */}
-      {items.map((item: any, index: number) => (
-        <View key={index} style={styles.itemRow}>
-          <Text style={styles.itemName} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <Text style={styles.itemQuantity}>{item.quantity}</Text>
-        </View>
-      ))}
+      {items.map((item: any, index: number) => {
+        const unit = item.unit || "unit"; // 🆕 SAFE FALLBACK
+
+        return (
+          <View key={index} style={styles.itemRow}>
+            <Text style={styles.itemName} numberOfLines={1}>
+              {item.name}
+            </Text>
+            <Text style={styles.itemQuantity}>
+              {item.quantity} {unit}
+            </Text>
+          </View>
+        );
+      })}
 
       {/* 3. Action Link with Language Support */}
       <TouchableOpacity
@@ -99,7 +105,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#444",
     fontWeight: "500",
-    flex: 1, // Ensures name doesn't push quantity out of view
+    flex: 1,
     marginRight: 10,
   },
   itemQuantity: {
@@ -110,7 +116,7 @@ const styles = StyleSheet.create({
   footerButton: {
     marginTop: 6,
     paddingVertical: 4,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   footerText: {
     color: "#1e4de4",

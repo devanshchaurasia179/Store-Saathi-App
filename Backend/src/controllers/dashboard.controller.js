@@ -33,7 +33,7 @@ export async function getDashboard(req, res) {
     -------------------------------- */
     const topDebtor = await Customer.findOne({
       shopId,
-      isSupplier: { $ne: true },   // ✅ CRITICAL FIX
+      isSupplier: { $ne: true }, // ✅ CRITICAL FIX
       totalPending: { $gt: 0 },
     })
       .sort({ totalPending: -1 })
@@ -41,6 +41,7 @@ export async function getDashboard(req, res) {
 
     /* -------------------------------
        LOW STOCK (trackable only)
+       🆕 INCLUDE UNIT
     -------------------------------- */
     const lowStock = await Product.find({
       shopId,
@@ -49,7 +50,7 @@ export async function getDashboard(req, res) {
       quantity: { $lte: 5 },
     })
       .limit(5)
-      .select("name quantity");
+      .select("name quantity unit"); // 🆕 FIX HERE
 
     /* -------------------------------
        MOST SOLD PRODUCTS
@@ -106,7 +107,7 @@ export async function getDashboard(req, res) {
             }
           : null,
 
-        lowStock,
+        lowStock, // 🆕 NOW HAS unit
         mostSold,
         recentBills,
       },

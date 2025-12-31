@@ -19,6 +19,9 @@ import { generateBarcode } from "../../utils/generateBarcode";
 import { LANGUAGE_TEXT_PRODUCT_FORM } from "../../constants/language_inventory";
 import { useLanguage } from "../../providers/LanguageProvider";
 
+/* 🆕 UNIT OPTIONS */
+const UNIT_OPTIONS = ["unit", "kg", "g", "litre", "ml", "box", "pack"];
+
 const DEFAULT_FORM = {
   name: "",
   barcode: "",
@@ -26,6 +29,7 @@ const DEFAULT_FORM = {
   isTrackable: true,
   price: { sellingPrice: "" },
   quantity: 0,
+  unit: "unit", // 🆕
   category: "Other",
   size: "",
   expiryDate: "",
@@ -58,9 +62,12 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
       isTrackable: initialData.isTrackable ?? true,
       price: { sellingPrice: initialData.price?.sellingPrice ?? "" },
       quantity: initialData.quantity ?? 0,
+      unit: initialData.unit || "unit", // 🆕
       category: initialData.category || "Other",
       size: initialData.size || "",
-      expiryDate: initialData.expiryDate ? initialData.expiryDate.slice(0, 10) : "",
+      expiryDate: initialData.expiryDate
+        ? initialData.expiryDate.slice(0, 10)
+        : "",
       isActive: initialData.isActive ?? true,
     });
 
@@ -94,7 +101,7 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
       onSuccess?.();
     } catch (e: any) {
       Alert.alert(
-        t.errorTitle || "Error", 
+        t.errorTitle || "Error",
         e?.response?.status === 409 ? t.errorBarcode : t.errorSave
       );
     } finally {
@@ -136,13 +143,48 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
             />
           </View>
         </View>
+
+        {/* 🆕 UNIT DROPDOWN */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>{t.unit || "UNIT"}</Text>
+          <View style={styles.unitRow}>
+            {UNIT_OPTIONS.map((u) => {
+              const active = form.unit === u;
+              return (
+                <TouchableOpacity
+                  key={u}
+                  onPress={() => update("unit", u)}
+                  style={[
+                    styles.unitChip,
+                    active && styles.unitChipActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.unitText,
+                      active && styles.unitTextActive,
+                    ]}
+                  >
+                    {u}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
       </View>
 
       {/* BARCODE SECTION */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>{t.identification}</Text>
         <View style={styles.barcodeWrapper}>
-          <View style={[styles.inputContainer, { flex: 1, marginBottom: 0 }, initialData && styles.disabledInput]}>
+          <View
+            style={[
+              styles.inputContainer,
+              { flex: 1, marginBottom: 0 },
+              initialData && styles.disabledInput,
+            ]}
+          >
             <Ionicons name="barcode-outline" size={20} color="#94a3b8" />
             <TextInput
               value={form.barcode}
@@ -160,7 +202,7 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
             </TouchableOpacity>
           )}
         </View>
-        
+
         <View style={styles.toggleRow}>
           <Text style={styles.toggleLabel}>{t.printBarcode}</Text>
           <Switch
@@ -173,12 +215,16 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
       </View>
 
       {/* ADDITIONAL DETAILS TOGGLE */}
-      <TouchableOpacity 
-        style={styles.moreHeader} 
+      <TouchableOpacity
+        style={styles.moreHeader}
         onPress={() => setShowMore(!showMore)}
       >
         <Text style={styles.moreTitle}>{t.additionalDetails}</Text>
-        <Ionicons name={showMore ? "chevron-up" : "chevron-down"} size={20} color="#2563eb" />
+        <Ionicons
+          name={showMore ? "chevron-up" : "chevron-down"}
+          size={20}
+          color="#2563eb"
+        />
       </TouchableOpacity>
 
       {showMore && (
@@ -254,6 +300,8 @@ const Toggle = ({ label, value, onChange }: any) => (
   </View>
 );
 
+/* ---------- STYLES ---------- */
+
 const styles = StyleSheet.create({
   container: { paddingBottom: 20 },
   card: {
@@ -270,13 +318,13 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: "row", gap: 12 },
   fieldContainer: { marginBottom: 16 },
-  label: { 
-    fontSize: 13, 
-    fontWeight: "800", 
-    color: "#475569", 
+  label: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#475569",
     marginBottom: 8,
     marginLeft: 4,
-    textTransform: 'uppercase'
+    textTransform: "uppercase",
   },
   inputContainer: {
     flexDirection: "row",
@@ -296,19 +344,48 @@ const styles = StyleSheet.create({
     color: "#1e293b",
   },
   disabledInput: { backgroundColor: "#f1f5f9" },
+
+  /* 🆕 UNIT STYLES */
+  unitRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  unitChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: "#f1f5f9",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  unitChipActive: {
+    backgroundColor: "#1e3a8a",
+    borderColor: "#1e3a8a",
+  },
+  unitText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#334155",
+    textTransform: "uppercase",
+  },
+  unitTextActive: {
+    color: "#fff",
+  },
+
   sectionTitle: {
     fontSize: 12,
     fontWeight: "900",
     color: "#94a3b8",
     marginBottom: 12,
     textTransform: "uppercase",
-    letterSpacing: 1
+    letterSpacing: 1,
   },
-  barcodeWrapper: { 
-    flexDirection: "row", 
-    gap: 10, 
-    marginBottom: 12, 
-    alignItems: "center" 
+  barcodeWrapper: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+    alignItems: "center",
   },
   regenBtn: {
     backgroundColor: "#1e3a8a",
@@ -348,5 +425,10 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   submitDisabled: { backgroundColor: "#94a3b8" },
-  submitText: { color: "#fff", fontWeight: "900", fontSize: 16, letterSpacing: 0.5 },
+  submitText: {
+    color: "#fff",
+    fontWeight: "900",
+    fontSize: 16,
+    letterSpacing: 0.5,
+  },
 });

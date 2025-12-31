@@ -178,19 +178,19 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
                       {formatDate(bill.createdAt)}
                     </Text>
                     <Text style={styles.infoSub}>
-                      {new Date(bill.createdAt).toLocaleTimeString(language === 'hi' ? 'hi-IN' : 'en-US', {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {new Date(bill.createdAt).toLocaleTimeString(
+                        language === "hi" ? "hi-IN" : "en-US",
+                        {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        }
+                      )}
                     </Text>
                   </View>
 
                   <View style={styles.infoBlockRight}>
                     <Text style={styles.infoLabel}>{t.customer}</Text>
-                    <Text
-                      style={styles.infoValue}
-                      numberOfLines={1}
-                    >
+                    <Text style={styles.infoValue} numberOfLines={1}>
                       {bill.customerId?.name || t.walkIn}
                     </Text>
                     <Text style={styles.infoSub}>
@@ -203,28 +203,31 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>{t.orderSummary}</Text>
                   <View style={styles.itemsCard}>
-                    {bill.items.map((item: any, i: number) => (
-                      <View
-                        key={i}
-                        style={[
-                          styles.itemRow,
-                          i === bill.items.length - 1 && {
-                            borderBottomWidth: 0,
-                          },
-                        ]}
-                      >
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.itemName}>{item.name}</Text>
-                          <Text style={styles.itemSub}>
-                            {item.quantity} {t.units} ×{" "}
-                            {formatRupee(item.price)}
+                    {bill.items.map((item: any, i: number) => {
+                      const unit = item.unit || "unit"; // 🆕 SAFE FALLBACK
+                      return (
+                        <View
+                          key={i}
+                          style={[
+                            styles.itemRow,
+                            i === bill.items.length - 1 && {
+                              borderBottomWidth: 0,
+                            },
+                          ]}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.itemName}>{item.name}</Text>
+                            <Text style={styles.itemSub}>
+                              {item.quantity} {unit} ×{" "}
+                              {formatRupee(item.price)}
+                            </Text>
+                          </View>
+                          <Text style={styles.itemTotal}>
+                            {formatRupee(item.total)}
                           </Text>
                         </View>
-                        <Text style={styles.itemTotal}>
-                          {formatRupee(item.total)}
-                        </Text>
-                      </View>
-                    ))}
+                      );
+                    })}
                   </View>
                 </View>
 
@@ -289,7 +292,8 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
     </Modal>
   );
 }
-// Styles remain unchanged
+
+/* STYLES UNCHANGED */
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,

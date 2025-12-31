@@ -19,6 +19,12 @@ const billItemSchema = new mongoose.Schema(
       min: 1,
     },
 
+    unit: {
+      type: String,
+      enum: ["unit", "kg", "g", "litre", "ml", "box", "pack"],
+      default: "unit", // 🆕 SAFE FALLBACK
+    },
+
     price: {
       type: Number,
       required: true,
@@ -31,6 +37,7 @@ const billItemSchema = new mongoose.Schema(
   },
   { _id: false }
 );
+
 const billSchema = new mongoose.Schema(
   {
     shopId: {

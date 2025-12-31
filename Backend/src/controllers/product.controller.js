@@ -1,9 +1,11 @@
 import Product from "../models/Product.js";
 import MasterProduct from "../models/MasterProduct.js";
 
-/**
- * CREATE PRODUCT (MANUAL / QUICK ADD)
- */
+/* -------------------------------
+   CONSTANTS
+-------------------------------- */
+const ALLOWED_UNITS = ["unit", "kg", "g", "litre", "ml", "box", "pack","dozen"];
+
 /**
  * CREATE PRODUCT (MANUAL / QUICK ADD)
  */
@@ -20,6 +22,7 @@ export async function createProduct(req, res) {
       quantity,
       expiryDate,
       isBarcodeListed = true,
+      unit = "unit", // 🆕
     } = req.body;
 
     // 🔴 REQUIRED FIELDS
@@ -29,20 +32,28 @@ export async function createProduct(req, res) {
       });
     }
 
-    // 🔴 BARCODE REQUIRED (NEW)
+    // 🔴 BARCODE REQUIRED
     if (!barcode || typeof barcode !== "string" || barcode.trim() === "") {
       return res.status(400).json({
         message: "Barcode is required",
       });
     }
 
+    // 🔒 UNIT VALIDATION
+    if (!ALLOWED_UNITS.includes(unit)) {
+      return res.status(400).json({
+        message: "Invalid unit",
+      });
+    }
+
     const product = await Product.create({
       shopId,
       name,
-      barcode: barcode.trim(), // ✅ store clean barcode
+      barcode: barcode.trim(),
       isBarcodeListed,
       category,
       size,
+      unit, // 🆕
       price,
       quantity,
       expiryDate,
@@ -132,6 +143,7 @@ export async function getProductByBarcode(req, res) {
       isBarcodeListed: true,
       category: masterProduct.category,
       size: masterProduct.size,
+      unit: masterProduct.unit || "unit", // 🆕 fallback
       price: {
         sellingPrice: masterProduct.mrp,
         mrp: masterProduct.mrp,
@@ -187,7 +199,7 @@ export async function updateProduct(req, res) {
 
     const updateData = { ...req.body };
 
-    // 🔒 BARCODE VALIDATION (IMPORTANT)
+    // 🔒 BARCODE VALIDATION
     if ("barcode" in updateData) {
       if (
         typeof updateData.barcode !== "string" ||
@@ -197,9 +209,16 @@ export async function updateProduct(req, res) {
           message: "Barcode is required and cannot be removed",
         });
       }
-
-      // clean barcode
       updateData.barcode = updateData.barcode.trim();
+    }
+
+    // 🔒 UNIT VALIDATION
+    if ("unit" in updateData) {
+      if (!ALLOWED_UNITS.includes(updateData.unit)) {
+        return res.status(400).json({
+          message: "Invalid unit",
+        });
+      }
     }
 
     const product = await Product.findOneAndUpdate(
@@ -225,7 +244,6 @@ export async function updateProduct(req, res) {
     res.status(500).json({ message: "Internal Server Error" });
   }
 }
-
 
 /**
  * DELETE PRODUCT (HARD DELETE)

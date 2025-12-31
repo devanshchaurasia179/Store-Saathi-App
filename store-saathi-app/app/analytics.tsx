@@ -243,7 +243,7 @@ export default function AnalyticsScreen() {
           ) : (
             <View>
                 {displayedProducts.map((item: any, index: number) => (
-                    <View key={item.productId} style={[styles.productItem, index === displayedProducts.length - 1 && !(!showAllProducts && products.length > 5) && { marginBottom: 0 }]}>
+                    <View key={index} style={[styles.productItem, index === displayedProducts.length - 1 && !(!showAllProducts && products.length > 5) && { marginBottom: 0 }]}>
                         <View style={styles.rankCircle}>
                             <Text style={styles.rankText}>{index + 1}</Text>
                         </View>
@@ -252,7 +252,10 @@ export default function AnalyticsScreen() {
                                 {item.name}
                             </Text>
                             <View style={styles.productStats}>
-                                <Text style={styles.qtyText}>Qty: {item.quantity}</Text>
+                                <Text style={styles.qtyText}>
+  Qty: {item.quantity} {item.unit || "unit"}
+</Text>
+
                                 <Text style={styles.revenueText}>{formatRupee(item.revenue)}</Text>
                             </View>
                         </View>

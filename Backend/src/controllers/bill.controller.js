@@ -61,7 +61,9 @@ export async function createBill(req, res) {
     ----------------------------- */
     let subTotal = 0;
 
-    const billItems = items.map((item) => {
+    const billItems = [];
+
+    for (const item of items) {
       const quantity = Number(item.quantity);
       const price = Number(item.price);
 
@@ -71,20 +73,32 @@ export async function createBill(req, res) {
         quantity <= 0 ||
         price < 0
       ) {
-        throw new Error("Invalid bill item data");
+        return res.status(400).json({
+          message: "Invalid bill item data",
+        });
       }
+
+      // 🔍 Fetch product to get unit (safe & consistent)
+      const product = await Product.findOne({
+        _id: item.productId,
+        shopId,
+      }).select("unit isTrackable quantity");
+
+      const unit =
+        item.unit || product?.unit || "unit"; // 🆕 CORE FIX
 
       const total = quantity * price;
       subTotal += total;
 
-      return {
+      billItems.push({
         productId: item.productId,
         name: item.name,
         quantity,
+        unit, // 🆕 SAVED IN BILL
         price,
         total,
-      };
-    });
+      });
+    }
 
     const totalAmount = Math.max(subTotal - discount, 0);
 
@@ -226,10 +240,9 @@ export async function getBillById(req, res) {
     const { billId } = req.params;
 
     const bill = await Bill.findOne({
-  _id: billId,
-  shopId,
-}).populate("customerId", "name mobileNumber");
-
+      _id: billId,
+      shopId,
+    }).populate("customerId", "name mobileNumber");
 
     if (!bill) {
       return res.status(404).json({ message: "Bill not found" });

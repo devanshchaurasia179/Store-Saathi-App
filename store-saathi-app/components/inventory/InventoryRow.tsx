@@ -24,7 +24,11 @@ const LOW_STOCK_LIMIT = 5;
 
 export default function InventoryRow({ product, onRefresh }: any) {
   const { language } = useLanguage();
-  const t = LANGUAGE_TEXT_INVENTORY_ROW[language] || LANGUAGE_TEXT_INVENTORY_ROW.en;
+  const t =
+    LANGUAGE_TEXT_INVENTORY_ROW[language] ||
+    LANGUAGE_TEXT_INVENTORY_ROW.en;
+
+  const unit = product.unit || "unit"; // 🆕 SAFE FALLBACK
 
   const [qty, setQty] = useState(product.quantity || 0);
   const [price, setPrice] = useState(product.price?.sellingPrice || 0);
@@ -35,7 +39,8 @@ export default function InventoryRow({ product, onRefresh }: any) {
 
   /* ---------- STOCK STATUS LOGIC ---------- */
   let status = { text: t.inStock, color: "#16a34a", bg: "#dcfce7" };
-  if (qty == 0) status = { text: t.outOfStock, color: "#dc2626", bg: "#fee2e2" };
+  if (qty == 0)
+    status = { text: t.outOfStock, color: "#dc2626", bg: "#fee2e2" };
   else if (qty <= LOW_STOCK_LIMIT)
     status = { text: t.lowStock, color: "#ca8a04", bg: "#fef9c3" };
 
@@ -92,7 +97,12 @@ export default function InventoryRow({ product, onRefresh }: any) {
               {product.name}
             </Text>
             <View style={[styles.badge, { backgroundColor: status.bg }]}>
-              <View style={[styles.statusDot, { backgroundColor: status.color }]} />
+              <View
+                style={[
+                  styles.statusDot,
+                  { backgroundColor: status.color },
+                ]}
+              />
               <Text style={[styles.badgeText, { color: status.color }]}>
                 {status.text}
               </Text>
@@ -101,12 +111,15 @@ export default function InventoryRow({ product, onRefresh }: any) {
 
           {/* PRICE CONTROL */}
           <View style={styles.inputCol}>
-            <Text style={styles.label}>{t.priceLabel}</Text>
+            <Text style={styles.label}>
+              {t.priceLabel} / {unit}
+            </Text>
             <View style={styles.inputContainer}>
               <Text style={styles.currency}>₹</Text>
               <TextInput
                 value={String(price)}
                 keyboardType="numeric"
+                placeholderTextColor="#94a3b8"
                 onChangeText={setPrice}
                 onBlur={savePrice}
                 style={styles.input}
@@ -117,11 +130,14 @@ export default function InventoryRow({ product, onRefresh }: any) {
 
           {/* STOCK CONTROL */}
           <View style={styles.inputCol}>
-            <Text style={styles.label}>{t.stockLabel}</Text>
+            <Text style={styles.label}>
+              {t.stockLabel} in ({unit})
+            </Text>
             <View style={styles.inputContainer}>
               <TextInput
                 value={String(qty)}
                 keyboardType="numeric"
+                placeholderTextColor="#94a3b8"
                 onChangeText={setQty}
                 onBlur={saveQuantity}
                 style={[styles.input, { paddingLeft: 0 }]}
@@ -131,12 +147,16 @@ export default function InventoryRow({ product, onRefresh }: any) {
           </View>
 
           {/* MENU BUTTON */}
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => setMenuOpen((p) => !p)}
             style={styles.moreButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="ellipsis-vertical" size={20} color="#94a3b8" />
+            <Ionicons
+              name="ellipsis-vertical"
+              size={20}
+              color="#94a3b8"
+            />
           </TouchableOpacity>
         </View>
 
@@ -183,19 +203,19 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 8,
   },
-  name: { 
-    fontWeight: "700", 
-    fontSize: 15, 
+  name: {
+    fontWeight: "700",
+    fontSize: 15,
     color: "#1e293b",
-    marginBottom: 4 
+    marginBottom: 4,
   },
-  badge: { 
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: "flex-start", 
-    paddingHorizontal: 8, 
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6 
+    borderRadius: 6,
   },
   statusDot: {
     width: 6,
@@ -203,42 +223,42 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     marginRight: 6,
   },
-  badgeText: { 
-    fontSize: 10, 
+  badgeText: {
+    fontSize: 10,
     fontWeight: "800",
-    textTransform: 'uppercase' 
+    textTransform: "uppercase",
   },
-  inputCol: { 
+  inputCol: {
     alignItems: "center",
-    justifyContent: 'center',
+    justifyContent: "center",
   },
-  label: { 
-    fontSize: 9, 
-    fontWeight: "800", 
+  label: {
+    fontSize: 10,
+    fontWeight: "800",
     color: "#64748b",
     marginBottom: 4,
-    letterSpacing: 0.5
+    letterSpacing: 0.5,
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: "#e2e8f0",
     paddingHorizontal: 6,
   },
   currency: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#94a3b8',
+    fontWeight: "700",
+    color: "#94a3b8",
     marginRight: 2,
   },
   input: {
-    width: 50, // Increased slightly for regional numbers
+    width: 60, // Slightly wider for placeholders
     textAlign: "center",
     fontWeight: "700",
-    color: '#1e293b',
+    color: "#1e293b",
     paddingVertical: 6,
     fontSize: 13,
   },
@@ -248,9 +268,9 @@ const styles = StyleSheet.create({
   },
   menuWrapper: {
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-    backgroundColor: '#fafafa',
+    borderTopColor: "#f1f5f9",
+    backgroundColor: "#fafafa",
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 16,
-  }
+  },
 });
