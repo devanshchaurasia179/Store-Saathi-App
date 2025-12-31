@@ -13,29 +13,45 @@ import { Ionicons } from "@expo/vector-icons";
 /* ---------------- HELPERS ---------------- */
 
 /**
- * Standardizes incoming unit strings to a core set of logic units.
+ * Normalizes units from the Mongoose enum to internal logical types.
+ * We treat "kg" and "litre" as the "Base Units" for math.
+ * All other discrete types (unit, box, pack, dozen) are treated as 1:1.
  */
 const getNormalizedInventoryUnit = (unit?: string) => {
-  if (!unit || unit === "pcs") return "unit";
+  if (!unit) return "unit";
   const u = unit.toLowerCase();
-  if (u === "kg") return "kg";
-  if (u === "litre" || u === "liter" || u === "l") return "litre";
+
+  // Volume & Weight Groups: Map sub-units to Base Units
+  if (u === "kg" || u === "g") return "kg";
+  if (u === "litre" || u === "ml") return "litre";
+  
+  // Discrete Groups: (unit, box, pack, dozen) 
+  // We return these exactly as they appear in your Mongoose enum
+  if (["box", "pack", "dozen", "unit"].includes(u)) return u;
+
   return "unit";
 };
 
 /**
- * Converts internal storage quantity (base units) to display units (e.g., 0.5kg -> 500g).
+ * Converts internal storage (Base Units) to Display Units.
+ * Logic: 
+ * - If display is 'g' or 'ml', multiply by 1000.
+ * - For box, pack, dozen, unit, it is 1:1.
  */
 const getDisplayQuantity = (internalQty: number, displayUnit: string): number => {
-  if (displayUnit === "g" || displayUnit === "ml") return internalQty * 1000;
+  const u = displayUnit.toLowerCase();
+  if (u === "g" || u === "ml") return internalQty * 1000;
   return internalQty;
 };
 
 /**
- * Converts display input back to internal storage base units (e.g., 500g -> 0.5kg).
+ * Converts Display Units back to internal storage (Base Units).
+ * Logic:
+ * - If input is 'g' or 'ml', divide by 1000 to save as 'kg' or 'litre'.
  */
 const getInternalQuantity = (displayQty: number, displayUnit: string): number => {
-  if (displayUnit === "g" || displayUnit === "ml") return displayQty / 1000;
+  const u = displayUnit.toLowerCase();
+  if (u === "g" || u === "ml") return displayQty / 1000;
   return displayQty;
 };
 

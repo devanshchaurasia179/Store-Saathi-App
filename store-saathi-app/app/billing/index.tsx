@@ -122,7 +122,7 @@ export default function BillingPage() {
 
     // ✅ STORE QUANTITY IN BASE UNITS
     quantity:
-      product.unit === "kg" || product.unit === "litre"
+      product.unit === "kg" || product.unit === "litre" || product.unit === "box" || product.unit === "pack" || product.unit === "dozen" 
         ? 1 // 1kg / 1 litre
         : 1,    // unit/pcs
   },

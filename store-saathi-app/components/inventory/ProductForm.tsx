@@ -8,6 +8,8 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
+  ScrollView,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -20,7 +22,16 @@ import { LANGUAGE_TEXT_PRODUCT_FORM } from "../../constants/language_inventory";
 import { useLanguage } from "../../providers/LanguageProvider";
 
 /* 🆕 UNIT OPTIONS */
-const UNIT_OPTIONS = ["unit", "kg", "g", "litre", "ml", "box", "pack"];
+const UNIT_OPTIONS = [
+  { label: "Unit / Pcs", value: "unit", icon: "cube-outline" },
+  { label: "Kilogram (kg)", value: "kg", icon: "scale-outline" },
+  { label: "Gram (g)", value: "g", icon: "beaker-outline" },
+  { label: "Litre (L)", value: "litre", icon: "water-outline" },
+  { label: "Millilitre (ml)", value: "ml", icon: "color-fill-outline" },
+  { label: "Box", value: "box", icon: "archive-outline" },
+  { label: "Pack", value: "pack", icon: "gift-outline" },
+  { label: "Dozen", value: "dozen", icon: "grid-outline" },
+];
 
 const DEFAULT_FORM = {
   name: "",
@@ -29,7 +40,7 @@ const DEFAULT_FORM = {
   isTrackable: true,
   price: { sellingPrice: "" },
   quantity: 0,
-  unit: "unit", // 🆕
+  unit: "unit",
   category: "Other",
   size: "",
   expiryDate: "",
@@ -48,6 +59,9 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
   const [form, setForm] = useState(DEFAULT_FORM);
   const [showMore, setShowMore] = useState(false);
   const [loading, setLoading] = useState(false);
+  
+  /* 🆕 DROPDOWN STATE */
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   useEffect(() => {
     if (!initialData) {
@@ -62,12 +76,10 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
       isTrackable: initialData.isTrackable ?? true,
       price: { sellingPrice: initialData.price?.sellingPrice ?? "" },
       quantity: initialData.quantity ?? 0,
-      unit: initialData.unit || "unit", // 🆕
+      unit: initialData.unit || "unit",
       category: initialData.category || "Other",
       size: initialData.size || "",
-      expiryDate: initialData.expiryDate
-        ? initialData.expiryDate.slice(0, 10)
-        : "",
+      expiryDate: initialData.expiryDate ? initialData.expiryDate.slice(0, 10) : "",
       isActive: initialData.isActive ?? true,
     });
 
@@ -109,8 +121,16 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
     }
   };
 
+  // Find the label of the currently selected unit for the button display
+  const selectedUnitLabel = UNIT_OPTIONS.find(u => u.value === form.unit)?.label || "Select Unit";
+
   return (
-    <View style={styles.container}>
+    <ScrollView 
+      style={{ flex: 1 }} 
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
       {/* BASIC INFO SECTION */}
       <View style={styles.card}>
         <Field
@@ -144,33 +164,53 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
           </View>
         </View>
 
-        {/* 🆕 UNIT DROPDOWN */}
+        {/* 🆕 CUSTOM DROPDOWN BUTTON */}
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>{t.unit || "UNIT"}</Text>
-          <View style={styles.unitRow}>
-            {UNIT_OPTIONS.map((u) => {
-              const active = form.unit === u;
-              return (
-                <TouchableOpacity
-                  key={u}
-                  onPress={() => update("unit", u)}
-                  style={[
-                    styles.unitChip,
-                    active && styles.unitChipActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.unitText,
-                      active && styles.unitTextActive,
-                    ]}
+          
+          <TouchableOpacity 
+            style={[styles.dropdownTrigger, isDropdownOpen && styles.dropdownTriggerActive]} 
+            onPress={() => setIsDropdownOpen(!isDropdownOpen)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.triggerInner}>
+              <Ionicons name="options-outline" size={20} color={isDropdownOpen ? "#2563eb" : "#94a3b8"} />
+              <Text style={styles.triggerText}>{selectedUnitLabel}</Text>
+            </View>
+            <Ionicons 
+              name={isDropdownOpen ? "chevron-up" : "chevron-down"} 
+              size={20} 
+              color="#94a3b8" 
+            />
+          </TouchableOpacity>
+
+          {isDropdownOpen && (
+            <View style={styles.dropdownMenu}>
+              {UNIT_OPTIONS.map((u) => {
+                const isActive = form.unit === u.value;
+                return (
+                  <TouchableOpacity
+                    key={u.value}
+                    style={[styles.dropdownItem, isActive && styles.dropdownItemActive]}
+                    onPress={() => {
+                      update("unit", u.value);
+                      setIsDropdownOpen(false);
+                    }}
                   >
-                    {u}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+                    <Ionicons 
+                      name={u.icon as any} 
+                      size={20} 
+                      color={isActive ? "#2563eb" : "#64748b"} 
+                    />
+                    <Text style={[styles.dropdownItemText, isActive && styles.dropdownItemTextActive]}>
+                      {u.label}
+                    </Text>
+                    {isActive && <Ionicons name="checkmark" size={18} color="#2563eb" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
         </View>
       </View>
 
@@ -265,7 +305,7 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
           </Text>
         )}
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -303,78 +343,109 @@ const Toggle = ({ label, value, onChange }: any) => (
 /* ---------- STYLES ---------- */
 
 const styles = StyleSheet.create({
-  container: { paddingBottom: 20 },
+  container: { padding: 16, paddingBottom: 40 },
   card: {
     backgroundColor: "#fff",
-    borderRadius: 20,
+    borderRadius: 24,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: "#f1f5f9",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+      android: { elevation: 2 },
+    }),
   },
   row: { flexDirection: "row", gap: 12 },
   fieldContainer: { marginBottom: 16 },
   label: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800",
-    color: "#475569",
+    color: "#64748b",
     marginBottom: 8,
     marginLeft: 4,
     textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#f8fafc",
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#e2e8f0",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    height: 52,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    height: 54,
   },
   input: {
     flex: 1,
     marginLeft: 10,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "600",
     color: "#1e293b",
   },
   disabledInput: { backgroundColor: "#f1f5f9" },
 
-  /* 🆕 UNIT STYLES */
-  unitRow: {
+  /* 🆕 CUSTOM DROPDOWN CSS-ONLY STYLES */
+  dropdownTrigger: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  unitChip: {
-    paddingVertical: 8,
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#f8fafc",
+    borderWidth: 1.5,
+    borderColor: "#e2e8f0",
+    borderRadius: 16,
     paddingHorizontal: 14,
-    borderRadius: 999,
-    backgroundColor: "#f1f5f9",
+    height: 54,
+  },
+  dropdownTriggerActive: {
+    borderColor: "#2563eb",
+    backgroundColor: "#fff",
+  },
+  triggerInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  triggerText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e293b",
+  },
+  dropdownMenu: {
+    marginTop: 8,
+    backgroundColor: "#fff",
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: "#e2e8f0",
+    padding: 8,
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } },
+      android: { elevation: 4 },
+    }),
   },
-  unitChipActive: {
-    backgroundColor: "#1e3a8a",
-    borderColor: "#1e3a8a",
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    gap: 12,
   },
-  unitText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#334155",
-    textTransform: "uppercase",
+  dropdownItemActive: {
+    backgroundColor: "#f0f7ff",
   },
-  unitTextActive: {
-    color: "#fff",
+  dropdownItemText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  dropdownItemTextActive: {
+    color: "#2563eb",
   },
 
   sectionTitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "900",
     color: "#94a3b8",
     marginBottom: 12,
@@ -413,8 +484,8 @@ const styles = StyleSheet.create({
   moreTitle: { color: "#2563eb", fontWeight: "800", fontSize: 14 },
   submit: {
     backgroundColor: "#1e3a8a",
-    height: 58,
-    borderRadius: 18,
+    height: 60,
+    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
     marginTop: 10,
@@ -428,7 +499,7 @@ const styles = StyleSheet.create({
   submitText: {
     color: "#fff",
     fontWeight: "900",
-    fontSize: 16,
+    fontSize: 17,
     letterSpacing: 0.5,
   },
 });

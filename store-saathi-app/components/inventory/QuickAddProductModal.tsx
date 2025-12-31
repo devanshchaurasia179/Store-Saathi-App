@@ -21,7 +21,7 @@ import { LANGUAGE_TEXT_QUICK_ADD } from "../../constants/language_inventory";
 import { useLanguage } from "../../providers/LanguageProvider";
 
 /* 🆕 UNIT OPTIONS */
-const UNIT_OPTIONS = ["unit", "kg", "g", "litre", "ml", "box", "pack"];
+const UNIT_OPTIONS = ["unit", "kg", "g", "litre", "ml", "box", "pack","dozen"];
 
 type Props = {
   visible: boolean;
