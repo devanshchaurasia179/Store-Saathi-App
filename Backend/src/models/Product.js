@@ -18,7 +18,7 @@ const productSchema = new mongoose.Schema(
     barcode: {
       type: String,
       index: true,
-      required:true,
+      required: true,
     },
 
     isBarcodeListed: {
@@ -39,12 +39,20 @@ const productSchema = new mongoose.Schema(
       trim: true,
     },
 
+    /** 🆕 UNIT FIELD */
+    unit: {
+      type: String,
+      enum: ["pcs", "kg", "g", "litre", "ml", "box", "pack"],
+      default: "pcs",
+      index: true,
+    },
+
     price: {
       sellingPrice: {
         type: Number,
         required: true,
         min: 0,
-      }
+      },
     },
 
     quantity: {
@@ -72,8 +80,7 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Prevent duplicate barcode per shop (only when barcode exists)
-// allow multiple null barcodes, but unique when present
+// Prevent duplicate barcode per shop
 productSchema.index(
   { shopId: 1, barcode: 1 },
   {
@@ -83,7 +90,6 @@ productSchema.index(
     },
   }
 );
-
 
 const Product = mongoose.model("Product", productSchema);
 export default Product;

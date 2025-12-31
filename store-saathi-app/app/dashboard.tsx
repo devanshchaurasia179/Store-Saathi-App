@@ -108,29 +108,41 @@ export default function DashboardPage() {
         </View>
 
         {/* 4. Primary Actions: Create Bill + Test Printer */}
-        <View style={styles.actionButtonsContainer}>
-          <TouchableOpacity 
-            style={styles.createBillButton}
-            onPress={() => router.push("/billing")}
-            activeOpacity={0.8}
-          >
-            <View style={styles.iconCircle}>
-               <Ionicons name="barcode-outline" size={22} color="#1e3a8a" />
-            </View>
-            <Text style={styles.createBillText}>{t.createBill}</Text>
-          </TouchableOpacity>
+<View style={styles.actionButtonsContainer}>
+  <TouchableOpacity 
+    style={styles.createBillButton}
+    onPress={() => router.push("/billing")}
+    activeOpacity={0.9}
+  >
+    <View style={styles.buttonInner}>
+      <View style={styles.iconCircle}>
+        <Ionicons name="barcode-outline" size={24} color="#fff" />
+      </View>
+      <View style={styles.textContainer}>
+        <Text style={styles.createBillText}>{t.createBill}</Text>
+        <Text style={styles.buttonSubtitle}>Generate new invoice quickly</Text>
+      </View>
+      <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.7)" />
+    </View>
+  </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.testPrinterButton}
-            onPress={() => router.push("/PrintTest")}
-            activeOpacity={0.8}
-          >
-            <View style={styles.iconCirclePurple}>
-               <Feather name="printer" size={20} color="#7c3aed" />
-            </View>
-            <Text style={styles.testPrinterText}>{t.testPrinter}</Text>
-          </TouchableOpacity>
-        </View>
+  <TouchableOpacity 
+    style={styles.testPrinterButton}
+    onPress={() => router.push("/PrintTest")}
+    activeOpacity={0.8}
+  >
+    <View style={styles.buttonInner}>
+      <View style={styles.iconCirclePurple}>
+        <Feather name="printer" size={22} color="#7c3aed" />
+      </View>
+      <View style={styles.textContainer}>
+        <Text style={styles.testPrinterText}>{t.testPrinter}</Text>
+        <Text style={[styles.buttonSubtitle, { color: "#94a3b8" }]}>Check bluetooth connection</Text>
+      </View>
+      <Feather name="bluetooth" size={18} color="#7c3aed" />
+    </View>
+  </TouchableOpacity>
+</View>
 
         {/* 5. Operational Alerts */}
         <View style={styles.sectionSpacing}>
@@ -246,5 +258,76 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 60,
+  },
+actionButtonsContainer: {
+    marginHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 10,
+    gap: 12, // Vertical spacing between the full-width buttons
+  },
+  buttonInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
+  textContainer: {
+    flex: 1,
+    marginLeft: 15,
+  },
+  buttonSubtitle: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.7)",
+    fontWeight: "400",
+    marginTop: 2,
+  },
+  createBillButton: {
+    width: "100%",
+    backgroundColor: "#1e3a8a", // Deep Saathi Blue
+    paddingVertical: 18,
+    borderRadius: 24,
+    elevation: 8,
+    shadowColor: "#1e3a8a",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  iconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.15)", // Subtle white transparency
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  createBillText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  testPrinterButton: {
+    width: "100%",
+    backgroundColor: "#fff",
+    paddingVertical: 18,
+    borderRadius: 24,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    borderWidth: 1,
+    borderColor: "#F3E8FF",
+  },
+  iconCirclePurple: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "#F3E8FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  testPrinterText: {
+    color: "#1e293b", // Dark slate for readability on white
+    fontSize: 17,
+    fontWeight: "700",
   },
 });

@@ -452,35 +452,41 @@ export const LANGUAGE_TEXT_RECENT_BILLS: any = {
 export const LANGUAGE_TEXT_DASHBOARD: any = {
   en: {
     createBill: "Create Bill",
-    testPrinter: "Test Printer",
+    testPrinter: "Connect Printer",
     errorFetch: "Could not load dashboard data",
   },
+
   hi: {
     createBill: "बिल बनाएं",
-    testPrinter: "प्रिंटर टेस्ट",
+    testPrinter: "प्रिंटर जोड़ें",
     errorFetch: "डैशबोर्ड डेटा लोड नहीं हो सका",
   },
+
   pa: {
     createBill: "ਬਿੱਲ ਬਣਾਓ",
-    testPrinter: "ਪ੍ਰਿੰਟਰ ਟੈਸਟ",
+    testPrinter: "ਪ੍ਰਿੰਟਰ ਜੋੜੋ",
     errorFetch: "ਡੈਸ਼ਬੋਰਡ ਡੇਟਾ ਲੋਡ ਨਹੀਂ ਹੋ ਸਕਿਆ",
   },
+
   gu: {
     createBill: "બિલ બનાવો",
-    testPrinter: "પ્રિન્ટર ટેસ્ટ",
+    testPrinter: "પ્રિન્ટર જોડો",
     errorFetch: "ડેશબોર્ડ ડેટા લોડ થઈ શક્યો નથી",
   },
+
   mr: {
     createBill: "बिल तयार करा",
-    testPrinter: "प्रिंटर टेस्ट",
+    testPrinter: "प्रिंटर जोडा",
     errorFetch: "डॅशबोर्ड डेटा लोड होऊ शकला नाही",
   },
+
   te: {
-    createBill: "బిల్లు చేయండి",
-    testPrinter: "ప్రింటర్ టెస్ట్",
+    createBill: "బిల్ చేయండి",
+    testPrinter: "ప్రింటర్ కనెక్ట్ చేయండి",
     errorFetch: "డ్యాష్‌బోర్డ్ డేటా లోడ్ కాలేదు",
   },
 };
+
 
 export const LANGUAGE_TEXT_ADD_CUSTOMER: any = {
   en: {

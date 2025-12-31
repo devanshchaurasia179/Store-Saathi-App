@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Dimensions,
+  Vibration, // Built-in, no install needed
+} from "react-native";
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from "expo-camera";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -13,7 +20,7 @@ const { width: screenWidth } = Dimensions.get("window");
 // Scan box dimensions (centered)
 const SCAN_BOX_SIZE = { width: 260, height: 160 };
 const SCAN_BOX_LEFT = (screenWidth - SCAN_BOX_SIZE.width) / 2;
-const SCAN_BOX_TOP = 200; // Adjust if you want it higher/lower (from top of screen)
+const SCAN_BOX_TOP = 200;
 
 export default function BarcodeScanner({ onScan, onClose }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
@@ -25,7 +32,7 @@ export default function BarcodeScanner({ onScan, onClose }: Props) {
     if (!permission?.granted) {
       requestPermission();
     }
-  }, []);
+  }, [permission]);
 
   /* ---------------- HELPER: Check if barcode is fully inside scan box ---------------- */
   const isBarcodeInScanBox = (result: BarcodeScanningResult): boolean => {
@@ -33,7 +40,6 @@ export default function BarcodeScanner({ onScan, onClose }: Props) {
 
     const points = result.cornerPoints;
 
-    // Check all four corners are inside the scan box
     return points.every((point) => {
       return (
         point.x >= SCAN_BOX_LEFT &&
@@ -44,6 +50,12 @@ export default function BarcodeScanner({ onScan, onClose }: Props) {
     });
   };
 
+  /* ---------------- VIBRATION FEEDBACK ---------------- */
+  const triggerSuccessVibration = () => {
+    // Short, crisp vibration (100ms) – feels like a "tap" on success
+    Vibration.vibrate(100);
+  };
+
   /* ---------------- HANDLE SCAN ---------------- */
   const handleBarcodeScanned = (result: BarcodeScanningResult) => {
     const { data } = result;
@@ -51,19 +63,23 @@ export default function BarcodeScanner({ onScan, onClose }: Props) {
     if (!data || !active) return;
     if (scannedRef.current === data) return;
 
-    // Only accept if the barcode is fully inside the green box
+    // Only accept if barcode is fully inside the green scan box
     if (!isBarcodeInScanBox(result)) return;
 
     scannedRef.current = data;
     setActive(false);
 
+    // Give user immediate tactile feedback
+    triggerSuccessVibration();
+
+    // Notify parent component
     onScan(data);
 
-    // Re-enable scanning after delay
+    // Re-enable scanning after 1.5 seconds
     setTimeout(() => {
       scannedRef.current = null;
       setActive(true);
-    }, 1500);
+    }, 500);
   };
 
   if (!permission?.granted) {
@@ -133,7 +149,6 @@ export default function BarcodeScanner({ onScan, onClose }: Props) {
 }
 
 /* ================= STYLES ================= */
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -198,11 +213,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-  },
-  scanText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
   },
   center: {
     flex: 1,

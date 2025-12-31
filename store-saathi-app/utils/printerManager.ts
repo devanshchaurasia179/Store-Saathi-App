@@ -29,11 +29,31 @@ const loadSavedPrinter = async (): Promise<void> => {
 };
 
 /**
+ * Safely disconnect ONLY if we have a saved printer address
+ * Prevents TurboModule crash: "disconnect called with 0 arguments"
+ */
+export const safeDisconnectPrinter = async (): Promise<void> => {
+  if (!cachedPrinter?.address) {
+    console.log("No printer saved → skipping disconnect");
+    return;
+  }
+
+  try {
+    await BluetoothManager.disconnect(cachedPrinter.address); // Always pass address!
+    console.log("Successfully disconnected from:", cachedPrinter.address);
+  } catch (error: any) {
+    console.warn("Disconnect failed (ignored):", error.message || error);
+    // Do NOT throw or crash — disconnect failing is normal when printer is off
+  }
+};
+
+/**
  * Scan for paired and nearby thermal printers
  */
-export const scanThermalPrinters = async (): Promise<Array<{ address: string; name?: string; type: "Paired" | "Nearby" }>> => {
+export const scanThermalPrinters = async (): Promise<
+  Array<{ address: string; name?: string; type: "Paired" | "Nearby" }>
+> => {
   try {
-    // Ensure Bluetooth is enabled
     const isEnabled = await BluetoothManager.isBluetoothEnabled();
     if (!isEnabled) {
       Alert.alert("Bluetooth Disabled", "Please turn on Bluetooth to scan for printers.");
@@ -77,7 +97,7 @@ export const setConnectedPrinter = async (address: string, name?: string): Promi
 };
 
 /**
- * Get current printer (loads from storage if needed)
+ * Get current saved printer
  */
 export const getConnectedThermalPrinter = async (): Promise<PrinterInfo | null> => {
   await loadSavedPrinter();
@@ -85,15 +105,15 @@ export const getConnectedThermalPrinter = async (): Promise<PrinterInfo | null> 
 };
 
 /**
- * Check if printer is connected
+ * Check if a printer is saved (not necessarily connected)
  */
-export const isThermalPrinterConnected = async (): Promise<boolean> => {
+export const isThermalPrinterSaved = async (): Promise<boolean> => {
   await loadSavedPrinter();
   return cachedPrinter !== null;
 };
 
 /**
- * Clear saved printer (for reset or switching printers)
+ * Clear saved printer
  */
 export const clearSavedPrinter = async (): Promise<void> => {
   cachedPrinter = null;
