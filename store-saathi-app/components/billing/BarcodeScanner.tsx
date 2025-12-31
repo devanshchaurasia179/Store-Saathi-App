@@ -63,7 +63,7 @@ export default function BarcodeScanner({ onScan, onClose }: Props) {
     setTimeout(() => {
       scannedRef.current = null;
       setActive(true);
-    }, 1200);
+    }, 1500);
   };
 
   if (!permission?.granted) {
