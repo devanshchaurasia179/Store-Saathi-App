@@ -11,7 +11,7 @@ import {
   Platform,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import { Ionicons, Feather } from "@expo/vector-icons";
+import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import QRCode from "react-native-qrcode-svg";
 
@@ -87,7 +87,6 @@ export default function BillDetailScreen() {
 
   const handlePrint = async () => {
     try {
-      // ✅ This now triggers the Thermal Printer utility exactly like ViewBillModal
       await printBill(bill);
     } catch (e) {
       console.error(e);
@@ -135,7 +134,8 @@ export default function BillDetailScreen() {
     );
   }
 
-  const upiUrl = upiId && bill.totalAmount > 0
+  const upiUrl =
+    upiId && bill.totalAmount > 0
       ? `upi://pay?pa=${upiId}&pn=Shop&am=${bill.totalAmount}&cu=INR`
       : null;
 
@@ -152,9 +152,7 @@ export default function BillDetailScreen() {
 
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>{t.title}</Text>
-          <Text style={styles.headerSubtitle}>
-            {t.orderNo(bill.dailyBillNumber)}
-          </Text>
+          <Text style={styles.headerSubtitle}>{t.orderNo(bill.dailyBillNumber)}</Text>
         </View>
 
         <View style={styles.headerActions}>
@@ -167,30 +165,40 @@ export default function BillDetailScreen() {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 40 }}
+      >
         {/* MAIN CARD (Ticket Style) */}
         <View style={styles.ticketCard}>
-          <View style={[
+          <View
+            style={[
               styles.statusBadge,
               isPaid ? styles.bgPaid : isPartial ? styles.bgPartial : styles.bgUnpaid,
-            ]}>
-            <Text style={[
+            ]}
+          >
+            <Text
+              style={[
                 styles.statusText,
                 isPaid ? styles.txtPaid : isPartial ? styles.txtPartial : styles.txtUnpaid,
-              ]}>
+              ]}
+            >
               {bill.paymentStatus}
             </Text>
           </View>
 
           <Text style={styles.dateText}>
-            {new Date(bill.createdAt).toLocaleDateString(language === 'hi' ? 'hi-IN' : 'en-IN', {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+            {new Date(bill.createdAt).toLocaleDateString(
+              language === "hi" ? "hi-IN" : "en-IN",
+              {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              }
+            )}
           </Text>
 
           <Text style={styles.mainAmount}>{formatRupee(bill.totalAmount)}</Text>
@@ -207,11 +215,16 @@ export default function BillDetailScreen() {
                   {(bill.customerId?.name || "W")[0]}
                 </Text>
               </View>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.customerLabel}>{t.customer}</Text>
                 <Text style={styles.customerValue}>
                   {bill.customerId?.name || t.walkIn}
                 </Text>
+                {bill.customerId?.mobileNumber && (
+                  <Text style={styles.customerSub}>
+                    {bill.customerId.mobileNumber}
+                  </Text>
+                )}
               </View>
             </View>
           </View>
@@ -224,46 +237,57 @@ export default function BillDetailScreen() {
             <Text style={styles.itemCount}>{t.itemsCount(bill.items.length)}</Text>
           </View>
 
-          {bill.items.map((item: any, idx: number) => (
-            <View
-              key={idx}
-              style={[
-                styles.itemRow,
-                idx === bill.items.length - 1 && { borderBottomWidth: 0 },
-              ]}
-            >
-              <View style={styles.itemInfo}>
-                <Text style={styles.itemName}>{item.name}</Text>
-                <Text style={styles.itemMeta}>
-                  {item.quantity} {t.unitX || 'Unit'} {formatRupee(item.price)}
-                </Text>
+          {bill.items.map((item: any, idx: number) => {
+            // Representing units exactly like ViewBillModal
+            const unit = item.unit || "unit"; 
+            return (
+              <View
+                key={idx}
+                style={[
+                  styles.itemRow,
+                  idx === bill.items.length - 1 && { borderBottomWidth: 0 },
+                ]}
+              >
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemName}>{item.name}</Text>
+                  <Text style={styles.itemMeta}>
+                    {item.quantity} {unit} × {formatRupee(item.price)}
+                  </Text>
+                </View>
+                <Text style={styles.itemPrice}>{formatRupee(item.total)}</Text>
               </View>
-              <Text style={styles.itemPrice}>{formatRupee(item.total)}</Text>
-            </View>
-          ))}
+            );
+          })}
         </View>
 
-        {/* BREAKDOWN CARD (Newly added to match ViewBillModal) */}
+        {/* BREAKDOWN CARD */}
         <View style={styles.breakdownCard}>
-             <Row label="Subtotal" value={formatRupee(bill.subTotal)} />
-             {bill.discount > 0 && (
-               <Row 
-                 label="Discount" 
-                 value={`- ${formatRupee(bill.discount)}`} 
-                 highlight 
-               />
-             )}
-             <View style={styles.dashedDivider} />
-             <Row label="Net Total" value={formatRupee(bill.totalAmount)} bold />
-             <Row label="Amount Paid" value={formatRupee(bill.paidAmount)} />
-             {bill.totalAmount - bill.paidAmount > 0 && (
-               <Row 
-                 label="Balance Due" 
-                 value={formatRupee(bill.totalAmount - bill.paidAmount)} 
-                 danger 
-                 bold 
-               />
-             )}
+          <Row label={t.subtotal || "Subtotal"} value={formatRupee(bill.subTotal)} />
+          {bill.discount > 0 && (
+            <Row
+              label={t.discount || "Discount"}
+              value={`- ${formatRupee(bill.discount)}`}
+              highlight
+            />
+          )}
+          <View style={styles.dashedDivider} />
+          <Row
+            label={t.netTotal || "Net Total"}
+            value={formatRupee(bill.totalAmount)}
+            bold
+          />
+          <Row
+            label={t.amountPaid || "Amount Paid"}
+            value={formatRupee(bill.paidAmount)}
+          />
+          {bill.totalAmount - bill.paidAmount > 0 && (
+            <Row
+              label={t.balanceDue || "Balance Due"}
+              value={formatRupee(bill.totalAmount - bill.paidAmount)}
+              danger
+              bold
+            />
+          )}
         </View>
 
         {/* UPI QR */}
@@ -358,30 +382,71 @@ const styles = StyleSheet.create({
   bgPaid: { backgroundColor: "#dcfce7" },
   bgPartial: { backgroundColor: "#fef9c3" },
   bgUnpaid: { backgroundColor: "#fee2e2" },
-  statusText: { fontSize: 12, fontWeight: "900", textTransform: 'uppercase' },
+  statusText: { fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
   txtPaid: { color: "#166534" },
   txtPartial: { color: "#854d0e" },
   txtUnpaid: { color: "#991b1b" },
-  dateText: { fontSize: 13, color: "#64748B", marginBottom: 8, fontWeight: '600' },
+  dateText: { fontSize: 13, color: "#64748B", marginBottom: 8, fontWeight: "600" },
   mainAmount: { fontSize: 44, fontWeight: "900", color: "#0f172a" },
   dividerContainer: { width: "100%", height: 30, justifyContent: "center" },
-  dividerLine: { borderBottomWidth: 1.5, borderColor: "#f1f5f9", borderStyle: "dashed", width: "100%" },
-  customerRow: { width: "100%", padding: 16, backgroundColor: "#f8fafc", borderRadius: 20 },
+  dividerLine: {
+    borderBottomWidth: 1.5,
+    borderColor: "#f1f5f9",
+    borderStyle: "dashed",
+    width: "100%",
+  },
+  customerRow: {
+    width: "100%",
+    padding: 16,
+    backgroundColor: "#f8fafc",
+    borderRadius: 20,
+  },
   customerInfo: { flexDirection: "row", alignItems: "center", gap: 12 },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#1e3a8a", alignItems: "center", justifyContent: "center" },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#1e3a8a",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   avatarTxt: { color: "#fff", fontWeight: "900", fontSize: 16 },
-  customerLabel: { fontSize: 10, color: "#94a3b8", fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
+  customerLabel: {
+    fontSize: 10,
+    color: "#94a3b8",
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
   customerValue: { fontSize: 15, fontWeight: "700", color: "#1e293b" },
-  sectionCard: { backgroundColor: "#fff", marginHorizontal: 20, padding: 20, borderRadius: 28, elevation: 2 },
-  sectionHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16, alignItems: 'center' },
+  customerSub: { fontSize: 12, color: "#64748b", fontWeight: "600" },
+  sectionCard: {
+    backgroundColor: "#fff",
+    marginHorizontal: 20,
+    padding: 20,
+    borderRadius: 28,
+    elevation: 2,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    alignItems: "center",
+  },
   sectionTitle: { fontSize: 16, fontWeight: "900", color: "#1e293b" },
-  itemCount: { fontSize: 12, color: "#94a3b8", fontWeight: '700' },
-  itemRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 14, borderBottomWidth: 1, borderColor: "#f1f5f9" },
+  itemCount: { fontSize: 12, color: "#94a3b8", fontWeight: "700" },
+  itemRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderColor: "#f1f5f9",
+  },
   itemInfo: { flex: 1 },
-  itemName: { fontSize: 14, fontWeight: "700", color: '#334155' },
-  itemMeta: { fontSize: 12, color: "#64748b", marginTop: 2, fontWeight: '600' },
-  itemPrice: { fontSize: 14, fontWeight: "800", color: '#0f172a' },
-  
+  itemName: { fontSize: 14, fontWeight: "700", color: "#334155" },
+  itemMeta: { fontSize: 12, color: "#64748b", marginTop: 2, fontWeight: "600" },
+  itemPrice: { fontSize: 14, fontWeight: "800", color: "#0f172a" },
+
   /* Breakdown Styles */
   breakdownCard: {
     backgroundColor: "#fff",
@@ -391,16 +456,41 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     elevation: 2,
     borderWidth: 1,
-    borderColor: '#f1f5f9'
+    borderColor: "#f1f5f9",
   },
   row: { flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
   rowLabel: { fontSize: 13, fontWeight: "600", color: "#64748b" },
   rowValue: { fontSize: 15, fontWeight: "600", color: "#1e293b" },
   boldText: { fontSize: 17, fontWeight: "900", color: "#0f172a" },
-  dashedDivider: { borderWidth: 1, borderColor: "#f1f5f9", borderStyle: "dashed", marginVertical: 16 },
+  dashedDivider: {
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
+    borderStyle: "dashed",
+    marginVertical: 16,
+  },
 
-  qrSection: { backgroundColor: "#fff", margin: 20, padding: 24, borderRadius: 28, alignItems: "center", elevation: 2 },
-  qrTitle: { fontSize: 18, fontWeight: "900", color: '#1e3a8a', marginBottom: 4 },
-  qrSub: { fontSize: 13, color: "#64748b", textAlign: "center", marginBottom: 24, fontWeight: '600', paddingHorizontal: 10 },
-  qrWrapper: { padding: 20, backgroundColor: "#fff", borderRadius: 24, borderWidth: 1, borderColor: "#f1f5f9" },
+  qrSection: {
+    backgroundColor: "#fff",
+    margin: 20,
+    padding: 24,
+    borderRadius: 28,
+    alignItems: "center",
+    elevation: 2,
+  },
+  qrTitle: { fontSize: 18, fontWeight: "900", color: "#1e3a8a", marginBottom: 4 },
+  qrSub: {
+    fontSize: 13,
+    color: "#64748b",
+    textAlign: "center",
+    marginBottom: 24,
+    fontWeight: "600",
+    paddingHorizontal: 10,
+  },
+  qrWrapper: {
+    padding: 20,
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
+  },
 });

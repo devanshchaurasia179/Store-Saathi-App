@@ -21,7 +21,7 @@ const billItemSchema = new mongoose.Schema(
 
     unit: {
       type: String,
-      enum: ["unit", "kg", "g", "litre", "ml", "box", "pack"],
+      enum: ["unit", "kg", "g", "litre", "ml", "box", "pack","dozen"],
       default: "unit", // 🆕 SAFE FALLBACK
     },
 
