@@ -1,200 +1,418 @@
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  StyleSheet, 
-  TextInput, 
-  FlatList 
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  TextInput,
+  FlatList,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-export default function BillItemsList({ items, setItems }) {
+/* ---------------- HELPERS ---------------- */
+
+/**
+ * Standardizes incoming unit strings to a core set of logic units.
+ */
+const getNormalizedInventoryUnit = (unit?: string) => {
+  if (!unit || unit === "pcs") return "unit";
+  const u = unit.toLowerCase();
+  if (u === "kg") return "kg";
+  if (u === "litre" || u === "liter" || u === "l") return "litre";
+  return "unit";
+};
+
+/**
+ * Converts internal storage quantity (base units) to display units (e.g., 0.5kg -> 500g).
+ */
+const getDisplayQuantity = (internalQty: number, displayUnit: string): number => {
+  if (displayUnit === "g" || displayUnit === "ml") return internalQty * 1000;
+  return internalQty;
+};
+
+/**
+ * Converts display input back to internal storage base units (e.g., 500g -> 0.5kg).
+ */
+const getInternalQuantity = (displayQty: number, displayUnit: string): number => {
+  if (displayUnit === "g" || displayUnit === "ml") return displayQty / 1000;
+  return displayQty;
+};
+
+/* ---------------- SUB-COMPONENTS ---------------- */
+
+const QuantityInput = ({ item, onUpdate }) => {
+  const invU = getNormalizedInventoryUnit(item.unit);
+  const dispU = item.displayUnit || invU;
+  const initialDisplay = getDisplayQuantity(item.quantity || 0, dispU);
   
-  const updateQty = (id, delta) => {
-    setItems(prev =>
-      prev
-        .map(i => i.productId === id ? { ...i, quantity: i.quantity + delta } : i)
-        .filter(i => i.quantity > 0)
-    );
+  const [localValue, setLocalValue] = useState(initialDisplay.toString());
+
+  // Keep local input in sync with external state changes (like stepper clicks)
+  useEffect(() => {
+    setLocalValue(initialDisplay === 0 ? "" : initialDisplay.toString());
+  }, [item.quantity, item.displayUnit]);
+
+  const handleChangeText = (text: string) => {
+    const cleaned = text.replace(/[^0-9.]/g, "");
+    // Prevent multiple decimals
+    if ((cleaned.match(/\./g) || []).length > 1) return;
+    
+    setLocalValue(cleaned);
+
+    const num = parseFloat(cleaned);
+    if (!isNaN(num)) {
+      onUpdate(getInternalQuantity(num, dispU));
+    } else if (cleaned === "") {
+      onUpdate(0);
+    }
   };
 
-  const updatePrice = (id, price) => {
-    const cleanPrice = price.replace(/[^0-9.]/g, '');
-    setItems(prev => prev.map(i => i.productId === id ? { ...i, price: cleanPrice } : i));
+  return (
+    <TextInput
+      value={localValue}
+      onChangeText={handleChangeText}
+      keyboardType="decimal-pad"
+      style={styles.qtyInput}
+      placeholder="0"
+      placeholderTextColor="#94a3b8"
+      selectTextOnFocus
+    />
+  );
+};
+
+/* ---------------- MAIN COMPONENT ---------------- */
+
+export default function BillItemsList({ items, setItems }) {
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+
+  const updateQuantityByDelta = (id: string, deltaDisplay: number) => {
+    setItems(prev => prev.map(i => {
+      if (i.productId !== id) return i;
+      const invU = getNormalizedInventoryUnit(i.unit);
+      const dispU = i.displayUnit || invU;
+      
+      const currentDisplay = getDisplayQuantity(i.quantity || 0, dispU);
+      const newDisplay = Math.max(0, currentDisplay + deltaDisplay);
+      
+      // Fixed decimal precision to avoid floating point math errors (e.g., 0.300000000004)
+      const roundedDisplay = parseFloat(newDisplay.toFixed(2));
+      
+      return { 
+        ...i, 
+        quantity: getInternalQuantity(roundedDisplay, dispU) 
+      };
+    }).filter(i => i.quantity > 0)); // Remove items if quantity hits 0 via stepper
   };
 
-  const removeItem = (id) => {
+  const updatePrice = (id: string, price: string) => {
+    const clean = price.replace(/[^0-9.]/g, "");
+    setItems(prev => prev.map(i => (i.productId === id ? { ...i, price: clean } : i)));
+  };
+
+  const removeItem = (id: string) => {
     setItems(prev => prev.filter(i => i.productId !== id));
   };
 
-  const renderItem = ({ item }) => (
-    <View style={styles.card}>
-      {/* LEFT: INFO SECTION */}
-      <View style={styles.leftContent}>
-        <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-        
-        <View style={styles.priceRow}>
-          <View style={styles.priceInputWrapper}>
-            <Text style={styles.currency}>₹</Text>
+  const renderItem = ({ item }) => {
+    const invU = getNormalizedInventoryUnit(item.unit);
+    const dispU = item.displayUnit || invU;
+    
+    // Logic for available sub-units
+    const allowedUnits = invU === "kg" ? ["kg", "g"] : 
+                         invU === "litre" ? ["litre", "ml"] : ["unit"];
+    const canChangeUnit = allowedUnits.length > 1;
+    
+    const total = (Number(item.price || 0) * (item.quantity || 0)).toFixed(2);
+
+    return (
+      <View style={[styles.card, { zIndex: openDropdownId === item.productId ? 100 : 1 }]}>
+        {/* TOP ROW: Name, Total, and Delete */}
+        <View style={styles.topRow}>
+          <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+          <View style={styles.totalBadge}>
+             <Text style={styles.totalAmount}>₹{total}</Text>
+          </View>
+          <TouchableOpacity 
+            onPress={() => removeItem(item.productId)} 
+            style={styles.miniDelete}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="close-circle" size={20} color="#cbd5e1" />
+          </TouchableOpacity>
+        </View>
+
+        {/* BOTTOM ROW: Price Box, Multiplier, Qty Box, Stepper */}
+        <View style={styles.controlsRow}>
+          
+          {/* PRICE INPUT BOX */}
+          <View style={styles.priceBox}>
+            <Text style={styles.currencyLabel}>₹</Text>
             <TextInput
-              value={String(item.price)}
-              keyboardType="decimal-pad"
+              value={String(item.price || "")}
               onChangeText={(v) => updatePrice(item.productId, v)}
+              keyboardType="decimal-pad"
               style={styles.priceInput}
-              selectTextOnFocus
+              placeholder="0"
             />
           </View>
-          <Text style={styles.multiply}>×</Text>
-          <Text style={styles.qtyLabel}>{item.quantity}</Text>
-          <Text style={styles.equals}>=</Text>
-          <Text style={styles.rowTotal}>₹{(Number(item.price) * item.quantity).toFixed(0)}</Text>
+
+          <Text style={styles.operator}>×</Text>
+
+          {/* QUANTITY & UNIT BOX */}
+          <View style={styles.qtyBox}>
+            <QuantityInput 
+              item={item} 
+              onUpdate={(val) => setItems(prev => prev.map(i => i.productId === item.productId ? { ...i, quantity: val } : i))} 
+            />
+            
+            <View style={styles.unitContainer}>
+              <Text style={styles.unitText}>{dispU}</Text>
+              {canChangeUnit && (
+                <TouchableOpacity 
+                  onPress={() => setOpenDropdownId(openDropdownId === item.productId ? null : item.productId)}
+                  style={styles.dropdownToggle}
+                >
+                  <Ionicons 
+                    name={openDropdownId === item.productId ? "chevron-up" : "chevron-down"} 
+                    size={12} 
+                    color="#0369a1" 
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* DROPDOWN MENU */}
+            {openDropdownId === item.productId && (
+              <View style={styles.dropdown}>
+                {allowedUnits.map((u, index) => (
+                  <TouchableOpacity 
+                    key={u} 
+                    onPress={() => {
+                      setItems(prev => prev.map(i => i.productId === item.productId ? { ...i, displayUnit: u } : i));
+                      setOpenDropdownId(null);
+                    }} 
+                    style={[styles.dropItem, index === allowedUnits.length - 1 && { borderBottomWidth: 0 }]}
+                  >
+                    <Text style={[styles.dropText, dispU === u && styles.dropActive]}>
+                      {u}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* STEPPER CONTROLS */}
+          <View style={styles.stepper}>
+            <TouchableOpacity 
+              onPress={() => updateQuantityByDelta(item.productId, dispU === "unit" ? -1 : -0.1)} 
+              style={styles.stepBtn}
+            >
+              <Ionicons name="remove" size={16} color="#64748b" />
+            </TouchableOpacity>
+            <View style={styles.stepDivider} />
+            <TouchableOpacity 
+              onPress={() => updateQuantityByDelta(item.productId, dispU === "unit" ? 1 : 0.1)} 
+              style={styles.stepBtn}
+            >
+              <Ionicons name="add" size={16} color="#64748b" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
-
-      {/* RIGHT: CONTROLS SECTION */}
-      <View style={styles.rightContent}>
-        <View style={styles.qtyControl}>
-          <TouchableOpacity
-            style={styles.qtyBtn}
-            onPress={() => updateQty(item.productId, -1)}
-          >
-            <Ionicons name="remove" size={14} color="#64748b" />
-          </TouchableOpacity>
-
-          <Text style={styles.qtyText}>{item.quantity}</Text>
-
-          <TouchableOpacity
-            style={styles.qtyBtn}
-            onPress={() => updateQty(item.productId, 1)}
-          >
-            <Ionicons name="add" size={14} color="#64748b" />
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity 
-          onPress={() => removeItem(item.productId)}
-          style={styles.deleteBtn}
-        >
-          <Ionicons name="trash-outline" size={14} color="#ef4444" />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <FlatList
       data={items}
       renderItem={renderItem}
-      keyExtractor={(item) => item.productId}
-      contentContainerStyle={styles.listPadding}
+      keyExtractor={i => i.productId}
+      contentContainerStyle={styles.list}
+      keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
-      style={{ flex: 1 }} 
     />
   );
 }
 
 const styles = StyleSheet.create({
-  listPadding: {
-    paddingBottom: 80,
-    paddingTop: 4,
-  },
+  list: { padding: 12, paddingBottom: 100 },
   card: {
-    flexDirection: "row",
     backgroundColor: "#fff",
     borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    padding: 10,
     marginBottom: 8,
     borderWidth: 1,
     borderColor: "#f1f5f9",
-    alignItems: 'center',
+    // Elevation/Shadow
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 3 },
+      android: { elevation: 2 }
+    })
   },
-  leftContent: {
-    flex: 1,
-  },
-  name: {
-    fontWeight: "700",
-    fontSize: 13,
-    color: "#1e293b",
-    marginBottom: 4,
-  },
-  priceRow: {
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 10,
   },
-  priceInputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f8fafc",
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    paddingHorizontal: 4,
+  itemName: { 
+    flex: 1, 
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: '#334155',
+    letterSpacing: -0.2
   },
-  currency: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#94a3b8",
-  },
-  priceInput: {
-    minWidth: 40,
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#334155",
+  totalBadge: {
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    marginLeft: 1,
+    borderRadius: 6,
+    marginRight: 8,
   },
-  multiply: {
-    fontSize: 10,
-    color: "#94a3b8",
-    marginHorizontal: 4,
+  totalAmount: { 
+    fontSize: 15, 
+    fontWeight: '800', 
+    color: '#0f172a' 
   },
-  qtyLabel: {
-    fontSize: 12,
-    color: "#64748b",
-    fontWeight: "600",
+  miniDelete: { 
+    padding: 2 
   },
-  equals: {
-    fontSize: 10,
-    color: "#94a3b8",
-    marginHorizontal: 4,
-  },
-  rowTotal: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#0f172a",
-  },
-  rightContent: {
+  
+  controlsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between'
   },
-  qtyControl: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f1f5f9",
+  
+  /* Price Box Styles */
+  priceBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
     borderRadius: 8,
+    paddingHorizontal: 8,
+    height: 34,
+    width: 85,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  currencyLabel: { 
+    fontSize: 11, 
+    color: '#94a3b8', 
+    fontWeight: '700',
+    marginRight: 2 
+  },
+  priceInput: { 
+    flex: 1, 
+    fontSize: 13, 
+    fontWeight: '600', 
+    color: '#475569', 
+    padding: 0 
+  },
+  
+  operator: { 
+    fontSize: 12, 
+    color: '#cbd5e1', 
+    marginHorizontal: 4,
+    fontWeight: '600'
+  },
+
+  /* Quantity Box Styles */
+  qtyBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f9ff',
+    borderRadius: 8,
+    paddingLeft: 8,
+    height: 34,
+    flex: 1,
+    maxWidth: 130,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    position: 'relative', // Critical for dropdown positioning
+  },
+  qtyInput: { 
+    flex: 1, 
+    fontSize: 13, 
+    fontWeight: '700', 
+    color: '#0369a1', 
+    textAlign: 'left', 
+    padding: 0 
+  },
+  unitContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e0f2fe',
+    height: '100%',
+    paddingHorizontal: 6,
+    borderTopRightRadius: 7,
+    borderBottomRightRadius: 7,
+    borderLeftWidth: 1,
+    borderLeftColor: '#bae6fd',
+  },
+  unitText: { 
+    fontSize: 10, 
+    fontWeight: '800', 
+    color: '#0369a1', 
+    textTransform: 'uppercase' 
+  },
+  dropdownToggle: {
+    marginLeft: 4,
     padding: 2,
   },
-  qtyBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 6,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
+
+  /* Stepper Styles */
+  stepper: {
+    flexDirection: 'row',
+    marginLeft: 10,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#e2e8f0',
+    alignItems: 'center'
   },
-  qtyText: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#1e293b",
-    paddingHorizontal: 8,
+  stepBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
-  deleteBtn: {
-    padding: 6,
-    backgroundColor: '#fff1f2',
-    borderRadius: 8,
+  stepDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: '#e2e8f0'
   },
+
+  /* Dropdown Styles */
+  dropdown: {
+    position: 'absolute',
+    top: 38,
+    right: 0,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    width: 80,
+    zIndex: 999,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8 },
+      android: { elevation: 8 }
+    })
+  },
+  dropItem: { 
+    paddingVertical: 10, 
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9'
+  },
+  dropText: { 
+    fontSize: 11, 
+    color: '#64748b', 
+    fontWeight: '600' 
+  },
+  dropActive: { 
+    color: '#3b82f6', 
+    fontWeight: '800' 
+  }
 });

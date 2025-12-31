@@ -123,7 +123,7 @@ export default function BillingPage() {
     // ✅ STORE QUANTITY IN BASE UNITS
     quantity:
       product.unit === "kg" || product.unit === "litre"
-        ? 1000 // 1kg / 1 litre
+        ? 1 // 1kg / 1 litre
         : 1,    // unit/pcs
   },
 ];
