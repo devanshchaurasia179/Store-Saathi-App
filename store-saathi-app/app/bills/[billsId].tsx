@@ -8,12 +8,12 @@ import {
   TouchableOpacity,
   Alert,
   Dimensions,
-  Platform,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import QRCode from "react-native-qrcode-svg";
+import { useIsFocused } from "@react-navigation/native"; // 🆕 Added
 
 /* ================= API ================= */
 import { getBillById } from "../../constants/bills.api";
@@ -23,7 +23,11 @@ import { getDashboard } from "../../constants/dashboard.api";
 import { formatRupee } from "../../utils/formatCurrency";
 import { shareBillPdf } from "../../utils/billPdf";
 import { printBill } from "../../utils/thermalPrinter";
-import { formatDate } from "../../utils/formatDate";
+import { 
+  getConnectedThermalPrinter, 
+  isThermalPrinterSaved 
+} from "../../utils/printerManager"; // 🆕 Added
+import { BluetoothEscposPrinter } from "@vardrz/react-native-bluetooth-escpos-printer"; // 🆕 Added
 
 /* 🔤 LANGUAGE */
 import { LANGUAGE_TEXT_BILL_DETAIL } from "../../constants/language_billing";
@@ -33,6 +37,7 @@ const { width } = Dimensions.get("window");
 
 export default function BillDetailScreen() {
   const params = useLocalSearchParams();
+  const isFocused = useIsFocused(); // 🆕 To re-check status when returning from PrintTest
   const { language } = useLanguage();
   const t = LANGUAGE_TEXT_BILL_DETAIL[language] || LANGUAGE_TEXT_BILL_DETAIL.en;
 
@@ -47,6 +52,24 @@ export default function BillDetailScreen() {
   const [bill, setBill] = useState<any>(null);
   const [upiId, setUpiId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [isPrinterConnected, setIsPrinterConnected] = useState(false); // 🆕 Printer state
+
+  /* ---------------- PRINTER LOGIC ---------------- */
+  const checkPrinterStatus = async () => {
+    const hasSaved = await isThermalPrinterSaved();
+    if (!hasSaved) {
+      setIsPrinterConnected(false);
+      return;
+    }
+
+    try {
+      // Ping the printer hardware
+      await BluetoothEscposPrinter.printerAlign(BluetoothEscposPrinter.ALIGN.LEFT);
+      setIsPrinterConnected(true);
+    } catch (e) {
+      setIsPrinterConnected(false);
+    }
+  };
 
   /* ---------------- FETCH DATA ---------------- */
   useEffect(() => {
@@ -64,6 +87,7 @@ export default function BillDetailScreen() {
 
         setBill(billRes.data?.bill || null);
         setUpiId(dashboardRes.data?.dashboard?.shop?.upiId || "");
+        await checkPrinterStatus(); // Initial check
       } catch (err) {
         console.error("Bill detail fetch error:", err);
         Alert.alert("Error", t.errorFetch);
@@ -74,6 +98,13 @@ export default function BillDetailScreen() {
 
     fetchData();
   }, [billId]);
+
+  // Re-check printer whenever the screen is focused (e.g., coming back from PrintTest)
+  useEffect(() => {
+    if (isFocused) {
+      checkPrinterStatus();
+    }
+  }, [isFocused]);
 
   /* ---------------- PDF & PRINT ACTIONS ---------------- */
   const handleShare = async () => {
@@ -86,11 +117,16 @@ export default function BillDetailScreen() {
   };
 
   const handlePrint = async () => {
-    try {
-      await printBill(bill);
-    } catch (e) {
-      console.error(e);
-      Alert.alert("Error", t.errorPrint);
+    if (isPrinterConnected) {
+      try {
+        await printBill(bill);
+      } catch (e) {
+        console.error(e);
+        Alert.alert("Error", t.errorPrint);
+      }
+    } else {
+      // Redirect if not connected
+      router.push("/PrintTest");
     }
   };
 
@@ -159,8 +195,20 @@ export default function BillDetailScreen() {
           <TouchableOpacity onPress={handleShare} style={styles.iconCircle}>
             <Ionicons name="share-outline" size={20} color="#2563eb" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={handlePrint} style={styles.iconCircle}>
-            <Ionicons name="print-outline" size={20} color="#2563eb" />
+          
+          {/* UPDATED PRINT BUTTON */}
+          <TouchableOpacity 
+            onPress={handlePrint} 
+            style={[
+              styles.iconCircle, 
+              !isPrinterConnected && styles.iconCircleDisconnected
+            ]}
+          >
+            <Ionicons 
+              name={isPrinterConnected ? "print-outline" : "print"} 
+              size={20} 
+              color={isPrinterConnected ? "#2563eb" : "#dc2626"} 
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -238,7 +286,6 @@ export default function BillDetailScreen() {
           </View>
 
           {bill.items.map((item: any, idx: number) => {
-            // Representing units exactly like ViewBillModal
             const unit = item.unit || "unit"; 
             return (
               <View
@@ -312,7 +359,6 @@ export default function BillDetailScreen() {
   );
 }
 
-/* ================= STYLES ================= */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
   center: {
@@ -360,6 +406,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderColor: "#f1f5f9",
+  },
+  // 🆕 Disconnected Style
+  iconCircleDisconnected: {
+    borderColor: "#fee2e2",
+    backgroundColor: "#fff1f1",
   },
   ticketCard: {
     backgroundColor: "#fff",
@@ -446,8 +497,6 @@ const styles = StyleSheet.create({
   itemName: { fontSize: 14, fontWeight: "700", color: "#334155" },
   itemMeta: { fontSize: 12, color: "#64748b", marginTop: 2, fontWeight: "600" },
   itemPrice: { fontSize: 14, fontWeight: "800", color: "#0f172a" },
-
-  /* Breakdown Styles */
   breakdownCard: {
     backgroundColor: "#fff",
     marginHorizontal: 20,
@@ -468,7 +517,6 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
     marginVertical: 16,
   },
-
   qrSection: {
     backgroundColor: "#fff",
     margin: 20,

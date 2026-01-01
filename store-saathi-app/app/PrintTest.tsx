@@ -32,7 +32,7 @@ import { requestBluetoothPermission } from "../utils/bluetoothPermission";
 import { BluetoothEscposPrinter } from "@vardrz/react-native-bluetooth-escpos-printer";
 
 /* 🔤 LANGUAGE */
-import { LANGUAGE_TEXT_PRINTER } from "../constants/language_printer"; // Ensure path is correct
+import { LANGUAGE_TEXT_PRINTER } from "../constants/language_printer"; 
 import { useLanguage } from "../providers/LanguageProvider";
 
 const { width } = Dimensions.get("window");
@@ -53,7 +53,6 @@ function PrinterSetupContent() {
     name?: string;
   } | null>(null);
 
-  // Test real connection by sending a harmless command
   const testRealConnection = async (): Promise<boolean> => {
     try {
       await BluetoothEscposPrinter.printerAlign(BluetoothEscposPrinter.ALIGN.LEFT);
@@ -63,7 +62,6 @@ function PrinterSetupContent() {
     }
   };
 
-  // Check if saved printer is actually reachable
   const checkSavedPrinterStatus = async () => {
     const hasSaved = await isThermalPrinterSaved();
     if (!hasSaved) {
@@ -173,12 +171,21 @@ function PrinterSetupContent() {
           isActuallyConnected && styles.connectedCard,
           scanning && styles.disabledCard,
         ]}
-        onPress={() => (isSavedPrinter ? handleDisconnect() : handleConnect(item))}
+        // CHANGED: If not active, clicking always attempts to connect (even if saved)
+        onPress={() => {
+          if (isActuallyConnected) {
+            Alert.alert(item.name || "Printer", t.readyMsg);
+          } else {
+            handleConnect(item);
+          }
+        }}
+        // ADDED: Long press to Forget/Disconnect
+        onLongPress={() => isSavedPrinter && handleDisconnect()}
         disabled={scanning}
       >
         <View style={[styles.deviceIconContainer, isActuallyConnected && { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
           <MaterialCommunityIcons 
-            name="printer-wireless" 
+            name={isActuallyConnected ? "printer-check" : "printer-wireless"} 
             size={24} 
             color={isActuallyConnected ? "#fff" : "#1e3a8a"} 
           />
@@ -193,14 +200,14 @@ function PrinterSetupContent() {
         </View>
 
         {isSavedPrinter && (
-          <View style={styles.activeLabel}>
+          <View style={[styles.activeLabel, !isActuallyConnected && { backgroundColor: '#f59e0b' }]}>
             <Text style={styles.activeLabelText}>
               {isActuallyConnected ? t.onlineLabel : t.savedLabel}
             </Text>
           </View>
         )}
 
-        {!isSavedPrinter && <Feather name="chevron-right" size={20} color="#cbd5e1" />}
+        {!isActuallyConnected && <Feather name="chevron-right" size={20} color="#cbd5e1" />}
       </TouchableOpacity>
     );
   };
@@ -250,7 +257,10 @@ function PrinterSetupContent() {
         </View>
 
         {connectedPrinter && (
-          <View style={styles.printerChip}>
+          <TouchableOpacity 
+            style={styles.printerChip} 
+            onLongPress={handleDisconnect}
+          >
             <Feather 
               name={status === "connected" ? "check-circle" : "alert-circle"} 
               size={16} 
@@ -259,7 +269,8 @@ function PrinterSetupContent() {
             <Text style={styles.printerChipText}>
               {connectedPrinter.name || connectedPrinter.address}
             </Text>
-          </View>
+            <Feather name="more-vertical" size={14} color="#fff" style={{marginLeft: 4}} />
+          </TouchableOpacity>
         )}
       </View>
 

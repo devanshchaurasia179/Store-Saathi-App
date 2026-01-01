@@ -14,6 +14,7 @@ import {
   MaterialCommunityIcons,
   Feather,
 } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
 /* 🛠 UTILS & API */
 import { getBillById } from "../../constants/bills.api";
@@ -22,16 +23,28 @@ import { formatDate } from "../../utils/formatDate";
 import { shareBillPdf } from "../../utils/billPdf";
 import { printBill } from "../../utils/thermalPrinter";
 
+/* 🛠 PRINTER MANAGEMENT UTILS */
+import { 
+  getConnectedThermalPrinter, 
+  isThermalPrinterSaved 
+} from "../../utils/printerManager";
+import { BluetoothEscposPrinter } from "@vardrz/react-native-bluetooth-escpos-printer";
+
 /* 🔤 LANGUAGE */
 import { LANGUAGE_TEXT_VIEW_BILL } from "../../constants/language_viewBill";
 import { useLanguage } from "../../providers/LanguageProvider";
 
 export default function ViewBillModal({ billId, onClose }: any) {
+  const router = useRouter();
   const { language } = useLanguage();
   const t = LANGUAGE_TEXT_VIEW_BILL[language] || LANGUAGE_TEXT_VIEW_BILL.en;
 
   const [bill, setBill] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  
+  // PRINTER STATUS STATE
+  const [isPrinterConnected, setIsPrinterConnected] = useState(false);
+  const [checkingPrinter, setCheckingPrinter] = useState(false);
 
   // Helper for sharing the bill summary as text
   const onShareText = async () => {
@@ -43,6 +56,45 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
       });
     } catch (error) {
       console.log(error);
+    }
+  };
+
+  /**
+   * Check if a printer is saved and actually reachable via Bluetooth
+   */
+  const checkPrinterStatus = async () => {
+    setCheckingPrinter(true);
+    const hasSaved = await isThermalPrinterSaved();
+    
+    if (!hasSaved) {
+      setIsPrinterConnected(false);
+      setCheckingPrinter(false);
+      return;
+    }
+
+    try {
+      // Send a harmless command to verify actual hardware connection
+      await BluetoothEscposPrinter.printerAlign(BluetoothEscposPrinter.ALIGN.LEFT);
+      setIsPrinterConnected(true);
+    } catch (e) {
+      // Saved but offline
+      setIsPrinterConnected(false);
+    } finally {
+      setCheckingPrinter(false);
+    }
+  };
+
+  /**
+   * Action Handler for the Print Button
+   */
+  const handlePrintPress = async () => {
+    if (isPrinterConnected) {
+      printBill(bill);
+    } else {
+      // Close the modal first to provide a smooth transition
+      onClose();
+      // Redirect to printer setup
+      router.push("/PrintTest");
     }
   };
 
@@ -65,10 +117,13 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
   useEffect(() => {
     if (!billId) return;
 
-    async function fetchBill() {
+    async function initialize() {
+      setLoading(true);
       try {
         const res = await getBillById(billId);
         setBill(res.data.bill);
+        // After loading bill, check if we can print
+        await checkPrinterStatus();
       } catch (e) {
         console.error("Fetch bill error", e);
       } finally {
@@ -76,7 +131,7 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
       }
     }
 
-    fetchBill();
+    initialize();
   }, [billId]);
 
   if (!billId) return null;
@@ -204,7 +259,7 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
                   <Text style={styles.sectionTitle}>{t.orderSummary}</Text>
                   <View style={styles.itemsCard}>
                     {bill.items.map((item: any, i: number) => {
-                      const unit = item.unit || "unit"; // 🆕 SAFE FALLBACK
+                      const unit = item.unit || "unit";
                       return (
                         <View
                           key={i}
@@ -265,6 +320,16 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
                     />
                   )}
                 </View>
+
+                {/* PRINTER STATUS MINI-ALERT */}
+                {!isPrinterConnected && !loading && (
+                   <View style={styles.offlineWarning}>
+                      <Ionicons name="warning" size={14} color="#92400e" />
+                      <Text style={styles.offlineWarningText}>
+                        Printer is currently offline or not setup.
+                      </Text>
+                   </View>
+                )}
               </ScrollView>
 
               {/* FOOTER */}
@@ -278,11 +343,27 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.primaryBtn}
-                  onPress={() => printBill(bill)}
+                  style={[
+                    styles.primaryBtn,
+                    !isPrinterConnected && { backgroundColor: "#f59e0b" } // Amber color for "Setup Required"
+                  ]}
+                  onPress={handlePrintPress}
+                  disabled={checkingPrinter}
                 >
-                  <Feather name="printer" size={18} color="#fff" />
-                  <Text style={styles.primaryBtnText}>{t.print}</Text>
+                  {checkingPrinter ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Feather 
+                        name={isPrinterConnected ? "printer" : "bluetooth"} 
+                        size={18} 
+                        color="#fff" 
+                      />
+                      <Text style={styles.primaryBtnText}>
+                        {isPrinterConnected ? t.print : "Connect"}
+                      </Text>
+                    </>
+                  )}
                 </TouchableOpacity>
               </View>
             </>
@@ -293,7 +374,6 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
   );
 }
 
-/* STYLES UNCHANGED */
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -466,6 +546,22 @@ const styles = StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: "#e2e8f0",
+  },
+  offlineWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fffbeb',
+    padding: 10,
+    borderRadius: 12,
+    marginTop: 15,
+    borderWidth: 1,
+    borderColor: '#fef3c7',
+    gap: 8,
+  },
+  offlineWarningText: {
+    color: '#92400e',
+    fontSize: 12,
+    fontWeight: '600'
   },
   row: {
     flexDirection: "row",

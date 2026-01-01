@@ -13,9 +13,17 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons, Feather } from "@expo/vector-icons";
+import { useIsFocused } from "@react-navigation/native";
 
 // API & Auth
 import { getDashboard } from "../constants/dashboard.api";
+
+// 🛠 PRINTER UTILS
+import { 
+  getConnectedThermalPrinter, 
+  isThermalPrinterSaved 
+} from "../utils/printerManager";
+import { BluetoothEscposPrinter } from "@vardrz/react-native-bluetooth-escpos-printer";
 
 // 🔤 LANGUAGE & PROVIDERS
 import { LANGUAGE_TEXT_DASHBOARD } from "../constants/language";
@@ -37,10 +45,35 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
+  // Printer Status States
+  const [printerStatus, setPrinterStatus] = useState<"connected" | "offline" | "none">("none");
+  const [printerName, setPrinterName] = useState("");
+
   const router = useRouter();
+  const isFocused = useIsFocused();
   const { language } = useLanguage();
   
   const t = LANGUAGE_TEXT_DASHBOARD[language] || LANGUAGE_TEXT_DASHBOARD.en;
+
+  // --- Logic: Check Printer Status ---
+  const checkPrinterStatus = async () => {
+    const hasSaved = await isThermalPrinterSaved();
+    if (!hasSaved) {
+      setPrinterStatus("none");
+      return;
+    }
+
+    try {
+      // Test real connection by sending a "get status" style empty command
+      await BluetoothEscposPrinter.printerAlign(BluetoothEscposPrinter.ALIGN.LEFT);
+      const printer = await getConnectedThermalPrinter();
+      setPrinterStatus("connected");
+      setPrinterName(printer?.name || "Thermal Printer");
+    } catch (e) {
+      // If the command fails, it's saved but currently unreachable (Bluetooth off or printer off)
+      setPrinterStatus("offline");
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -61,9 +94,17 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
+  // Re-check printer every time user navigates back to Dashboard
+  useEffect(() => {
+    if (isFocused) {
+      checkPrinterStatus();
+    }
+  }, [isFocused]);
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchData();
+    checkPrinterStatus();
   };
 
   if (loading) return <PageLoader />;
@@ -84,7 +125,6 @@ export default function DashboardPage() {
         }
       >
         {/* 1. Header Section with Profile Card */}
-        {/* Note: I'm wrapping ProfileCard in a styled View to give it the curved blue background */}
         <View style={styles.headerCurveContainer}>
           <SafeAreaView edges={["top"]}>
              <ProfileCard shop={dashboard?.shop} />
@@ -108,41 +148,58 @@ export default function DashboardPage() {
         </View>
 
         {/* 4. Primary Actions: Create Bill + Test Printer */}
-<View style={styles.actionButtonsContainer}>
-  <TouchableOpacity 
-    style={styles.createBillButton}
-    onPress={() => router.push("/billing")}
-    activeOpacity={0.9}
-  >
-    <View style={styles.buttonInner}>
-      <View style={styles.iconCircle}>
-        <Ionicons name="barcode-outline" size={24} color="#fff" />
-      </View>
-      <View style={styles.textContainer}>
-        <Text style={styles.createBillText}>{t.createBill}</Text>
-        <Text style={styles.buttonSubtitle}>Generate new invoice quickly</Text>
-      </View>
-      <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.7)" />
-    </View>
-  </TouchableOpacity>
+        <View style={styles.actionButtonsContainer}>
+          <TouchableOpacity 
+            style={styles.createBillButton}
+            onPress={() => router.push("/billing")}
+            activeOpacity={0.9}
+          >
+            <View style={styles.buttonInner}>
+              <View style={styles.iconCircle}>
+                <Ionicons name="barcode-outline" size={24} color="#fff" />
+              </View>
+              <View style={styles.textContainer}>
+                <Text style={styles.createBillText}>{t.createBill}</Text>
+                <Text style={styles.buttonSubtitle}>Generate new invoice quickly</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.7)" />
+            </View>
+          </TouchableOpacity>
 
-  <TouchableOpacity 
-    style={styles.testPrinterButton}
-    onPress={() => router.push("/PrintTest")}
-    activeOpacity={0.8}
-  >
-    <View style={styles.buttonInner}>
-      <View style={styles.iconCirclePurple}>
-        <Feather name="printer" size={22} color="#7c3aed" />
-      </View>
-      <View style={styles.textContainer}>
-        <Text style={styles.testPrinterText}>{t.testPrinter}</Text>
-        <Text style={[styles.buttonSubtitle, { color: "#94a3b8" }]}>Check bluetooth connection</Text>
-      </View>
-      <Feather name="bluetooth" size={18} color="#7c3aed" />
-    </View>
-  </TouchableOpacity>
-</View>
+          <TouchableOpacity 
+            style={styles.testPrinterButton}
+            onPress={() => router.push("/PrintTest")}
+            activeOpacity={0.8}
+          >
+            <View style={styles.buttonInner}>
+              <View style={styles.iconCirclePurple}>
+                <Feather name="printer" size={22} color="#7c3aed" />
+              </View>
+              <View style={styles.textContainer}>
+                <View style={styles.titleRow}>
+                    <Text style={styles.testPrinterText}>{t.testPrinter}</Text>
+                    {/* Connection Status Dot */}
+                    <View style={[
+                        styles.statusDot, 
+                        { backgroundColor: printerStatus === "connected" ? "#10b981" : printerStatus === "offline" ? "#f59e0b" : "#cbd5e1" }
+                    ]} />
+                </View>
+                <Text style={[styles.buttonSubtitle, { color: "#64748b" }]}>
+                  {printerStatus === "connected" 
+                    ? `Active: ${printerName}` 
+                    : printerStatus === "offline" 
+                    ? "Printer is offline" 
+                    : "No printer connected"}
+                </Text>
+              </View>
+              <Feather 
+                name={printerStatus === "connected" ? "check-circle" : "bluetooth"} 
+                size={18} 
+                color={printerStatus === "connected" ? "#10b981" : "#7c3aed"} 
+              />
+            </View>
+          </TouchableOpacity>
+        </View>
 
         {/* 5. Operational Alerts */}
         <View style={styles.sectionSpacing}>
@@ -168,7 +225,7 @@ export default function DashboardPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F4F7FE", // Modern light background
+    backgroundColor: "#F4F7FE",
   },
   scrollContent: {
     paddingBottom: 40,
@@ -177,93 +234,21 @@ const styles = StyleSheet.create({
     backgroundColor: "#1e3a8a",
     borderBottomLeftRadius: 35,
     borderBottomRightRadius: 35,
-    paddingBottom: 10, // Extra space for overlapping card
+    paddingBottom: 10,
     paddingHorizontal: 10,
   },
   overlapCard: {
-    marginTop: -40, // Pulls the debtor card up into the blue area
+    marginTop: -40,
     paddingHorizontal: 4,
   },
   sectionSpacing: {
     marginTop: 5,
   },
   actionButtonsContainer: {
-    flexDirection: "row",
-    gap: 15,
     marginHorizontal: 16,
     marginTop: 20,
     marginBottom: 10,
-  },
-  createBillButton: {
-    flex: 1,
-    backgroundColor: "#fff",
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 4,
-    shadowColor: "#1e3a8a",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    borderWidth: 1,
-    borderColor: "#E0E7FF",
-  },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#E0E7FF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
-  },
-  createBillText: {
-    color: "#1e3a8a",
-    fontSize: 14,
-    fontWeight: "800",
-    textAlign: "center",
-  },
-  testPrinterButton: {
-    flex: 1,
-    backgroundColor: "#fff",
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 4,
-    shadowColor: "#7c3aed",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    borderWidth: 1,
-    borderColor: "#F3E8FF",
-  },
-  iconCirclePurple: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#F3E8FF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
-  },
-  testPrinterText: {
-    color: "#7c3aed",
-    fontSize: 14,
-    fontWeight: "800",
-    textAlign: "center",
-  },
-  bottomSpacer: {
-    height: 60,
-  },
-actionButtonsContainer: {
-    marginHorizontal: 16,
-    marginTop: 20,
-    marginBottom: 10,
-    gap: 12, // Vertical spacing between the full-width buttons
+    gap: 12,
   },
   buttonInner: {
     flexDirection: "row",
@@ -274,6 +259,17 @@ actionButtonsContainer: {
     flex: 1,
     marginLeft: 15,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginTop: 2,
+  },
   buttonSubtitle: {
     fontSize: 12,
     color: "rgba(255,255,255,0.7)",
@@ -282,7 +278,7 @@ actionButtonsContainer: {
   },
   createBillButton: {
     width: "100%",
-    backgroundColor: "#1e3a8a", // Deep Saathi Blue
+    backgroundColor: "#1e3a8a",
     paddingVertical: 18,
     borderRadius: 24,
     elevation: 8,
@@ -295,7 +291,7 @@ actionButtonsContainer: {
     width: 48,
     height: 48,
     borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.15)", // Subtle white transparency
+    backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -326,8 +322,11 @@ actionButtonsContainer: {
     justifyContent: "center",
   },
   testPrinterText: {
-    color: "#1e293b", // Dark slate for readability on white
+    color: "#1e293b",
     fontSize: 17,
     fontWeight: "700",
+  },
+  bottomSpacer: {
+    height: 60,
   },
 });
