@@ -4,10 +4,18 @@ import { Alert } from "react-native";
 import { getProductByBarcode } from "../constants/inventory.api";
 import { createBill } from "../constants/billing.api";
 
+/* ---------------- TYPES ---------------- */
+
 type BillItem = {
   productId: string;
   name: string;
   price: number;
+
+  // ✅ CRITICAL: unit must exist
+  unit: string;              // kg | g | litre | ml | unit | pack | box
+  displayUnit?: string;      // optional UI override
+
+  // ✅ quantity stored in BASE units
   quantity: number;
 };
 
@@ -54,21 +62,38 @@ export const useBilling = () => {
           i => i.productId === product._id
         );
 
+        /* ---------------- EXISTING ITEM ---------------- */
         if (existing) {
           return prev.map(i =>
             i.productId === product._id
-              ? { ...i, quantity: i.quantity + 1 }
+              ? {
+                  ...i,
+                  // increment in BASE units
+                  quantity: i.quantity + 1,
+                }
               : i
           );
         }
 
+        /* ---------------- NEW ITEM ---------------- */
         return [
           ...prev,
           {
             productId: product._id,
             name: product.name,
-            price: product.price.sellingPrice,
-            quantity: 1,
+            price: product.price?.sellingPrice || 0,
+
+            // ✅ PASS UNIT FROM BACKEND
+            unit: product.unit || "unit",
+
+            // optional UI override (lets BillItemsList decide)
+            displayUnit: undefined,
+
+            // ✅ STORE QUANTITY IN BASE UNITS
+            quantity:
+              product.unit === "kg" || product.unit === "litre"
+                ? 1 // 1 kg / 1 litre
+                : 1, // pcs / unit / pack
           },
         ];
       });
@@ -110,10 +135,8 @@ export const useBilling = () => {
         customerId,
       });
 
-      // ✅ IMPORTANT:
-      // DO NOT reset state here
-      // navigation must happen first
-      return res.data; // backend returns bill directly
+      // ⚠️ DO NOT reset state here
+      return res.data;
     } catch (err) {
       Alert.alert("Error", "Failed to create bill");
       throw err;

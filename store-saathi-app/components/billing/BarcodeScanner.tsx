@@ -5,10 +5,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   Dimensions,
-  Vibration, // Built-in, no install needed
+  Vibration,
 } from "react-native";
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from "expo-camera";
 import { Ionicons } from "@expo/vector-icons";
+import { useAudioPlayer } from "expo-audio"; // New audio library (expo-av is deprecated)
 
 type Props = {
   onScan: (barcode: string) => void;
@@ -22,10 +23,16 @@ const SCAN_BOX_SIZE = { width: 260, height: 160 };
 const SCAN_BOX_LEFT = (screenWidth - SCAN_BOX_SIZE.width) / 2;
 const SCAN_BOX_TOP = 200;
 
+// Import a short beep sound file (place it in your assets folder)
+const beepSource = require("../../assets/images/beep.mp3"); // Download a short barcode beep sound and add it here
+
 export default function BarcodeScanner({ onScan, onClose }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const scannedRef = useRef<string | null>(null);
   const [active, setActive] = useState(true);
+
+  // Create a reusable audio player for the beep sound
+  const beepPlayer = useAudioPlayer(beepSource);
 
   /* ---------------- PERMISSION ---------------- */
   useEffect(() => {
@@ -50,10 +57,14 @@ export default function BarcodeScanner({ onScan, onClose }: Props) {
     });
   };
 
-  /* ---------------- VIBRATION FEEDBACK ---------------- */
-  const triggerSuccessVibration = () => {
-    // Short, crisp vibration (100ms) – feels like a "tap" on success
+  /* ---------------- FEEDBACK: Vibration + Beep ---------------- */
+  const triggerSuccessFeedback = () => {
+    // Vibration
     Vibration.vibrate(100);
+
+    // Beep sound – seek to start and play (safe even if already at start)
+    beepPlayer.seekTo(0);
+    beepPlayer.play();
   };
 
   /* ---------------- HANDLE SCAN ---------------- */
@@ -69,13 +80,13 @@ export default function BarcodeScanner({ onScan, onClose }: Props) {
     scannedRef.current = data;
     setActive(false);
 
-    // Give user immediate tactile feedback
-    triggerSuccessVibration();
+    // Immediate feedback
+    triggerSuccessFeedback();
 
     // Notify parent component
     onScan(data);
 
-    // Re-enable scanning after 1.5 seconds
+    // Re-enable scanning after 0.5 seconds
     setTimeout(() => {
       scannedRef.current = null;
       setActive(true);
