@@ -41,6 +41,7 @@ export default function QuickAddProductModal({
 
   const [loading, setLoading] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  
 
   const [form, setForm] = useState({
     name: "",

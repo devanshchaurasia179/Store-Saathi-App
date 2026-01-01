@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,12 +6,17 @@ import {
   FlatList,
   TouchableOpacity,
   TextInput,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+/* 🛠 API & HOOKS */
 import { useLedgerCustomers } from "../../hooks/useLedger";
+import { getDashboard } from "../../constants/dashboard.api"; // Fetching shop data like dashboard
+
+/* 🧱 COMPONENTS */
 import LedgerHeader from "../../components/ledger/LedgerHeader";
 import LedgerSummary from "../../components/ledger/LedgerSummary";
 import DebtorRow from "../../components/ledger/DebtorRow";
@@ -22,8 +27,13 @@ import PageLoader from "../../components/PageLoader";
 import { LANGUAGE_TEXT_LEDGER_LIST } from "../../constants/language";
 import { useLanguage } from "../../providers/LanguageProvider";
 
+const PRIMARY_BLUE = "#1e3a8a";
+
 export default function LedgerListScreen() {
-  const { customers, loading, refresh } = useLedgerCustomers();
+  const { customers, loading: customersLoading, refresh } = useLedgerCustomers();
+  const [shopInfo, setShopInfo] = useState<{ shopName: string; ownerName: string } | null>(null);
+  const [apiLoading, setApiLoading] = useState(true);
+
   const insets = useSafeAreaInsets();
   const { language } = useLanguage();
   const t = LANGUAGE_TEXT_LEDGER_LIST[language] || LANGUAGE_TEXT_LEDGER_LIST.en;
@@ -32,6 +42,26 @@ export default function LedgerListScreen() {
   const [search, setSearch] = useState("");
   const [sortType, setSortType] = useState<"DUE" | "ADVANCE">("DUE");
   const [showAdd, setShowAdd] = useState(false);
+
+  // --- Fetch Shop Data (Same logic as Dashboard) ---
+  useEffect(() => {
+    const fetchShopData = async () => {
+      try {
+        const res = await getDashboard();
+        if (res.data?.dashboard?.shop) {
+          setShopInfo({
+            shopName: res.data.dashboard.shop.shopName,
+            ownerName: res.data.dashboard.shop.ownerName,
+          });
+        }
+      } catch (error) {
+        console.error("Ledger Shop Fetch Error:", error);
+      } finally {
+        setApiLoading(false);
+      }
+    };
+    fetchShopData();
+  }, []);
 
   const filteredCustomers = useMemo(() => {
     let list = customers.filter((c) =>
@@ -68,7 +98,7 @@ export default function LedgerListScreen() {
     0
   );
 
-  if (loading) return <PageLoader />;
+  if (customersLoading || apiLoading) return <PageLoader />;
 
   return (
     <View style={styles.container}>
@@ -134,7 +164,8 @@ export default function LedgerListScreen() {
         renderItem={({ item }) => (
           <DebtorRow
             customer={item}
-            onPress={() => router.push(`/ledger/${item._id}`)}
+            shopName={shopInfo?.shopName}   // Real shopName passed here
+            ownerName={shopInfo?.ownerName} // Real ownerName passed here
           />
         )}
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
@@ -187,7 +218,7 @@ const styles = StyleSheet.create({
   toggleActive: {
     backgroundColor: "#fff",
     elevation: 4,
-    shadowColor: "#2563eb",
+    shadowColor: PRIMARY_BLUE,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -198,7 +229,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   toggleTextActive: {
-    color: "#2563eb", // blue-600
+    color: PRIMARY_BLUE,
   },
   actionRow: {
     marginHorizontal: 16,
@@ -239,8 +270,8 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
   pillActive: {
-    backgroundColor: "#2563eb", // blue-600
-    borderColor: "#2563eb",
+    backgroundColor: PRIMARY_BLUE,
+    borderColor: PRIMARY_BLUE,
   },
   pillText: {
     fontSize: 13,
@@ -253,14 +284,14 @@ const styles = StyleSheet.create({
   fab: {
     position: "absolute",
     right: 16,
-    backgroundColor: "#2563eb", // blue-600
+    backgroundColor: PRIMARY_BLUE,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 24,
     paddingVertical: 16,
     borderRadius: 32,
     elevation: 8,
-    shadowColor: "#2563eb",
+    shadowColor: PRIMARY_BLUE,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
     shadowRadius: 10,

@@ -12,9 +12,24 @@ import { callCustomer } from "../../utils/call";
 import { LANGUAGE_TEXT_DEBTOR_ROW } from "../../constants/language";
 import { useLanguage } from "../../providers/LanguageProvider";
 
-export default function DebtorRow({ customer, shopName = "Our Store" }: any) {
+// Requested Theme Color
+const PRIMARY_BLUE = "#1e3a8a";
+
+type Props = {
+  customer: any;
+  shopName?: string;
+  ownerName?: string;
+};
+
+export default function DebtorRow({ customer, shopName, ownerName }: Props) {
   const { language } = useLanguage();
+  
+  // Fallback language logic
   const t = LANGUAGE_TEXT_DEBTOR_ROW[language] || LANGUAGE_TEXT_DEBTOR_ROW.en;
+
+  // SAFETY FALLBACKS: Ensures "Our Store" is only a last resort
+  const safeShopName = shopName?.trim() || "Our Store";
+  const safeOwnerName = ownerName?.trim() || "";
 
   const isCredit = customer.totalPending <= 0;
   const amount = Math.abs(customer.totalPending);
@@ -30,7 +45,11 @@ export default function DebtorRow({ customer, shopName = "Our Store" }: any) {
   return (
     <View style={styles.container}>
       {/* MAIN ROW */}
-      <TouchableOpacity style={styles.row} onPress={goToLedger} activeOpacity={0.7}>
+      <TouchableOpacity 
+        style={styles.row} 
+        onPress={goToLedger} 
+        activeOpacity={0.7}
+      >
         <View style={styles.infoCol}>
           <Text style={styles.name} numberOfLines={1}>
             {customer.name}
@@ -53,7 +72,12 @@ export default function DebtorRow({ customer, shopName = "Our Store" }: any) {
             onPress={() =>
               sendWhatsAppMessage(
                 customer.mobileNumber,
-                t.whatsappMsg(customer.name, formattedAmount, shopName)
+                t.whatsappMsg(
+                  customer.name, 
+                  amount, 
+                  safeShopName, 
+                  safeOwnerName
+                )
               )
             }
             style={[
@@ -84,15 +108,21 @@ export default function DebtorRow({ customer, shopName = "Our Store" }: any) {
             <Ionicons
               name="call-outline"
               size={18}
-              color={isValidMobile ? "#2563eb" : "#cbd5e1"}
+              color={isValidMobile ? PRIMARY_BLUE : "#cbd5e1"}
             />
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
 
       {/* VIEW FULL LEDGER LINK */}
-      <TouchableOpacity onPress={goToLedger} style={styles.viewLedger} activeOpacity={0.5}>
-        <Text style={styles.viewLedgerText}>{t.viewLedger} →</Text>
+      <TouchableOpacity 
+        onPress={goToLedger} 
+        style={styles.viewLedger} 
+        activeOpacity={0.5}
+      >
+        <Text style={[styles.viewLedgerText, { color: PRIMARY_BLUE }]}>
+          {t.viewLedger} →
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -154,7 +184,6 @@ const styles = StyleSheet.create({
   },
   viewLedgerText: {
     fontSize: 13,
-    color: "#2563eb",
     fontWeight: "700",
   },
 });

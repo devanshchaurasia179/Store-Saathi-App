@@ -68,30 +68,32 @@ export default function BarcodeScanner({ onScan, onClose }: Props) {
   };
 
   /* ---------------- HANDLE SCAN ---------------- */
-  const handleBarcodeScanned = (result: BarcodeScanningResult) => {
-    const { data } = result;
+const handleBarcodeScanned = (result: BarcodeScanningResult) => {
+  const { data } = result;
 
-    if (!data || !active) return;
-    if (scannedRef.current === data) return;
+  // 🚨 HARD LOCK — FIRST LINE
+  if (scannedRef.current !== null) return;
 
-    // Only accept if barcode is fully inside the green scan box
-    if (!isBarcodeInScanBox(result)) return;
+  if (!data || !active) return;
 
-    scannedRef.current = data;
-    setActive(false);
+  // Only accept if barcode is fully inside the green scan box
+  if (!isBarcodeInScanBox(result)) return;
 
-    // Immediate feedback
-    triggerSuccessFeedback();
+  // 🔒 Lock immediately
+  scannedRef.current = data;
+  setActive(false);
 
-    // Notify parent component
-    onScan(data);
+  // Feedback
+  triggerSuccessFeedback();
 
-    // Re-enable scanning after 0.5 seconds
-    setTimeout(() => {
-      scannedRef.current = null;
-      setActive(true);
-    }, 500);
-  };
+  onScan(data);
+
+  setTimeout(() => {
+    scannedRef.current = null;
+    setActive(true);
+  }, 1000);
+};
+
 
   if (!permission?.granted) {
     return (

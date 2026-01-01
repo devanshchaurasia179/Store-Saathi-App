@@ -34,6 +34,9 @@ export default function AnalyticsScreen() {
   const [selectedBillId, setSelectedBillId] = useState<string | null>(null);
   
   const [showAllProducts, setShowAllProducts] = useState(false);
+  
+  // 👁️ Privacy State (Initially Hidden)
+  const [isDataVisible, setIsDataVisible] = useState(false);
 
   const getLocalDateString = (date: Date) => {
     const year = date.getFullYear();
@@ -48,6 +51,17 @@ export default function AnalyticsScreen() {
       : undefined;
 
   const { data, loading, error, refetch } = useAnalytics(mode, dateParam);
+
+  // Helper to mask sensitive values
+  const maskValue = (value: string | number) => {
+    if (isDataVisible) return typeof value === 'number' ? formatRupee(value) : value;
+    return "₹ ••••";
+  };
+
+  const maskText = (text: string) => {
+    if (isDataVisible) return text;
+    return "••••••••";
+  };
 
   const onDateChange = (event: DateTimePickerEvent, date?: Date) => {
     setShowPicker(Platform.OS === "ios");
@@ -101,28 +115,39 @@ export default function AnalyticsScreen() {
           <TouchableOpacity onPress={() => router.push("/dashboard")} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color="#1E3A8A" />
           </TouchableOpacity>
+          
           <TouchableOpacity style={styles.calendarBtn} onPress={() => setShowPicker(true)}>
             <Ionicons name="calendar-outline" size={22} color="#1E3A8A" />
           </TouchableOpacity>
         </View>
 
-        {/* HEADER */}
+        {/* HEADER WITH TITLE & EYE BUTTON */}
         <View style={styles.header}>
-          <View>
+          <View style={styles.titleRow}>
             <Text style={styles.screenTitle}>{t.title}</Text>
-            <Text style={styles.dateSub}>
-              {mode === "daily"
-                ? selectedDate.toDateString()
-                : mode === "weekly"
-                ? `${data?.startDate || ""} → ${data?.endDate || ""}`
-                : mode === "monthly"
-                ? new Date(selectedDate.getFullYear(), selectedDate.getMonth()).toLocaleDateString(language === 'hi' ? 'hi-IN' : 'en-US', {
-                    month: "long",
-                    year: "numeric",
-                  })
-                : selectedDate.getFullYear()}
-            </Text>
+            <TouchableOpacity 
+              style={styles.eyeBtn} 
+              onPress={() => setIsDataVisible(!isDataVisible)}
+            >
+              <Ionicons 
+                name={isDataVisible ? "eye-outline" : "eye-off-outline"} 
+                size={26} 
+                color="#1E3A8A" 
+              />
+            </TouchableOpacity>
           </View>
+          <Text style={styles.dateSub}>
+            {mode === "daily"
+              ? selectedDate.toDateString()
+              : mode === "weekly"
+              ? `${data?.startDate || ""} → ${data?.endDate || ""}`
+              : mode === "monthly"
+              ? new Date(selectedDate.getFullYear(), selectedDate.getMonth()).toLocaleDateString(language === 'hi' ? 'hi-IN' : 'en-US', {
+                  month: "long",
+                  year: "numeric",
+                })
+              : selectedDate.getFullYear()}
+          </Text>
         </View>
 
         {/* QUICK FILTERS */}
@@ -179,7 +204,9 @@ export default function AnalyticsScreen() {
         {/* TOTAL SALES CARD */}
         <View style={[styles.card, styles.mainCard]}>
           <Text style={styles.cardLabelMain}>{t.totalSales}</Text>
-          <Text style={styles.mainValue}>{formatRupee(data?.totalSales || 0)}</Text>
+          <Text style={styles.mainValue}>
+            {maskValue(data?.totalSales || 0)}
+          </Text>
         </View>
 
         {/* COLLECTION ROW */}
@@ -189,7 +216,9 @@ export default function AnalyticsScreen() {
               <Ionicons name="arrow-down" size={16} color="#16a34a" />
             </View>
             <Text style={styles.smallLabel}>{t.collected}</Text>
-            <Text style={styles.greenValue}>{formatRupee(debt.totalCollected || 0)}</Text>
+            <Text style={styles.greenValue}>
+                {maskValue(debt.totalCollected || 0)}
+            </Text>
           </View>
 
           <View style={styles.statsCard}>
@@ -197,7 +226,9 @@ export default function AnalyticsScreen() {
               <Ionicons name="time-outline" size={16} color="#dc2626" />
             </View>
             <Text style={styles.smallLabel}>{t.pendingDebt}</Text>
-            <Text style={styles.redValue}>{formatRupee(debt.totalDebt || 0)}</Text>
+            <Text style={styles.redValue}>
+                {maskValue(debt.totalDebt || 0)}
+            </Text>
           </View>
         </View>
 
@@ -213,7 +244,9 @@ export default function AnalyticsScreen() {
             
             <View style={styles.billContent}>
               <View>
-                <Text style={styles.billAmount}>{formatRupee(biggestBill.totalAmount)}</Text>
+                <Text style={styles.billAmount}>
+                    {maskValue(biggestBill.totalAmount)}
+                </Text>
                 <Text style={styles.billSubText}>
                   {new Date(biggestBill.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {biggestBill.paymentMode}
                 </Text>
@@ -249,14 +282,15 @@ export default function AnalyticsScreen() {
                         </View>
                         <View style={styles.productInfo}>
                             <Text style={styles.productName} numberOfLines={2}>
-                                {item.name}
+                                {maskText(item.name)}
                             </Text>
                             <View style={styles.productStats}>
                                 <Text style={styles.qtyText}>
-  Qty: {item.quantity} {item.unit || "unit"}
-</Text>
-
-                                <Text style={styles.revenueText}>{formatRupee(item.revenue)}</Text>
+                                    Qty: {isDataVisible ? item.quantity : "••"} {isDataVisible ? (item.unit || "unit") : ""}
+                                </Text>
+                                <Text style={styles.revenueText}>
+                                    {maskValue(item.revenue)}
+                                </Text>
                             </View>
                         </View>
                     </View>
@@ -304,7 +338,9 @@ const styles = StyleSheet.create({
   retryText: { color: "#fff", fontWeight: "600" },
   backBtn: { padding: 8, marginLeft: -8 },
   header: { marginBottom: 15 },
+  titleRow: { flexDirection: 'row', alignItems: 'center' },
   screenTitle: { fontSize: 28, fontWeight: "800", color: "#1E293B" },
+  eyeBtn: { marginLeft: 12, padding: 4 },
   dateSub: { fontSize: 14, color: "#64748B", marginTop: 2 },
   calendarBtn: { padding: 10, backgroundColor: "#fff", borderRadius: 12, elevation: 2, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
   quickFilters: { flexDirection: "row", gap: 8, marginBottom: 12 },
