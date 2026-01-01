@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Modal,
   TextInput,
   StatusBar,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -28,6 +29,9 @@ import { getLedgerCustomers } from "../../constants/ledger.api";
 /* 🔤 LANGUAGE */
 import { LANGUAGE_TEXT_BILLING } from "../../constants/language_billing";
 import { useLanguage } from "../../providers/LanguageProvider";
+
+const { width } = Dimensions.get("window");
+const PRIMARY_BLUE = "#1e3a8a"; // Deep professional blue
 
 export default function BillingPage() {
   const { language } = useLanguage();
@@ -110,24 +114,16 @@ export default function BillingPage() {
           i.productId === productId ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
-     return [
-  ...prev,
-  {
-    productId: productId,
-    name: product.name,
-    price: product.price.sellingPrice,
-
-    // ✅ PASS UNIT FROM BACKEND
-    unit: product.unit || "unit",
-
-    // ✅ STORE QUANTITY IN BASE UNITS
-    quantity:
-      product.unit === "kg" || product.unit === "litre" || product.unit === "box" || product.unit === "pack" || product.unit === "dozen" 
-        ? 1 // 1kg / 1 litre
-        : 1,    // unit/pcs
-  },
-];
-
+      return [
+        ...prev,
+        {
+          productId: productId,
+          name: product.name,
+          price: product.price.sellingPrice,
+          unit: product.unit || "unit",
+          quantity: 1,
+        },
+      ];
     });
 
     setProductOpen(false);
@@ -153,70 +149,71 @@ export default function BillingPage() {
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color="#1e293b" />
+          <Ionicons name="arrow-back" size={24} color="#0f172a" />
         </TouchableOpacity>
 
         <View>
           <Text style={styles.title}>{t.title}</Text>
-          <Text style={styles.subtitle}>{t.terminalActive}</Text>
+          <View style={styles.statusRow}>
+            <View style={styles.statusDot} />
+            <Text style={styles.subtitle}>{t.terminalActive}</Text>
+          </View>
         </View>
 
         <TouchableOpacity
           style={styles.searchBtn}
           onPress={() => setProductOpen(true)}
         >
-          <Ionicons name="search" size={14} color="#2563eb" style={{ marginRight: 4 }} />
+          <Ionicons name="search" size={16} color={PRIMARY_BLUE} />
           <Text style={styles.searchBtnText}>{t.searchProduct}</Text>
         </TouchableOpacity>
       </View>
 
-      {/* SCANNER */}
-      <View style={styles.scanner}>
+      {/* SCANNER CONTAINER */}
+      <View style={styles.scannerContainer}>
         <BarcodeScanner onScan={handleScan} />
-        <View style={styles.scanHint}>
-          <Ionicons name="scan" size={14} color="#fff" />
+        <View style={styles.scanHintOverlay}>
+          <Ionicons name="scan-outline" size={14} color="#fff" />
           <Text style={styles.scanText}>{t.alignBarcode}</Text>
         </View>
       </View>
 
-      {/* BODY */}
+      {/* BODY SECTION */}
       <View style={styles.body}>
-        {/* CUSTOMER BOX */}
+        {/* CUSTOMER SELECTOR */}
         <TouchableOpacity
-          style={styles.customerBox}
+          style={styles.customerCard}
           onPress={() => setCustomerOpen(true)}
         >
-          <View style={styles.customerIconWrap}>
-            <Ionicons name="person" size={16} color="#475569" />
+          <View style={styles.customerInfo}>
+            <View style={styles.customerIconCircle}>
+              <Ionicons name="person" size={18} color={PRIMARY_BLUE} />
+            </View>
+            <View>
+              <Text style={styles.customerLabel}>{t.customer}</Text>
+              <Text style={styles.customerName}>{selectedCustomer}</Text>
+            </View>
           </View>
-          <View>
-             <Text style={styles.customerLabel}>{t.customer}</Text>
-             <Text style={styles.customerText}>{selectedCustomer}</Text>
-          </View>
-          <Ionicons
-            name="chevron-down"
-            size={16}
-            color="#94a3b8"
-            style={{ marginLeft: "auto" }}
-          />
+          <Ionicons name="chevron-down" size={20} color="#94a3b8" />
         </TouchableOpacity>
 
-        {/* ITEMS LIST */}
+        {/* ITEMS LIST AREA */}
         <View style={{ flex: 1 }}>
           {items.length === 0 ? (
-            <View style={styles.empty}>
-              <View style={styles.emptyIconBg}>
-                <Ionicons name="barcode-outline" size={40} color="#cbd5e1" />
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIllustration}>
+                <Ionicons name="cart-outline" size={48} color="#cbd5e1" />
               </View>
               <Text style={styles.emptyText}>{t.scannerReady}</Text>
+              <Text style={styles.emptySubText}>Scan items or use search to begin</Text>
             </View>
           ) : (
             <BillItemsList items={items} setItems={setItems} />
           )}
         </View>
 
-        {/* SUMMARY SECTION */}
-        <View style={styles.summary}>
+        {/* BILL SUMMARY BOX */}
+        <View style={styles.summaryWrapper}>
           <BillSummary
             subTotal={subTotal}
             discount={discount}
@@ -230,7 +227,7 @@ export default function BillingPage() {
         </View>
       </View>
 
-      {/* CUSTOMER SEARCH OVERLAY */}
+      {/* MODALS & OVERLAYS */}
       <SearchOverlay
         visible={customerOpen}
         title={t.searchCustomer}
@@ -249,28 +246,30 @@ export default function BillingPage() {
         walkInOption
         walkInLabel={t.walkInCustomer}
         renderItem={(c: any) => (
-          <>
-            <Text style={styles.itemTitle}>{c.name}</Text>
-            <Text style={styles.itemSub}>{c.mobileNumber || t.noPhone}</Text>
-          </>
+          <View style={styles.itemRow}>
+            <View>
+              <Text style={styles.itemTitleText}>{c.name}</Text>
+              <Text style={styles.itemSubText}>{c.mobileNumber || t.noPhone}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#cbd5e1" />
+          </View>
         )}
         extraTopOption={
           <TouchableOpacity
-            style={styles.addNewOption}
+            style={styles.actionItem}
             onPress={() => {
               setCustomerOpen(false);
               setAddCustomerModalVisible(true);
             }}
           >
-            <View style={styles.addIconCircle}>
-                <Ionicons name="add" size={18} color="#2563eb" />
+            <View style={[styles.miniIcon, { backgroundColor: '#e0e7ff' }]}>
+              <Ionicons name="person-add" size={16} color={PRIMARY_BLUE} />
             </View>
-            <Text style={styles.addNewText}>{t.addNewCustomer}</Text>
+            <Text style={[styles.actionText, { color: PRIMARY_BLUE }]}>{t.addNewCustomer}</Text>
           </TouchableOpacity>
         }
       />
 
-      {/* PRODUCT SEARCH OVERLAY */}
       <SearchOverlay
         visible={productOpen}
         title={t.searchProduct}
@@ -280,29 +279,25 @@ export default function BillingPage() {
         items={filteredProducts}
         onSelect={addProductToBill}
         renderItem={(p: any) => (
-          <View style={styles.productRow}>
-            <View>
-              <Text style={styles.itemTitle}>{p.name}</Text>
-              <Text style={styles.itemSub}>{p.barcode}</Text>
+          <View style={styles.productFlexRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.itemTitleText}>{p.name}</Text>
+              <Text style={styles.itemSubText}>{p.barcode || 'No Barcode'}</Text>
             </View>
-            <Text style={styles.price}>₹{p.price.sellingPrice}</Text>
+            <Text style={styles.productPriceText}>₹{p.price.sellingPrice}</Text>
           </View>
         )}
       />
 
-      {/* QUICK ADD MODAL */}
       {productNotFound && lastScannedBarcode && (
         <QuickAddProductModal
           visible={productNotFound}
           barcode={lastScannedBarcode}
           onClose={() => setProductNotFound(false)}
-          onSuccess={(newProduct) => {
-            addProductToBill(newProduct);
-          }}
+          onSuccess={(newProduct) => addProductToBill(newProduct)}
         />
       )}
 
-      {/* ADD CUSTOMER MODAL */}
       <AddCustomerModal
         visible={addCustomerModalVisible}
         isSupplier={false}
@@ -318,7 +313,7 @@ export default function BillingPage() {
   );
 }
 
-/* ================= SEARCH OVERLAY COMPONENT ================= */
+/* ================= COMPONENT: SEARCH OVERLAY ================= */
 function SearchOverlay({
   visible,
   title,
@@ -335,45 +330,49 @@ function SearchOverlay({
   if (!visible) return null;
 
   return (
-    <Modal transparent animationType="fade">
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          <View style={styles.searchHeader}>
-            <Ionicons name="search" size={18} color="#94a3b8" />
+    <Modal transparent animationType="slide">
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHeader}>
+            <Ionicons name="search" size={20} color={PRIMARY_BLUE} />
             <TextInput
               autoFocus
               placeholder={title}
               placeholderTextColor="#94a3b8"
               value={value}
               onChangeText={onChange}
-              style={styles.input}
+              style={styles.modalInput}
             />
-            <TouchableOpacity onPress={onClose} style={styles.closeBtnIcon}>
-              <Ionicons name="close" size={20} color="#64748b" />
+            <TouchableOpacity onPress={onClose} style={styles.modalCloseBtn}>
+              <Ionicons name="close-circle" size={24} color="#cbd5e1" />
             </TouchableOpacity>
           </View>
 
-          <ScrollView keyboardShouldPersistTaps="handled">
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {extraTopOption}
+            
             {walkInOption && (
               <TouchableOpacity
                 onPress={() => onSelect({ _id: "" })}
-                style={styles.walkIn}
+                style={styles.walkInRow}
               >
-                <Ionicons name="people-outline" size={18} color="#2563eb" style={{marginRight: 10}} />
-                <Text style={styles.walkInText}>{walkInLabel}</Text>
+                <View style={[styles.miniIcon, { backgroundColor: '#f1f5f9' }]}>
+                  <Ionicons name="people" size={16} color="#64748b" />
+                </View>
+                <Text style={styles.walkInTitle}>{walkInLabel}</Text>
               </TouchableOpacity>
             )}
 
-            {items.map((item: any) => (
+            {items.map((item: any, idx: number) => (
               <TouchableOpacity
-                key={item._id}
+                key={item._id || idx}
                 onPress={() => onSelect(item)}
-                style={styles.listItem}
+                style={styles.listItemRow}
               >
                 {renderItem(item)}
               </TouchableOpacity>
             ))}
+            <View style={{ height: 40 }} />
           </ScrollView>
         </View>
       </View>
@@ -384,181 +383,178 @@ function SearchOverlay({
 /* ================= STYLES ================= */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
+  
+  /* Header */
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderColor: "#f1f5f9",
-    gap: 12,
   },
-  backBtn: {
-    padding: 4,
-    marginLeft: -4,
-  },
-  title: { fontSize: 17, fontWeight: "800", color: "#0f172a" },
+  backBtn: { paddingRight: 16 },
+  title: { fontSize: 18, fontWeight: "800", color: "#0f172a" },
+  statusRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10b981', marginRight: 6 },
   subtitle: {
-    fontSize: 10,
-    color: "#2563eb",
-    fontWeight: "800",
-    letterSpacing: 1,
+    fontSize: 11,
+    color: PRIMARY_BLUE,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   searchBtn: {
     marginLeft: "auto",
-    backgroundColor: "#eff6ff",
+    backgroundColor: "#f0f4ff",
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 12,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#e0e7ff',
   },
-  searchBtnText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#2563eb",
-  },
-  scanner: { height: "24%", backgroundColor: "#020617" },
-  scanHint: {
+  searchBtnText: { fontSize: 12, fontWeight: "700", color: PRIMARY_BLUE },
+
+  /* Scanner */
+  scannerContainer: { height: "22%", backgroundColor: "#000", overflow: 'hidden' },
+  scanHintOverlay: {
     position: "absolute",
-    bottom: 12,
+    bottom: 16,
     alignSelf: "center",
     flexDirection: "row",
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 6,
+    backgroundColor: 'rgba(15, 23, 42, 0.8)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 8,
   },
-  scanText: { fontSize: 10, color: "#fff", fontWeight: "700" },
+  scanText: { fontSize: 11, color: "#fff", fontWeight: "600" },
+
+  /* Body */
   body: {
     flex: 1,
     backgroundColor: "#fff",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    marginTop: -20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 5,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    marginTop: -24,
+    paddingTop: 8,
   },
-  customerBox: {
+  customerCard: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 14,
-    marginHorizontal: 16,
-    marginTop: 16,
+    justifyContent: 'space-between',
+    padding: 16,
+    marginHorizontal: 20,
+    marginTop: 12,
     marginBottom: 10,
     backgroundColor: '#f8fafc',
-    borderRadius: 16,
-    gap: 12,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: "#f1f5f9",
   },
-  customerIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+  customerInfo: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  customerIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
   },
-  customerLabel: { fontSize: 9, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' },
-  customerText: { fontSize: 13, fontWeight: "700", color: '#1e293b' },
-  empty: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-  },
-  emptyIconBg: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+  customerLabel: { fontSize: 10, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' },
+  customerName: { fontSize: 15, fontWeight: "700", color: '#1e293b' },
+
+  /* Empty State */
+  emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 60 },
+  emptyIllustration: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     backgroundColor: '#f1f5f9',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 16,
   },
-  emptyText: { fontSize: 14, fontWeight: "700", color: '#94a3b8' },
-  summary: {
+  emptyText: { fontSize: 16, fontWeight: "700", color: '#475569' },
+  emptySubText: { fontSize: 13, color: '#94a3b8', marginTop: 4 },
+
+  /* Summary */
+  summaryWrapper: {
     borderTopWidth: 1,
     borderColor: "#f1f5f9",
-    padding: 16,
-    backgroundColor: '#fff'
+    padding: 20,
+    backgroundColor: '#fff',
   },
-  overlay: {
+
+  /* Modal Search */
+  modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
-    justifyContent: "flex-start",
-    paddingTop: 60,
+    backgroundColor: "rgba(15, 23, 42, 0.7)",
+    justifyContent: "flex-end",
   },
-  sheet: {
+  modalSheet: {
     backgroundColor: "#fff",
-    marginHorizontal: 16,
-    borderRadius: 24,
-    overflow: "hidden",
-    maxHeight: "80%",
-    elevation: 10,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    height: "85%",
+    paddingTop: 10,
   },
-  searchHeader: {
+  modalHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    padding: 16,
+    gap: 12,
+    padding: 20,
     borderBottomWidth: 1,
     borderColor: "#f1f5f9",
   },
-  closeBtnIcon: { padding: 4 },
-  input: { flex: 1, fontSize: 15, color: '#1e293b', fontWeight: '600' },
-  listItem: {
-    padding: 16,
+  modalInput: { flex: 1, fontSize: 16, color: '#1e293b', fontWeight: '600' },
+  modalCloseBtn: { padding: 4 },
+  
+  listItemRow: {
+    paddingHorizontal: 20,
+    paddingVertical: 18,
     borderBottomWidth: 1,
     borderColor: "#f8fafc",
   },
-  itemTitle: { fontWeight: "700", fontSize: 14, color: '#1e293b' },
-  itemSub: { fontSize: 12, color: "#64748b", marginTop: 2 },
-  productRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  price: { fontWeight: "800", color: "#2563eb", fontSize: 15 },
-  walkIn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderColor: "#f1f5f9",
-  },
-  walkInText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#2563eb",
-  },
-  addNewOption: {
+  itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  itemTitleText: { fontWeight: "700", fontSize: 15, color: '#1e293b' },
+  itemSubText: { fontSize: 13, color: "#64748b", marginTop: 3 },
+  
+  productFlexRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  productPriceText: { fontWeight: "800", color: PRIMARY_BLUE, fontSize: 16 },
+
+  actionItem: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    gap: 12,
+    padding: 20,
+    gap: 14,
     backgroundColor: "#f0f7ff",
-    borderBottomWidth: 1,
-    borderColor: "#dbeafe",
   },
-  addIconCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#fff',
+  miniIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addNewText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#2563eb",
+  actionText: { fontSize: 15, fontWeight: "700" },
+
+  walkInRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderColor: "#f1f5f9",
+    gap: 14,
   },
+  walkInTitle: { fontSize: 15, fontWeight: "700", color: '#475569' },
 });

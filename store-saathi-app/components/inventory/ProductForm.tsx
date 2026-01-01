@@ -11,7 +11,7 @@ import {
   ScrollView,
   Platform,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 /* 🛠 API & UTILS */
 import { createProduct, updateProduct } from "../../constants/inventory.api";
@@ -21,13 +21,13 @@ import { generateBarcode } from "../../utils/generateBarcode";
 import { LANGUAGE_TEXT_PRODUCT_FORM } from "../../constants/language_inventory";
 import { useLanguage } from "../../providers/LanguageProvider";
 
+const THEME_BLUE = "#1e3a8a";
+
 /* 🆕 UNIT OPTIONS */
 const UNIT_OPTIONS = [
   { label: "Unit / Pcs", value: "unit", icon: "cube-outline" },
   { label: "Kilogram (kg)", value: "kg", icon: "scale-outline" },
-  { label: "Gram (g)", value: "g", icon: "beaker-outline" },
   { label: "Litre (L)", value: "litre", icon: "water-outline" },
-  { label: "Millilitre (ml)", value: "ml", icon: "color-fill-outline" },
   { label: "Box", value: "box", icon: "archive-outline" },
   { label: "Pack", value: "pack", icon: "gift-outline" },
   { label: "Dozen", value: "dozen", icon: "grid-outline" },
@@ -59,8 +59,6 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
   const [form, setForm] = useState(DEFAULT_FORM);
   const [showMore, setShowMore] = useState(false);
   const [loading, setLoading] = useState(false);
-  
-  /* 🆕 DROPDOWN STATE */
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   useEffect(() => {
@@ -121,18 +119,19 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
     }
   };
 
-  // Find the label of the currently selected unit for the button display
-  const selectedUnitLabel = UNIT_OPTIONS.find(u => u.value === form.unit)?.label || "Select Unit";
+  const selectedUnit = UNIT_OPTIONS.find(u => u.value === form.unit);
 
   return (
     <ScrollView 
-      style={{ flex: 1 }} 
+      style={{ flex: 1, backgroundColor: '#f8fafc' }} 
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
       {/* BASIC INFO SECTION */}
       <View style={styles.card}>
+        <Text style={styles.sectionLabel}>{t.productDetails || "Product Details"}</Text>
+        
         <Field
           label={t.productName}
           icon="cart-outline"
@@ -149,6 +148,7 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
               value={String(form.price.sellingPrice)}
               keyboard="numeric"
               placeholder="0.00"
+              isPrice={true}
               onChange={(v: string) => update("price", { sellingPrice: v })}
             />
           </View>
@@ -164,18 +164,21 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
           </View>
         </View>
 
-        {/* 🆕 CUSTOM DROPDOWN BUTTON */}
+        {/* 🆕 UNIT DROPDOWN */}
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>{t.unit || "UNIT"}</Text>
-          
           <TouchableOpacity 
             style={[styles.dropdownTrigger, isDropdownOpen && styles.dropdownTriggerActive]} 
             onPress={() => setIsDropdownOpen(!isDropdownOpen)}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
           >
             <View style={styles.triggerInner}>
-              <Ionicons name="options-outline" size={20} color={isDropdownOpen ? "#2563eb" : "#94a3b8"} />
-              <Text style={styles.triggerText}>{selectedUnitLabel}</Text>
+              <Ionicons 
+                name={selectedUnit?.icon as any || "options-outline"} 
+                size={20} 
+                color={THEME_BLUE} 
+              />
+              <Text style={styles.triggerText}>{selectedUnit?.label || "Select Unit"}</Text>
             </View>
             <Ionicons 
               name={isDropdownOpen ? "chevron-up" : "chevron-down"} 
@@ -200,12 +203,12 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
                     <Ionicons 
                       name={u.icon as any} 
                       size={20} 
-                      color={isActive ? "#2563eb" : "#64748b"} 
+                      color={isActive ? "#fff" : "#64748b"} 
                     />
                     <Text style={[styles.dropdownItemText, isActive && styles.dropdownItemTextActive]}>
                       {u.label}
                     </Text>
-                    {isActive && <Ionicons name="checkmark" size={18} color="#2563eb" />}
+                    {isActive && <Ionicons name="checkmark-circle" size={18} color="#fff" />}
                   </TouchableOpacity>
                 );
               })}
@@ -216,54 +219,54 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
 
       {/* BARCODE SECTION */}
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>{t.identification}</Text>
+        <Text style={styles.sectionLabel}>{t.identification}</Text>
         <View style={styles.barcodeWrapper}>
-          <View
-            style={[
-              styles.inputContainer,
-              { flex: 1, marginBottom: 0 },
-              initialData && styles.disabledInput,
-            ]}
-          >
-            <Ionicons name="barcode-outline" size={20} color="#94a3b8" />
+          <View style={[styles.inputContainer, { flex: 1, marginBottom: 0 }, initialData && styles.disabledInput]}>
+            <Ionicons name="barcode-outline" size={20} color={THEME_BLUE} />
             <TextInput
               value={form.barcode}
               editable={!initialData}
               style={styles.input}
               placeholder={t.barcode}
+              placeholderTextColor="#94a3b8"
             />
           </View>
           {!initialData && (
             <TouchableOpacity
               style={styles.regenBtn}
               onPress={() => update("barcode", generateBarcode())}
+              activeOpacity={0.7}
             >
-              <Ionicons name="refresh" size={18} color="#fff" />
+              <Ionicons name="refresh" size={22} color="#fff" />
             </TouchableOpacity>
           )}
         </View>
 
-        <View style={styles.toggleRow}>
-          <Text style={styles.toggleLabel}>{t.printBarcode}</Text>
+        <View style={styles.toggleCard}>
+          <View style={styles.toggleRowInner}>
+            <Ionicons name="print-outline" size={20} color={THEME_BLUE} />
+            <Text style={styles.toggleLabel}>{t.printBarcode}</Text>
+          </View>
           <Switch
             value={form.isBarcodeListed}
             onValueChange={(v) => update("isBarcodeListed", v)}
-            trackColor={{ false: "#e2e8f0", true: "#93c5fd" }}
-            thumbColor={form.isBarcodeListed ? "#2563eb" : "#f4f3f4"}
+            trackColor={{ false: "#cbd5e1", true: "#93c5fd" }}
+            thumbColor={form.isBarcodeListed ? THEME_BLUE : "#f4f3f4"}
           />
         </View>
       </View>
 
-      {/* ADDITIONAL DETAILS TOGGLE */}
+      {/* ADDITIONAL DETAILS */}
       <TouchableOpacity
         style={styles.moreHeader}
+        activeOpacity={0.6}
         onPress={() => setShowMore(!showMore)}
       >
         <Text style={styles.moreTitle}>{t.additionalDetails}</Text>
         <Ionicons
           name={showMore ? "chevron-up" : "chevron-down"}
-          size={20}
-          color="#2563eb"
+          size={18}
+          color={THEME_BLUE}
         />
       </TouchableOpacity>
 
@@ -283,11 +286,19 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
             placeholder={t.sizePlace}
             onChange={(v: string) => update("size", v)}
           />
-          <Toggle
-            label={t.enableTracking}
-            value={form.isTrackable}
-            onChange={(v: boolean) => update("isTrackable", v)}
-          />
+          
+          <View style={[styles.toggleCard, { marginTop: 8 }]}>
+            <View style={styles.toggleRowInner}>
+              <Ionicons name="stats-chart-outline" size={20} color={THEME_BLUE} />
+              <Text style={styles.toggleLabel}>{t.enableTracking}</Text>
+            </View>
+            <Switch
+              value={form.isTrackable}
+              onValueChange={(v: boolean) => update("isTrackable", v)}
+              trackColor={{ false: "#cbd5e1", true: "#93c5fd" }}
+              thumbColor={form.isTrackable ? THEME_BLUE : "#f4f3f4"}
+            />
+          </View>
         </View>
       )}
 
@@ -295,14 +306,18 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
       <TouchableOpacity
         onPress={handleSubmit}
         disabled={loading}
+        activeOpacity={0.8}
         style={[styles.submit, loading && styles.submitDisabled]}
       >
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.submitText}>
-            {initialData ? t.updateProduct : t.saveProduct}
-          </Text>
+          <>
+            <Ionicons name={initialData ? "save-outline" : "add-circle-outline"} size={22} color="#fff" style={{marginRight: 8}} />
+            <Text style={styles.submitText}>
+                {initialData ? t.updateProduct : t.saveProduct}
+            </Text>
+          </>
         )}
       </TouchableOpacity>
     </ScrollView>
@@ -311,55 +326,55 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
 
 /* ---------- UI HELPERS ---------- */
 
-const Field = ({ label, value, onChange, keyboard, icon, placeholder }: any) => (
+const Field = ({ label, value, onChange, keyboard, icon, placeholder, isPrice }: any) => (
   <View style={styles.fieldContainer}>
     <Text style={styles.label}>{label}</Text>
     <View style={styles.inputContainer}>
-      <Ionicons name={icon} size={20} color="#94a3b8" />
+      {isPrice ? (
+          <Text style={styles.currencyPrefix}>$</Text>
+      ) : (
+          <Ionicons name={icon} size={20} color="#94a3b8" />
+      )}
       <TextInput
         value={value}
         onChangeText={onChange}
         keyboardType={keyboard}
         placeholder={placeholder}
         placeholderTextColor="#94a3b8"
-        style={styles.input}
+        style={[styles.input, isPrice && { marginLeft: 5 }]}
       />
     </View>
-  </View>
-);
-
-const Toggle = ({ label, value, onChange }: any) => (
-  <View style={styles.toggleRow}>
-    <Text style={styles.toggleLabel}>{label}</Text>
-    <Switch
-      value={value}
-      onValueChange={onChange}
-      trackColor={{ false: "#e2e8f0", true: "#93c5fd" }}
-      thumbColor={value ? "#2563eb" : "#f4f3f4"}
-    />
   </View>
 );
 
 /* ---------- STYLES ---------- */
 
 const styles = StyleSheet.create({
-  container: { padding: 16, paddingBottom: 40 },
+  container: { padding: 16, paddingBottom: 60 },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: "#94a3b8",
+    marginBottom: 16,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
   card: {
     backgroundColor: "#fff",
-    borderRadius: 24,
-    padding: 16,
+    borderRadius: 28,
+    padding: 20,
     marginBottom: 16,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#f1f5f9",
     ...Platform.select({
-      ios: { shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-      android: { elevation: 2 },
+      ios: { shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } },
+      android: { elevation: 3 },
     }),
   },
   row: { flexDirection: "row", gap: 12 },
-  fieldContainer: { marginBottom: 16 },
+  fieldContainer: { marginBottom: 18 },
   label: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
     color: "#64748b",
     marginBottom: 8,
@@ -373,20 +388,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8fafc",
     borderWidth: 1.5,
     borderColor: "#e2e8f0",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    height: 54,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    height: 56,
+  },
+  currencyPrefix: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: THEME_BLUE,
   },
   input: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 12,
     fontSize: 16,
     fontWeight: "600",
     color: "#1e293b",
   },
-  disabledInput: { backgroundColor: "#f1f5f9" },
+  disabledInput: { backgroundColor: "#f1f5f9", borderColor: '#cbd5e1' },
 
-  /* 🆕 CUSTOM DROPDOWN CSS-ONLY STYLES */
+  /* DROPDOWN */
   dropdownTrigger: {
     flexDirection: "row",
     alignItems: "center",
@@ -394,18 +414,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8fafc",
     borderWidth: 1.5,
     borderColor: "#e2e8f0",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    height: 54,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    height: 56,
   },
   dropdownTriggerActive: {
-    borderColor: "#2563eb",
+    borderColor: THEME_BLUE,
     backgroundColor: "#fff",
   },
   triggerInner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
   },
   triggerText: {
     fontSize: 16,
@@ -415,24 +435,25 @@ const styles = StyleSheet.create({
   dropdownMenu: {
     marginTop: 8,
     backgroundColor: "#fff",
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: "#e2e8f0",
     padding: 8,
     ...Platform.select({
-      ios: { shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } },
-      android: { elevation: 4 },
+      ios: { shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 15, shadowOffset: { width: 0, height: 8 } },
+      android: { elevation: 6 },
     }),
   },
   dropdownItem: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
-    borderRadius: 12,
-    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    gap: 14,
+    marginBottom: 4,
   },
   dropdownItemActive: {
-    backgroundColor: "#f0f7ff",
+    backgroundColor: THEME_BLUE,
   },
   dropdownItemText: {
     flex: 1,
@@ -441,65 +462,69 @@ const styles = StyleSheet.create({
     color: "#475569",
   },
   dropdownItemTextActive: {
-    color: "#2563eb",
+    color: "#fff",
   },
 
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: "900",
-    color: "#94a3b8",
-    marginBottom: 12,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
+  /* BARCODE */
   barcodeWrapper: {
     flexDirection: "row",
-    gap: 10,
-    marginBottom: 12,
+    gap: 12,
+    marginBottom: 20,
     alignItems: "center",
   },
   regenBtn: {
-    backgroundColor: "#1e3a8a",
-    height: 52,
-    width: 52,
-    borderRadius: 14,
+    backgroundColor: THEME_BLUE,
+    height: 56,
+    width: 56,
+    borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
+    elevation: 4,
   },
-  toggleRow: {
+  toggleCard: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 4,
+    backgroundColor: "#f1f5f9",
+    padding: 16,
+    borderRadius: 20,
   },
-  toggleLabel: { fontSize: 14, fontWeight: "700", color: "#334155" },
+  toggleRowInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  toggleLabel: { fontSize: 14, fontWeight: "700", color: "#1e293b" },
+  
+  /* FOOTER & MORE */
   moreHeader: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
-    paddingVertical: 10,
-    marginBottom: 10,
+    paddingVertical: 12,
+    marginBottom: 8,
   },
-  moreTitle: { color: "#2563eb", fontWeight: "800", fontSize: 14 },
+  moreTitle: { color: THEME_BLUE, fontWeight: "800", fontSize: 14 },
   submit: {
-    backgroundColor: "#1e3a8a",
-    height: 60,
-    borderRadius: 20,
+    backgroundColor: THEME_BLUE,
+    height: 64,
+    borderRadius: 22,
+    flexDirection: 'row',
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 10,
-    shadowColor: "#1e3a8a",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 6,
+    marginTop: 12,
+    shadowColor: THEME_BLUE,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
   },
   submitDisabled: { backgroundColor: "#94a3b8" },
   submitText: {
     color: "#fff",
     fontWeight: "900",
-    fontSize: 17,
+    fontSize: 18,
     letterSpacing: 0.5,
   },
 });

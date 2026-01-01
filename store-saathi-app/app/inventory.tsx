@@ -8,8 +8,11 @@ import {
   RefreshControl,
   StatusBar,
   Alert,
+  Modal,
+  Animated,
+  Dimensions,
 } from "react-native";
-import { useMemo, useState, useCallback, useRef } from "react";
+import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -29,6 +32,8 @@ import { getProductByBarcode } from "../constants/inventory.api";
 import { LANGUAGE_TEXT_INVENTORY_PAGE } from "../constants/language_inventory";
 import { useLanguage } from "../providers/LanguageProvider";
 
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
 export default function InventoryPage() {
   const { products, loading, refresh } = useInventory();
   const insets = useSafeAreaInsets();
@@ -42,9 +47,29 @@ export default function InventoryPage() {
   const [showScanner, setShowScanner] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  /* ANIMATION STATE FOR TOP MODAL */
+  const slideAnim = useRef(new Animated.Value(-SCREEN_HEIGHT)).current;
   const scanningLockedRef = useRef(false);
   const [lastScannedBarcode, setLastScannedBarcode] = useState<string | null>(null);
   const [productNotFound, setProductNotFound] = useState(false);
+
+  /* TRIGGER TOP SLIDE ANIMATION */
+  useEffect(() => {
+    if (productNotFound) {
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 8,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: -SCREEN_HEIGHT,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [productNotFound]);
 
   /* REFRESH */
   const onRefresh = useCallback(async () => {
@@ -79,7 +104,7 @@ export default function InventoryPage() {
     if (scanningLockedRef.current) return;
     scanningLockedRef.current = true;
 
-    setShowScanner(false); // Hide scanner immediately
+    setShowScanner(false); 
     setLastScannedBarcode(barcode);
 
     try {
@@ -133,7 +158,6 @@ export default function InventoryPage() {
 
         {/* SEARCH + FILTER */}
         <View style={styles.topActions}>
-          {/* ... search and filter unchanged ... */}
           <View style={styles.searchBox}>
             <Ionicons name="search-outline" size={20} color="#94a3b8" />
             <TextInput
@@ -166,9 +190,9 @@ export default function InventoryPage() {
           </View>
         </View>
 
-        {/* BARCODE SCANNER - Always mounted */}
+        {/* BARCODE SCANNER SECTION */}
         <View style={[
-          styles.scannerContainer,
+          styles.scannerWrapper,
           !showScanner && styles.scannerHidden
         ]}>
           <BarcodeScanner
@@ -183,19 +207,10 @@ export default function InventoryPage() {
           )}
         </View>
 
-        {/* DARK OVERLAY ONLY BELOW THE SCANNER */}
-        {showScanner && (
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={closeScanner}
-            style={styles.darkOverlayBelowScanner}
-          />
-        )}
-
         {/* INVENTORY LIST */}
         <View style={[
           styles.listContainer,
-          showScanner && styles.listDimmed // Optional: slightly dim the list
+          (showScanner || productNotFound) && styles.listDimmed
         ]}>
           <FlatList
             data={filteredProducts}
@@ -228,7 +243,42 @@ export default function InventoryPage() {
           />
         </View>
 
-        {/* MODALS */}
+        {/* FULL SCREEN OVERLAY FOR TOP MODAL */}
+        {productNotFound && (
+          <TouchableOpacity 
+            activeOpacity={1} 
+            style={styles.fullScreenOverlay} 
+            onPress={() => setProductNotFound(false)} 
+          />
+        )}
+
+        {/* QUICK ADD MODAL - SLIDING FROM TOP */}
+        <Animated.View 
+          style={[
+            styles.topModalContainer, 
+            { transform: [{ translateY: slideAnim }] }
+          ]}
+        >
+          <View style={[styles.topModalContent, { paddingTop: insets.top }]}>
+             <QuickAddProductModal
+                visible={productNotFound}
+                barcode={lastScannedBarcode || ""}
+                onClose={() => {
+                  setProductNotFound(false);
+                  setLastScannedBarcode(null);
+                }}
+                onSuccess={() => {
+                  setProductNotFound(false);
+                  setLastScannedBarcode(null);
+                  refresh();
+                }}
+              />
+              {/* Optional: Add a small handle at the bottom of the modal */}
+              <View style={styles.modalHandle} />
+          </View>
+        </Animated.View>
+
+        {/* STANDARD MODAL */}
         <AddProductModal
           visible={showAdd}
           onClose={() => setShowAdd(false)}
@@ -238,19 +288,14 @@ export default function InventoryPage() {
           }}
         />
 
-        <QuickAddProductModal
-          visible={productNotFound}
-          barcode={lastScannedBarcode || ""}
-          onClose={() => {
-            setProductNotFound(false);
-            setLastScannedBarcode(null);
-          }}
-          onSuccess={() => {
-            setProductNotFound(false);
-            setLastScannedBarcode(null);
-            refresh();
-          }}
-        />
+        {/* SCANNER OVERLAY (IF OPEN) */}
+        {showScanner && (
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={closeScanner}
+            style={styles.darkOverlayBelowScanner}
+          />
+        )}
       </View>
     </SafeAreaView>
   );
@@ -273,11 +318,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#E2E8F0",
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
+    zIndex: 10,
   },
   searchBox: {
     flexDirection: "row",
@@ -322,12 +363,11 @@ const styles = StyleSheet.create({
     color: "#FFF",
   },
 
-  // SCANNER
-  scannerContainer: {
+  /* SCANNER */
+  scannerWrapper: {
     height: 220,
     backgroundColor: "#020617",
-    position: "relative",
-    zIndex: 1000, // Above everything
+    zIndex: 20,
   },
   scannerHidden: {
     height: 0,
@@ -342,7 +382,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     gap: 6,
-    zIndex: 1001,
   },
   scanText: {
     color: "#fff",
@@ -350,24 +389,54 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // DARK OVERLAY - ONLY BELOW SCANNER
+  /* TOP MODAL STYLES */
+  topModalContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 9999, // Ensure it's above everything
+    backgroundColor: "#fff",
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    elevation: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+  },
+  topModalContent: {
+    width: "100%",
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 10,
+  },
+  fullScreenOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    zIndex: 9998,
+  },
+
+  /* OVERLAYS & LIST */
   darkOverlayBelowScanner: {
     position: "absolute",
-    top: 220 + (StatusBar.currentHeight || 0) + 150, // Approx position below header + search + scanner
+    top: 220 + 150, 
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    zIndex: 999,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    zIndex: 15,
   },
-
-  // LIST
   listContainer: {
     flex: 1,
-    zIndex: 1,
   },
   listDimmed: {
-    opacity: 0.6, // Optional subtle dimming
+    opacity: 0.4,
   },
   listContent: {
     paddingTop: 12,
