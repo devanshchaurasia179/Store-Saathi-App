@@ -28,8 +28,6 @@ const UNIT_OPTIONS = [
   { label: "Unit / Pcs", value: "unit", icon: "cube-outline" },
   { label: "Kilogram (kg)", value: "kg", icon: "scale-outline" },
   { label: "Litre (L)", value: "litre", icon: "water-outline" },
-  { label: "Box", value: "box", icon: "archive-outline" },
-  { label: "Pack", value: "pack", icon: "gift-outline" },
   { label: "Dozen", value: "dozen", icon: "grid-outline" },
 ];
 

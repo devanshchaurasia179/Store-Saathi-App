@@ -1,5 +1,6 @@
 import Shop from "../models/Shop.js";
 import jwt from "jsonwebtoken";
+import nodemailer from "nodemailer";  // Add this import
 
 // helper to generate OTP
 const generateOtp = () =>
@@ -32,8 +33,27 @@ export async function sendOtp(req, res) {
     shop.otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
     await shop.save();
 
-    // TODO: integrate SMS provider
-    console.log("OTP (dev only):", otp);
+
+const testAccount = await nodemailer.createTestAccount();
+
+const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    auth: {
+        user: 'devanshchaurasia2410@gmail.com',
+        pass: 'vwhjdupjsnmyouny'
+    }
+});
+
+    // Send the OTP email to your fixed dev email
+    const info = await transporter.sendMail({
+      from: '"Store Saathi OTP" <otp@storesaathi.dev>',
+      to: "devanshshopsaathi@gmail.com",  // Your fixed email
+      subject: "Your Store Saathi Login OTP",
+      text: `Your OTP is: ${otp}\n\nValid for 5 minutes. Do not share it.`,
+      html: `<h2>Your OTP: <strong>${otp}</strong> for ${mobileNumber}</h2>
+             <p>Valid for 5 minutes.</p>`,
+    });
 
     res.status(200).json({ success: true, message: "OTP sent successfully" });
   } catch (error) {
