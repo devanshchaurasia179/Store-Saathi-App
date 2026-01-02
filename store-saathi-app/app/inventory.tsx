@@ -8,7 +8,6 @@ import {
   RefreshControl,
   StatusBar,
   Alert,
-  Modal,
   Animated,
   Dimensions,
 } from "react-native";
@@ -104,7 +103,7 @@ export default function InventoryPage() {
     if (scanningLockedRef.current) return;
     scanningLockedRef.current = true;
 
-    setShowScanner(false); 
+    setShowScanner(false);
     setLastScannedBarcode(barcode);
 
     try {
@@ -146,10 +145,9 @@ export default function InventoryPage() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.container}>
-
         {/* HEADER */}
         <InventoryHeader
           onAddProduct={() => setShowAdd(true)}
@@ -182,36 +180,38 @@ export default function InventoryPage() {
                 onPress={() => setFilter(type)}
                 style={[styles.pill, filter === type && styles.pillActive]}
               >
-                <Text style={[styles.pillText, filter === type && styles.pillTextActive]}>
-                  {type === "ALL" ? t.allItems : type === "LOW" ? t.lowStock : t.outOfStock}
+                <Text
+                  style={[styles.pillText, filter === type && styles.pillTextActive]}
+                >
+                  {type === "ALL"
+                    ? t.allItems
+                    : type === "LOW"
+                    ? t.lowStock
+                    : t.outOfStock}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
-        {/* BARCODE SCANNER SECTION */}
-        <View style={[
-          styles.scannerWrapper,
-          !showScanner && styles.scannerHidden
-        ]}>
-          <BarcodeScanner
-            onScan={handleScan}
-            onClose={closeScanner}
-          />
-          {showScanner && (
+        {/* BARCODE SCANNER SECTION - only rendered when needed */}
+        {showScanner && (
+          <View style={styles.scannerWrapper}>
+            <BarcodeScanner onScan={handleScan} onClose={closeScanner} />
             <View style={styles.scanHint}>
               <Ionicons name="scan" size={14} color="#fff" />
               <Text style={styles.scanText}>Align barcode within frame</Text>
             </View>
-          )}
-        </View>
+          </View>
+        )}
 
         {/* INVENTORY LIST */}
-        <View style={[
-          styles.listContainer,
-          (showScanner || productNotFound) && styles.listDimmed
-        ]}>
+        <View
+          style={[
+            styles.listContainer,
+            (showScanner || productNotFound) && styles.listDimmed,
+          ]}
+        >
           <FlatList
             data={filteredProducts}
             keyExtractor={(item) => item._id}
@@ -245,36 +245,36 @@ export default function InventoryPage() {
 
         {/* FULL SCREEN OVERLAY FOR TOP MODAL */}
         {productNotFound && (
-          <TouchableOpacity 
-            activeOpacity={1} 
-            style={styles.fullScreenOverlay} 
-            onPress={() => setProductNotFound(false)} 
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.fullScreenOverlay}
+            onPress={() => setProductNotFound(false)}
           />
         )}
 
         {/* QUICK ADD MODAL - SLIDING FROM TOP */}
-        <Animated.View 
+        <Animated.View
           style={[
-            styles.topModalContainer, 
-            { transform: [{ translateY: slideAnim }] }
+            styles.topModalContainer,
+            { transform: [{ translateY: slideAnim }] },
           ]}
         >
           <View style={[styles.topModalContent, { paddingTop: insets.top }]}>
-             <QuickAddProductModal
-                visible={productNotFound}
-                barcode={lastScannedBarcode || ""}
-                onClose={() => {
-                  setProductNotFound(false);
-                  setLastScannedBarcode(null);
-                }}
-                onSuccess={() => {
-                  setProductNotFound(false);
-                  setLastScannedBarcode(null);
-                  refresh();
-                }}
-              />
-              {/* Optional: Add a small handle at the bottom of the modal */}
-              <View style={styles.modalHandle} />
+            <QuickAddProductModal
+              visible={productNotFound}
+              barcode={lastScannedBarcode || ""}
+              onClose={() => {
+                setProductNotFound(false);
+                setLastScannedBarcode(null);
+              }}
+              onSuccess={() => {
+                setProductNotFound(false);
+                setLastScannedBarcode(null);
+                refresh();
+              }}
+            />
+            {/* Optional: Add a small handle at the bottom of the modal */}
+            <View style={styles.modalHandle} />
           </View>
         </Animated.View>
 
@@ -287,15 +287,6 @@ export default function InventoryPage() {
             refresh(true);
           }}
         />
-
-        {/* SCANNER OVERLAY (IF OPEN) */}
-        {showScanner && (
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={closeScanner}
-            style={styles.darkOverlayBelowScanner}
-          />
-        )}
       </View>
     </SafeAreaView>
   );
@@ -369,10 +360,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#020617",
     zIndex: 20,
   },
-  scannerHidden: {
-    height: 0,
-    overflow: "hidden",
-  },
   scanHint: {
     position: "absolute",
     top: 12,
@@ -395,7 +382,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 9999, // Ensure it's above everything
+    zIndex: 9999,
     backgroundColor: "#fff",
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
@@ -423,15 +410,6 @@ const styles = StyleSheet.create({
   },
 
   /* OVERLAYS & LIST */
-  darkOverlayBelowScanner: {
-    position: "absolute",
-    top: 220 + 150, 
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    zIndex: 15,
-  },
   listContainer: {
     flex: 1,
   },

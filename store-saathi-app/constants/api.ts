@@ -1,7 +1,7 @@
 import axios from "axios";
 
-export const API_URL =
-  "http://store-saathi-prod.eba-emjfwtyh.ap-south-1.elasticbeanstalk.com/api";
+export const API_URL ="https://store-saathi-api.vercel.app/api"
+  // "http://store-saathi-prod.eba-emjfwtyh.ap-south-1.elasticbeanstalk.com/api";
   console.log("🔥 RUNTIME API URL:", API_URL);
 export const api = axios.create({
   baseURL: API_URL,

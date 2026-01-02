@@ -1,4 +1,4 @@
-package com.dc2410.storesaathiapp.dev
+package com.dc2410.storesaathiapp.dev2
 
 import android.app.Application
 import android.content.res.Configuration

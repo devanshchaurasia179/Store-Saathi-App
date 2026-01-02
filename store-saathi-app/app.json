@@ -2,7 +2,7 @@
   "expo": {
     "name": "Store Saathi",
     "slug": "store-saathi-app",
-    "version": "1.0.3",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/Logo.png",
     "scheme": "storesaathiapp",
@@ -10,14 +10,12 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
-
     },
     "android": {
-      "usesCleartextTraffic": true,
-     "adaptiveIcon": {
-   "foregroundImage": "./assets/images/Logo.png",
-   "backgroundColor": "#F8F9FA"
-},
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/Logo.png",
+        "backgroundColor": "#F8F9FA"
+      },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -32,11 +30,7 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
-      "package": "com.dc2410.storesaathiapp.dev"
-    },
-    "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "package": "com.dc2410.storesaathiapp.dev2"
     },
     "plugins": [
       "expo-router",
@@ -46,7 +40,7 @@
           "image": "./assets/images/Logo.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#F8F9FA"
         }
       ],
       "@react-native-community/datetimepicker",
@@ -58,7 +52,6 @@
       "reactCompiler": true
     },
     "extra": {
-      "EXPO_PUBLIC_API_URL": "http://store-saathi-prod.eba-emjfwtyh.ap-south-1.elasticbeanstalk.com",
       "router": {},
       "eas": {
         "projectId": "38fb4972-1179-4b37-8250-cb5b0f73e4c2"

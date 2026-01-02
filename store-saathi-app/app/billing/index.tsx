@@ -13,19 +13,19 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
-/* 📦 COMPONENTS */
+/* COMPONENTS */
 import BarcodeScanner from "../../components/billing/BarcodeScanner";
 import BillItemsList from "../../components/billing/BillItemsList";
 import BillSummary from "../../components/billing/BillSummary";
 import QuickAddProductModal from "../../components/inventory/QuickAddProductModal";
 import AddCustomerModal from "../../components/ledger/AddCustomerModal";
 
-/* 🛠 HOOKS & API */
+/* HOOKS & API */
 import { useBilling } from "../../hooks/useBilling";
 import { getProducts } from "../../constants/inventory.api";
 import { getLedgerCustomers } from "../../constants/ledger.api";
 
-/* 🔤 LANGUAGE */
+/* LANGUAGE */
 import { LANGUAGE_TEXT_BILLING } from "../../constants/language_billing";
 import { useLanguage } from "../../providers/LanguageProvider";
 
@@ -110,24 +110,17 @@ export default function BillingPage() {
           i.productId === productId ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
-     return [
-  ...prev,
-  {
-    productId: productId,
-    name: product.name,
-    price: product.price.sellingPrice,
-
-    // ✅ PASS UNIT FROM BACKEND
-    unit: product.unit || "unit",
-
-    // ✅ STORE QUANTITY IN BASE UNITS
-    quantity:
-      product.unit === "kg" || product.unit === "litre"
-        ? 1 // 1kg / 1 litre
-        : 1,    // unit/pcs
-  },
-];
-
+      return [
+        ...prev,
+        {
+          productId: productId,
+          name: product.name,
+          price: product.price.sellingPrice,
+          unit: product.unit || "unit",
+          quantity:
+            product.unit === "kg" || product.unit === "litre" ? 1 : 1,
+        },
+      ];
     });
 
     setProductOpen(false);
@@ -170,9 +163,33 @@ export default function BillingPage() {
         </TouchableOpacity>
       </View>
 
-      {/* SCANNER */}
-      <View style={styles.scanner}>
-        <BarcodeScanner onScan={handleScan} />
+      {/* SCANNER - Clean Rectangular Cut-out (No Corner Brackets) */}
+      <View style={styles.scannerContainer}>
+        <BarcodeScanner
+          onScan={handleScan}
+          style={StyleSheet.absoluteFillObject}
+        />
+
+        {/* Dark Overlay with Transparent Rectangular Window */}
+        <View style={styles.overlay}>
+          {/* Top Mask */}
+          <View style={styles.maskTop} />
+
+          {/* Middle Row: Left + Transparent Center + Right */}
+          <View style={styles.maskRow}>
+            <View style={styles.maskSide} />
+
+            {/* Transparent Scan Area - No borders or corners */}
+            <View style={styles.scanFrame} />
+
+            <View style={styles.maskSide} />
+          </View>
+
+          {/* Bottom Mask */}
+          <View style={[styles.maskTop, { flex: 1 }]} />
+        </View>
+
+        {/* Scan Hint */}
         <View style={styles.scanHint}>
           <Ionicons name="scan" size={14} color="#fff" />
           <Text style={styles.scanText}>{t.alignBarcode}</Text>
@@ -190,8 +207,8 @@ export default function BillingPage() {
             <Ionicons name="person" size={16} color="#475569" />
           </View>
           <View>
-             <Text style={styles.customerLabel}>{t.customer}</Text>
-             <Text style={styles.customerText}>{selectedCustomer}</Text>
+            <Text style={styles.customerLabel}>{t.customer}</Text>
+            <Text style={styles.customerText}>{selectedCustomer}</Text>
           </View>
           <Ionicons
             name="chevron-down"
@@ -263,7 +280,7 @@ export default function BillingPage() {
             }}
           >
             <View style={styles.addIconCircle}>
-                <Ionicons name="add" size={18} color="#2563eb" />
+              <Ionicons name="add" size={18} color="#2563eb" />
             </View>
             <Text style={styles.addNewText}>{t.addNewCustomer}</Text>
           </TouchableOpacity>
@@ -336,7 +353,7 @@ function SearchOverlay({
 
   return (
     <Modal transparent animationType="fade">
-      <View style={styles.overlay}>
+      <View style={styles.overlayModal}>
         <View style={styles.sheet}>
           <View style={styles.searchHeader}>
             <Ionicons name="search" size={18} color="#94a3b8" />
@@ -360,7 +377,7 @@ function SearchOverlay({
                 onPress={() => onSelect({ _id: "" })}
                 style={styles.walkIn}
               >
-                <Ionicons name="people-outline" size={18} color="#2563eb" style={{marginRight: 10}} />
+                <Ionicons name="people-outline" size={18} color="#2563eb" style={{ marginRight: 10 }} />
                 <Text style={styles.walkInText}>{walkInLabel}</Text>
               </TouchableOpacity>
             )}
@@ -392,6 +409,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: "#f1f5f9",
     gap: 12,
+    backgroundColor: "#fff",
+    zIndex: 10,
   },
   backBtn: {
     padding: 4,
@@ -407,8 +426,8 @@ const styles = StyleSheet.create({
   searchBtn: {
     marginLeft: "auto",
     backgroundColor: "#eff6ff",
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
@@ -418,20 +437,49 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#2563eb",
   },
-  scanner: { height: "24%", backgroundColor: "#020617" },
+
+  // Scanner Container - Clean Rectangular Focus Area
+  scannerContainer: {
+    height: "28%",
+    backgroundColor: "#000",
+    position: "relative",
+    overflow: "hidden",
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: "column",
+  },
+  maskTop: {
+    flex: 2,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+  },
+  maskRow: {
+    flexDirection: "row",
+    height: 200,
+  },
+  maskSide: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+  },
+  scanFrame: {
+    width: 240,
+    height: 200,
+    backgroundColor: "transparent", // Fully transparent scan window
+  },
   scanHint: {
     position: "absolute",
-    bottom: 12,
+    bottom: 16,
     alignSelf: "center",
     flexDirection: "row",
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 6,
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 8,
   },
-  scanText: { fontSize: 10, color: "#fff", fontWeight: "700" },
+  scanText: { fontSize: 12, color: "#fff", fontWeight: "700" },
+
   body: {
     flex: 1,
     backgroundColor: "#fff",
@@ -451,7 +499,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 16,
     marginBottom: 10,
-    backgroundColor: '#f8fafc',
+    backgroundColor: "#f8fafc",
     borderRadius: 16,
     gap: 12,
     borderWidth: 1,
@@ -461,14 +509,14 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: "#f1f5f9",
   },
-  customerLabel: { fontSize: 9, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' },
-  customerText: { fontSize: 13, fontWeight: "700", color: '#1e293b' },
+  customerLabel: { fontSize: 9, fontWeight: "700", color: "#94a3b8", textTransform: "uppercase" },
+  customerText: { fontSize: 13, fontWeight: "700", color: "#1e293b" },
   empty: {
     flex: 1,
     alignItems: "center",
@@ -479,18 +527,18 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#f1f5f9",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  emptyText: { fontSize: 14, fontWeight: "700", color: '#94a3b8' },
+  emptyText: { fontSize: 14, fontWeight: "700", color: "#94a3b8" },
   summary: {
     borderTopWidth: 1,
     borderColor: "#f1f5f9",
     padding: 16,
-    backgroundColor: '#fff'
+    backgroundColor: "#fff",
   },
-  overlay: {
+  overlayModal: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.6)",
     justifyContent: "flex-start",
@@ -513,13 +561,13 @@ const styles = StyleSheet.create({
     borderColor: "#f1f5f9",
   },
   closeBtnIcon: { padding: 4 },
-  input: { flex: 1, fontSize: 15, color: '#1e293b', fontWeight: '600' },
+  input: { flex: 1, fontSize: 15, color: "#1e293b", fontWeight: "600" },
   listItem: {
     padding: 16,
     borderBottomWidth: 1,
     borderColor: "#f8fafc",
   },
-  itemTitle: { fontWeight: "700", fontSize: 14, color: '#1e293b' },
+  itemTitle: { fontWeight: "700", fontSize: 14, color: "#1e293b" },
   itemSub: { fontSize: 12, color: "#64748b", marginTop: 2 },
   productRow: {
     flexDirection: "row",
@@ -528,8 +576,8 @@ const styles = StyleSheet.create({
   },
   price: { fontWeight: "800", color: "#2563eb", fontSize: 15 },
   walkIn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
     borderBottomWidth: 1,
     borderColor: "#f1f5f9",
@@ -552,9 +600,9 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
   },
   addNewText: {
     fontSize: 14,
