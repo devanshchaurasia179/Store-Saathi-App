@@ -134,13 +134,16 @@ function computeAnalyticsFromBills(bills) {
   const productSales = {};
 
   for (const bill of bills) {
-    totalSales += bill.totalAmount;
-    totalCollected += bill.paidAmount;
+    const billTotal = Number(bill.totalAmount) || 0;
+    const paid = Number(bill.paidAmount) || 0;
 
-    const debt = bill.totalAmount - bill.paidAmount;
+    totalSales += billTotal;
+    totalCollected += paid;
+
+    const debt = billTotal - paid;
     if (debt > 0) totalDebt += debt;
 
-    for (const item of bill.items) {
+    for (const item of bill.items || []) {
       const unit = item.unit || "unit";
       const key = `${item.productId}::${unit}`;
 
@@ -154,12 +157,12 @@ function computeAnalyticsFromBills(bills) {
         };
       }
 
-      productSales[key].quantity += item.quantity;
-      productSales[key].revenue += item.total;
+      productSales[key].quantity += Number(item.quantity) || 0;
+      productSales[key].revenue += Number(item.total) || 0;
     }
 
-    if (bill.totalAmount > maxBillAmount) {
-      maxBillAmount = bill.totalAmount;
+    if (billTotal > maxBillAmount) {
+      maxBillAmount = billTotal;
       biggestBill = bill;
     }
   }
@@ -170,13 +173,19 @@ function computeAnalyticsFromBills(bills) {
 
   return {
     totalSales,
-    totalCollected,
-    totalDebt,
     biggestBill,
     topProduct: topProducts[0] || null,
     topProducts,
+
+    // 🔥 THIS FIXES YOUR UI
+    debtVsSales: {
+      totalDebt,
+      totalSales,
+      totalCollected,
+    },
   };
 }
+
 
 /* --------------------------------------------------
    AUTH
