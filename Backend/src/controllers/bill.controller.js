@@ -4,36 +4,42 @@ import Customer from "../models/Customer.js";
 import LedgerEntry from "../models/LedgerEntry.js";
 
 /* --------------------------------------------------
-   UTILS - IST (Asia/Kolkata) TIMEZONE SAFE
+   TIMEZONE CONSTANT (IST)
 -------------------------------------------------- */
-const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000; // UTC +5:30 in milliseconds
+const IST_OFFSET_MINUTES = 330; // UTC +5:30
 
-function getTodayRangeInIST() {
+/* --------------------------------------------------
+   IST DAY RANGE (UTC SAFE)
+-------------------------------------------------- */
+function getISTTodayRange() {
   const now = new Date();
 
-  // Convert current time to IST
-  const istTime = new Date(now.getTime() + IST_OFFSET_MS);
+  const istStart = new Date(
+    Date.UTC(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      0, 0, 0, 0
+    ) - IST_OFFSET_MINUTES * 60 * 1000
+  );
 
-  // Extract year, month, date in IST
-  const year = istTime.getUTCFullYear();
-  const month = istTime.getUTCMonth();
-  const date = istTime.getUTCDate();
+  const istEnd = new Date(
+    Date.UTC(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23, 59, 59, 999
+    ) - IST_OFFSET_MINUTES * 60 * 1000
+  );
 
-  // Midnight 00:00:00 in IST (as UTC Date)
-  const istMidnight = new Date(Date.UTC(year, month, date, 0, 0, 0, 0));
-
-  // End of day 23:59:59.999 in IST (as UTC Date)
-  const istEndOfDay = new Date(Date.UTC(year, month, date, 23, 59, 59, 999));
-
-  // Convert back to actual UTC timestamps for MongoDB query
-  const start = new Date(istMidnight.getTime() - IST_OFFSET_MS);
-  const end = new Date(istEndOfDay.getTime() - IST_OFFSET_MS);
-
-  return { start, end };
+  return { start: istStart, end: istEnd };
 }
 
+/* --------------------------------------------------
+   DAILY BILL NUMBER (IST SAFE)
+-------------------------------------------------- */
 async function generateDailyBillNumber(shopId) {
-  const { start, end } = getTodayRangeInIST();
+  const { start, end } = getISTTodayRange();
 
   const lastBill = await Bill.findOne({
     shopId,
@@ -93,7 +99,6 @@ export async function createBill(req, res) {
         });
       }
 
-      // Fetch product to get unit (safe & consistent)
       const product = await Product.findOne({
         _id: item.productId,
         shopId,
@@ -124,7 +129,7 @@ export async function createBill(req, res) {
     else if (paidAmount < totalAmount) paymentStatus = "PARTIAL";
 
     /* -----------------------------
-       4️⃣ DAILY BILL NUMBER (NOW IST-SAFE)
+       4️⃣ DAILY BILL NUMBER (IST)
     ----------------------------- */
     const dailyBillNumber = await generateDailyBillNumber(shopId);
 
@@ -157,7 +162,11 @@ export async function createBill(req, res) {
       if (!product) continue;
       if (product.isTrackable === false) continue;
 
-      product.quantity = Math.max(product.quantity - item.quantity, 0);
+      product.quantity = Math.max(
+        product.quantity - item.quantity,
+        0
+      );
+
       await product.save();
     }
 
@@ -214,7 +223,6 @@ export async function createBill(req, res) {
 
 /* --------------------------------------------------
    GET ALL BILLS
-   GET /api/bills
 -------------------------------------------------- */
 export async function getBills(req, res) {
   try {
@@ -238,7 +246,6 @@ export async function getBills(req, res) {
 
 /* --------------------------------------------------
    GET BILL BY ID
-   GET /api/bills/:billId
 -------------------------------------------------- */
 export async function getBillById(req, res) {
   try {
