@@ -4,20 +4,36 @@ import Customer from "../models/Customer.js";
 import LedgerEntry from "../models/LedgerEntry.js";
 
 /* --------------------------------------------------
-   UTILS
+   UTILS - IST (Asia/Kolkata) TIMEZONE SAFE
 -------------------------------------------------- */
-function getTodayRange() {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000; // UTC +5:30 in milliseconds
 
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
+function getTodayRangeInIST() {
+  const now = new Date();
+
+  // Convert current time to IST
+  const istTime = new Date(now.getTime() + IST_OFFSET_MS);
+
+  // Extract year, month, date in IST
+  const year = istTime.getUTCFullYear();
+  const month = istTime.getUTCMonth();
+  const date = istTime.getUTCDate();
+
+  // Midnight 00:00:00 in IST (as UTC Date)
+  const istMidnight = new Date(Date.UTC(year, month, date, 0, 0, 0, 0));
+
+  // End of day 23:59:59.999 in IST (as UTC Date)
+  const istEndOfDay = new Date(Date.UTC(year, month, date, 23, 59, 59, 999));
+
+  // Convert back to actual UTC timestamps for MongoDB query
+  const start = new Date(istMidnight.getTime() - IST_OFFSET_MS);
+  const end = new Date(istEndOfDay.getTime() - IST_OFFSET_MS);
 
   return { start, end };
 }
 
 async function generateDailyBillNumber(shopId) {
-  const { start, end } = getTodayRange();
+  const { start, end } = getTodayRangeInIST();
 
   const lastBill = await Bill.findOne({
     shopId,
@@ -60,7 +76,6 @@ export async function createBill(req, res) {
        2️⃣ CALCULATE TOTALS
     ----------------------------- */
     let subTotal = 0;
-
     const billItems = [];
 
     for (const item of items) {
@@ -78,14 +93,13 @@ export async function createBill(req, res) {
         });
       }
 
-      // 🔍 Fetch product to get unit (safe & consistent)
+      // Fetch product to get unit (safe & consistent)
       const product = await Product.findOne({
         _id: item.productId,
         shopId,
       }).select("unit isTrackable quantity");
 
-      const unit =
-        item.unit || product?.unit || "unit"; // 🆕 CORE FIX
+      const unit = item.unit || product?.unit || "unit";
 
       const total = quantity * price;
       subTotal += total;
@@ -94,7 +108,7 @@ export async function createBill(req, res) {
         productId: item.productId,
         name: item.name,
         quantity,
-        unit, // 🆕 SAVED IN BILL
+        unit,
         price,
         total,
       });
@@ -110,7 +124,7 @@ export async function createBill(req, res) {
     else if (paidAmount < totalAmount) paymentStatus = "PARTIAL";
 
     /* -----------------------------
-       4️⃣ DAILY BILL NUMBER
+       4️⃣ DAILY BILL NUMBER (NOW IST-SAFE)
     ----------------------------- */
     const dailyBillNumber = await generateDailyBillNumber(shopId);
 
@@ -132,8 +146,6 @@ export async function createBill(req, res) {
 
     /* -----------------------------
        6️⃣ STOCK ADJUSTMENT
-       - skips non-trackable products
-       - never blocks billing
     ----------------------------- */
     for (const item of billItems) {
       const product = await Product.findOne({
@@ -145,11 +157,7 @@ export async function createBill(req, res) {
       if (!product) continue;
       if (product.isTrackable === false) continue;
 
-      product.quantity = Math.max(
-        product.quantity - item.quantity,
-        0
-      );
-
+      product.quantity = Math.max(product.quantity - item.quantity, 0);
       await product.save();
     }
 
@@ -159,7 +167,6 @@ export async function createBill(req, res) {
     if (customerId) {
       const difference = totalAmount - paidAmount;
 
-      // Customer owes money
       if (difference > 0) {
         await LedgerEntry.create({
           shopId,
@@ -175,7 +182,6 @@ export async function createBill(req, res) {
         });
       }
 
-      // Customer paid advance
       if (difference < 0) {
         const advance = Math.abs(difference);
 
