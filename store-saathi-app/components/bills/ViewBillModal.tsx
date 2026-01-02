@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   Modal,
   View,
@@ -15,6 +15,7 @@ import {
   Feather,
 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 /* 🛠 UTILS & API */
 import { getBillById } from "../../constants/bills.api";
@@ -25,7 +26,6 @@ import { printBill } from "../../utils/thermalPrinter";
 
 /* 🛠 PRINTER MANAGEMENT UTILS */
 import { 
-  getConnectedThermalPrinter, 
   isThermalPrinterSaved 
 } from "../../utils/printerManager";
 import { BluetoothEscposPrinter } from "@vardrz/react-native-bluetooth-escpos-printer";
@@ -36,6 +36,7 @@ import { useLanguage } from "../../providers/LanguageProvider";
 
 export default function ViewBillModal({ billId, onClose }: any) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { language } = useLanguage();
   const t = LANGUAGE_TEXT_VIEW_BILL[language] || LANGUAGE_TEXT_VIEW_BILL.en;
 
@@ -46,43 +47,28 @@ export default function ViewBillModal({ billId, onClose }: any) {
   const [isPrinterConnected, setIsPrinterConnected] = useState(false);
   const [checkingPrinter, setCheckingPrinter] = useState(false);
 
-  // Helper for sharing the bill summary as text
-  const onShareText = async () => {
-    try {
-      await Share.share({
-        message: `${t.invoiceDetails} #${bill?.dailyBillNumber}
-${t.netTotal}: ${formatRupee(bill?.totalAmount)}
-Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
-      });
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
   /**
    * Check if a printer is saved and actually reachable via Bluetooth
    */
-  const checkPrinterStatus = async () => {
+  const checkPrinterStatus = useCallback(async () => {
     setCheckingPrinter(true);
-    const hasSaved = await isThermalPrinterSaved();
-    
-    if (!hasSaved) {
-      setIsPrinterConnected(false);
-      setCheckingPrinter(false);
-      return;
-    }
-
     try {
-      // Send a harmless command to verify actual hardware connection
+      const hasSaved = await isThermalPrinterSaved();
+      
+      if (!hasSaved) {
+        setIsPrinterConnected(false);
+        return;
+      }
+
+      // Verify actual hardware connection with a light command
       await BluetoothEscposPrinter.printerAlign(BluetoothEscposPrinter.ALIGN.LEFT);
       setIsPrinterConnected(true);
     } catch (e) {
-      // Saved but offline
       setIsPrinterConnected(false);
     } finally {
       setCheckingPrinter(false);
     }
-  };
+  }, []);
 
   /**
    * Action Handler for the Print Button
@@ -91,9 +77,8 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
     if (isPrinterConnected) {
       printBill(bill);
     } else {
-      // Close the modal first to provide a smooth transition
+      // Close modal and redirect to setup
       onClose();
-      // Redirect to printer setup
       router.push("/PrintTest");
     }
   };
@@ -122,7 +107,6 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
       try {
         const res = await getBillById(billId);
         setBill(res.data.bill);
-        // After loading bill, check if we can print
         await checkPrinterStatus();
       } catch (e) {
         console.error("Fetch bill error", e);
@@ -132,7 +116,7 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
     }
 
     initialize();
-  }, [billId]);
+  }, [billId, checkPrinterStatus]);
 
   if (!billId) return null;
 
@@ -147,7 +131,7 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
         <View style={styles.sheet}>
           <View style={styles.dragIndicator} />
 
-          {/* HEADER */}
+          {/* FIXED HEADER */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <View style={styles.headerIcon}>
@@ -235,10 +219,7 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
                     <Text style={styles.infoSub}>
                       {new Date(bill.createdAt).toLocaleTimeString(
                         language === "hi" ? "hi-IN" : "en-US",
-                        {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        }
+                        { hour: "2-digit", minute: "2-digit" }
                       )}
                     </Text>
                   </View>
@@ -258,31 +239,25 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>{t.orderSummary}</Text>
                   <View style={styles.itemsCard}>
-                    {bill.items.map((item: any, i: number) => {
-                      const unit = item.unit || "unit";
-                      return (
-                        <View
-                          key={i}
-                          style={[
-                            styles.itemRow,
-                            i === bill.items.length - 1 && {
-                              borderBottomWidth: 0,
-                            },
-                          ]}
-                        >
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.itemName}>{item.name}</Text>
-                            <Text style={styles.itemSub}>
-                              {item.quantity} {unit} ×{" "}
-                              {formatRupee(item.price)}
-                            </Text>
-                          </View>
-                          <Text style={styles.itemTotal}>
-                            {formatRupee(item.total)}
+                    {bill.items.map((item: any, i: number) => (
+                      <View
+                        key={i}
+                        style={[
+                          styles.itemRow,
+                          i === bill.items.length - 1 && { borderBottomWidth: 0 },
+                        ]}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.itemName}>{item.name}</Text>
+                          <Text style={styles.itemSub}>
+                            {item.quantity} {item.unit || "unit"} × {formatRupee(item.price)}
                           </Text>
                         </View>
-                      );
-                    })}
+                        <Text style={styles.itemTotal}>
+                          {formatRupee(item.total)}
+                        </Text>
+                      </View>
+                    ))}
                   </View>
                 </View>
 
@@ -312,9 +287,7 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
                   {bill.totalAmount - bill.paidAmount > 0 && (
                     <Row
                       label={t.balanceDue}
-                      value={formatRupee(
-                        bill.totalAmount - bill.paidAmount
-                      )}
+                      value={formatRupee(bill.totalAmount - bill.paidAmount)}
                       danger
                       bold
                     />
@@ -330,10 +303,21 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
                       </Text>
                    </View>
                 )}
+
+                {/* BOTTOM BUFFER: Ensures content isn't hidden by the floating footer */}
+                <View style={{ height: insets.bottom + 100 }} />
               </ScrollView>
 
-              {/* FOOTER */}
-              <View style={styles.footer}>
+              {/* FLOATING FOOTER WITH SAFE AREA INSETS */}
+              <View 
+                style={[
+                  styles.footer, 
+                  { 
+                    paddingBottom: Math.max(insets.bottom, 20),
+                    backgroundColor: "#fff",
+                  }
+                ]}
+              >
                 <TouchableOpacity
                   style={styles.secondaryBtn}
                   onPress={() => shareBillPdf(bill)}
@@ -345,7 +329,7 @@ Status: ${t.status[bill?.paymentStatus] || bill?.paymentStatus}`,
                 <TouchableOpacity
                   style={[
                     styles.primaryBtn,
-                    !isPrinterConnected && { backgroundColor: "#f59e0b" } // Amber color for "Setup Required"
+                    !isPrinterConnected && { backgroundColor: "#f59e0b" }
                   ]}
                   onPress={handlePrintPress}
                   disabled={checkingPrinter}
@@ -386,6 +370,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 32,
     maxHeight: "94%",
     elevation: 20,
+    overflow: 'hidden', // Ensures safe area padding doesn't show background
   },
   dragIndicator: {
     width: 40,
@@ -403,6 +388,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderColor: "#f1f5f9",
+    zIndex: 10,
   },
   headerLeft: {
     flexDirection: "row",
@@ -430,8 +416,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   loader: {
-    padding: 60,
+    padding: 100,
     alignItems: "center",
+    justifyContent: "center",
   },
   loaderText: {
     marginTop: 12,
@@ -440,6 +427,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+    paddingTop: 10,
   },
   summaryCard: {
     backgroundColor: "#f8fafc",
@@ -551,7 +539,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fffbeb',
-    padding: 10,
+    padding: 12,
     borderRadius: 12,
     marginTop: 15,
     borderWidth: 1,
@@ -561,7 +549,8 @@ const styles = StyleSheet.create({
   offlineWarningText: {
     color: '#92400e',
     fontSize: 12,
-    fontWeight: '600'
+    fontWeight: '600',
+    flex: 1,
   },
   row: {
     flexDirection: "row",
@@ -590,12 +579,20 @@ const styles = StyleSheet.create({
     marginVertical: 16,
   },
   footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     padding: 20,
-    paddingBottom: 34,
     gap: 12,
     borderTopWidth: 1,
     borderColor: "#f1f5f9",
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
   },
   primaryBtn: {
     flex: 2,
