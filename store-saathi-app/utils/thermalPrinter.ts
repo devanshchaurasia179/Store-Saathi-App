@@ -171,7 +171,7 @@ export const printBill = async (bill: any): Promise<void> => {
     if (upiId) {
         const upiLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(shopName)}&am=${totalAmount}&cu=INR`;
         await BluetoothEscposPrinter.printText("\n\rScan QR to Pay:\n\r", {});
-        await BluetoothEscposPrinter.printQRCode(upiLink, 140, BluetoothEscposPrinter.ERROR_CORRECTION.L);
+        await BluetoothEscposPrinter.printQRCode(upiLink, 120, BluetoothEscposPrinter.ERROR_CORRECTION.L);
     }
 
     await BluetoothEscposPrinter.printText("\n\r\n\rThank you! Visit again\n\r\n\r\n\r\n\r", {});
@@ -190,10 +190,10 @@ export const printBill = async (bill: any): Promise<void> => {
 export const printTestBill = async (): Promise<void> => {
   const dummyBill = {
     dailyBillNumber: "T-01",
-    subTotal: 500,
-    totalAmount: 500,
-    discount: 0,
-    paidAmount: 500,
+    subTotal: 200,
+    totalAmount: 190,
+    discount: 10,
+    paidAmount: 190,
     paymentStatus: "PAID",
     createdAt: new Date().toISOString(),
     items: [

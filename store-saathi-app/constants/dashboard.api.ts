@@ -5,5 +5,5 @@ import { api } from "./api";
  * GET /api/dashboard
  */
 export const getDashboard = () => {
-  return api.get("/dashboard");
+  return api.get("dashboard");
 };

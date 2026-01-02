@@ -1,15 +1,14 @@
 import axios from "axios";
 
-/**
- * ⚠️ IMPORTANT
- * Use the SAME IP that worked in Expo + mobile browser
- */
-export const API_URL = "http://172.24.190.193:5000/api";
-
+export const API_URL =
+  "http://store-saathi-prod.eba-emjfwtyh.ap-south-1.elasticbeanstalk.com/api";
+  console.log("🔥 RUNTIME API URL:", API_URL);
 export const api = axios.create({
   baseURL: API_URL,
   headers: {
     "Content-Type": "application/json",
   },
   timeout: 10000,
+  withCredentials: true, // 🔥 THIS IS THE KEY
 });
+

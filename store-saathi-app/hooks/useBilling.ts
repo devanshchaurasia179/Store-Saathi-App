@@ -104,10 +104,7 @@ export const useBilling = () => {
         Alert.alert("Scan Failed", "Unable to fetch product");
       }
     } finally {
-      // unlock scan after short delay
-      setTimeout(() => {
         scanLockRef.current = null;
-      }, 800);
     }
   };
 
