@@ -1,57 +1,71 @@
 import Bill from "../models/Bill.js";
 
 /* --------------------------------------------------
-   UTILS
+   UTILS - UTC-SAFE DATE RANGES
 -------------------------------------------------- */
 function getDateRange(dateStr) {
   const date = dateStr ? new Date(dateStr) : new Date();
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(date);
-  end.setHours(23, 59, 59, 999);
+
+  // Use UTC to match MongoDB's stored timezone
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
+
+  const start = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
+
   return { start, end };
 }
 
 function getWeekRange(dateStr) {
   const date = dateStr ? new Date(dateStr) : new Date();
-  const day = date.getDay();
-  const start = new Date(date);
-  start.setDate(start.getDate() - day);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
+  const dayOfWeek = date.getUTCDay(); // 0 = Sunday
+  const utcDate = date.getUTCDate();
+  const utcMonth = date.getUTCMonth();
+  const utcYear = date.getUTCFullYear();
+
+  // Start of week (Sunday)
+  const start = new Date(Date.UTC(utcYear, utcMonth, utcDate - dayOfWeek, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(utcYear, utcMonth, utcDate - dayOfWeek + 6, 23, 59, 59, 999));
+
   return { start, end };
 }
 
 function getMonthRange(dateStr) {
   const date = dateStr ? new Date(dateStr) : new Date();
-  const start = new Date(date.getFullYear(), date.getMonth(), 1);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-  end.setHours(23, 59, 59, 999);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+
+  const start = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
+
   return { start, end };
 }
 
 function getYearRange(dateStr) {
   const date = dateStr ? new Date(dateStr) : new Date();
-  const start = new Date(date.getFullYear(), 0, 1);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(date.getFullYear(), 11, 31);
-  end.setHours(23, 59, 59, 999);
+  const year = date.getUTCFullYear();
+
+  const start = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+
   return { start, end };
 }
 
 function getWeekStart(date) {
   const d = new Date(date);
-  const day = d.getDay();
-  d.setDate(d.getDate() - day);
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString().split("T")[0];
+  const dayOfWeek = d.getUTCDay();
+  const utcDate = d.getUTCDate();
+  const utcMonth = d.getUTCMonth();
+  const utcYear = d.getUTCFullYear();
+
+  const weekStart = new Date(Date.UTC(utcYear, utcMonth, utcDate - dayOfWeek));
+  return weekStart.toISOString().split("T")[0];
 }
 
 function getMonthKey(date) {
-  return date.toISOString().slice(0, 7);
+  const d = new Date(date);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 function getDaysInRange(start, end) {
@@ -59,7 +73,7 @@ function getDaysInRange(start, end) {
   let current = new Date(start);
   while (current <= end) {
     days.push(current.toISOString().split("T")[0]);
-    current.setDate(current.getDate() + 1);
+    current.setUTCDate(current.getUTCDate() + 1);
   }
   return days;
 }
@@ -74,10 +88,6 @@ function computeAnalyticsFromBills(bills) {
   let totalDebt = 0;
   let totalCollected = 0;
 
-  /**
-   * KEY CHANGE:
-   * productKey = productId + "::" + unit
-   */
   const productSales = {};
 
   for (const bill of bills) {
