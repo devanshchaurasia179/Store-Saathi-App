@@ -1,15 +1,37 @@
 import Shop from "../models/Shop.js";
 import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";  // Add this import
+import nodemailer from "nodemailer";
+import crypto from "crypto";
+import bcrypt from "bcryptjs";
 
-// helper to generate OTP
+/* ================= HELPERS ================= */
+
+// Generate 6-digit OTP
 const generateOtp = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
 
-/**
- * SEND OTP
- * POST /auth/send-otp
- */
+// Generate JWT
+function generateToken(shopId) {
+  return jwt.sign(
+    { shopId },
+    process.env.JWT_SECRET_KEY,
+    { expiresIn: "365d" }
+  );
+}
+
+// Generate SHORT secret key
+function generateRawSecretKey(shopId) {
+  const hash = crypto
+    .createHash("sha256")
+    .update(shopId)
+    .digest("hex");
+
+  return `SS-${hash.substring(0, 8).toUpperCase()}`;
+}
+
+/* =====================================================
+   SEND OTP
+===================================================== */
 export async function sendOtp(req, res) {
   try {
     const { mobileNumber } = req.body;
@@ -33,52 +55,48 @@ export async function sendOtp(req, res) {
     shop.otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
     await shop.save();
 
-
-const testAccount = await nodemailer.createTestAccount();
-
-const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    auth: {
-        user: 'devanshchaurasia2410@gmail.com',
-        pass: process.env.NODEMAILER_PASS
-    }
-});
-
-    // Send the OTP email to your fixed dev email
-    const info = await transporter.sendMail({
-      from: '"Store Saathi OTP" <otp@storesaathi.dev>',
-      to: "devanshshopsaathi@gmail.com",  // Your fixed email
-      subject: "Your Store Saathi Login OTP",
-      text: `Your OTP is: ${otp}\n\nValid for 5 minutes. Do not share it.`,
-      html: `<h2>Your OTP: <strong>${otp}</strong> for ${mobileNumber}</h2>
-             <p>Valid for 5 minutes.</p>`,
+    const transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      auth: {
+        user: "devanshchaurasia2410@gmail.com",
+        pass: process.env.NODEMAILER_PASS,
+      },
     });
 
-    res.status(200).json({ success: true, message: "OTP sent successfully" });
+    await transporter.sendMail({
+      from: '"Store Saathi OTP" <otp@storesaathi.dev>',
+      to: "devanshshopsaathi@gmail.com",
+      subject: "Your Store Saathi Login OTP",
+      text: `Your OTP is ${otp}. Valid for 5 minutes.`,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "OTP sent successfully",
+    });
   } catch (error) {
     console.error("Send OTP Error:", error);
     res.status(500).json({ message: "Something went wrong" });
   }
 }
 
-/**
- * VERIFY OTP & LOGIN
- * POST /auth/verify-otp
- */
+/* =====================================================
+   VERIFY OTP & LOGIN
+===================================================== */
 export async function verifyOtp(req, res) {
   try {
     const { mobileNumber, otp } = req.body;
 
     if (!mobileNumber || !otp) {
-      return res
-        .status(400)
-        .json({ message: "Mobile number and OTP required" });
+      return res.status(400).json({
+        message: "Mobile number and OTP required",
+      });
     }
 
-    const shop = await Shop.findOne({ mobileNumber }).select(
-      "+otp +otpExpiresAt"
-    );
+    const shop = await Shop.findOne({ mobileNumber })
+      .select("+otp +otpExpiresAt");
 
     if (!shop) {
       return res.status(404).json({ message: "Shop not found" });
@@ -86,33 +104,201 @@ export async function verifyOtp(req, res) {
 
     const isValid = await shop.verifyOtp(otp);
     if (!isValid) {
-      return res.status(401).json({ message: "Invalid or expired OTP" });
+      return res.status(401).json({
+        message: "Invalid or expired OTP",
+      });
     }
 
-    const token = jwt.sign(
-      { shopId: shop._id },
-      process.env.JWT_SECRET_KEY,
-      { expiresIn: "365d" }
-    );
+    const token = generateToken(shop._id);
 
-res.status(200).json({
-  success: true,
-  token,
-  shop
-});
+    // ✅ RESTORE COOKIE (WEB SUPPORT)
+    res.cookie("jwt", token, {
+      httpOnly: true,
+      sameSite: "Strict",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 365 * 24 * 60 * 60 * 1000,
+    });
 
-
-    res.status(200).json({ success: true, shop });
+    res.status(200).json({
+      success: true,
+      token,               // 📱 App / Postman
+      shop,
+      secretKey: shop._rawSecretKey,
+    });
   } catch (error) {
     console.error("Verify OTP Error:", error);
     res.status(500).json({ message: "Something went wrong" });
   }
 }
 
-/**
- * ONBOARD SHOP
- * POST /auth/onboard
- */
+/* =====================================================
+   LOGIN WITH SECRET KEY
+===================================================== */
+export async function loginWithSecretKey(req, res) {
+  try {
+    const { mobileNumber, secretKey } = req.body;
+
+    if (!mobileNumber || !secretKey) {
+      return res.status(400).json({
+        message: "Mobile number and secret key are required",
+      });
+    }
+
+    const shop = await Shop.findOne({ mobileNumber })
+      .select("+secretKey");
+
+    if (!shop) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+
+    const isValid = await shop.verifySecretKey(secretKey);
+    if (!isValid) {
+      return res.status(401).json({
+        message: "Invalid secret key",
+      });
+    }
+
+    const token = generateToken(shop._id);
+
+    // ✅ RESTORE COOKIE (WEB SUPPORT)
+    res.cookie("jwt", token, {
+      httpOnly: true,
+      sameSite: "Strict",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 365 * 24 * 60 * 60 * 1000,
+    });
+
+    res.status(200).json({
+      success: true,
+      token,   // 📱 App / Postman
+      shop,
+    });
+  } catch (error) {
+    console.error("Secret Login Error:", error);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+}
+
+/* =====================================================
+   RESET SECRET KEY (via Analytics PIN)
+===================================================== */
+export async function resetSecretKey(req, res) {
+  try {
+    const shopId = req.user._id;
+    const { analyticsPin } = req.body;
+
+    if (!analyticsPin) {
+      return res.status(400).json({
+        message: "Analytics PIN is required",
+      });
+    }
+
+    const shop = await Shop.findById(shopId)
+      .select("+analyticsPin +secretKey");
+
+    if (!shop) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+
+    const isPinValid = await shop.verifyAnalyticsPin(analyticsPin);
+    if (!isPinValid) {
+      return res.status(401).json({
+        message: "Invalid Analytics PIN",
+      });
+    }
+
+    const rawSecret = generateRawSecretKey(shop._id.toString());
+    const salt = await bcrypt.genSalt(10);
+    shop.secretKey = await bcrypt.hash(rawSecret, salt);
+    await shop.save();
+
+    res.status(200).json({
+      success: true,
+      secretKey: rawSecret,
+      message: "Secret key regenerated successfully. Save it safely.",
+    });
+  } catch (error) {
+    console.error("Reset Secret Error:", error);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+}
+
+/* =====================================================
+   SET ANALYTICS PIN (FIRST TIME)
+===================================================== */
+export async function setAnalyticsPin(req, res) {
+  try {
+    const shopId = req.user._id;
+    const { analyticsPin } = req.body;
+
+    if (!analyticsPin) {
+      return res.status(400).json({
+        message: "Analytics PIN is required",
+      });
+    }
+
+    const shop = await Shop.findById(shopId)
+      .select("+analyticsPin");
+
+    if (shop.analyticsPin) {
+      return res.status(400).json({
+        message: "Analytics PIN already set. Use update instead.",
+      });
+    }
+
+    shop.analyticsPin = analyticsPin;
+    await shop.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Analytics PIN set successfully",
+    });
+  } catch (error) {
+    console.error("Set Analytics PIN Error:", error);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+}
+
+/* =====================================================
+   UPDATE ANALYTICS PIN
+===================================================== */
+export async function updateAnalyticsPin(req, res) {
+  try {
+    const shopId = req.user._id;
+    const { oldPin, newPin } = req.body;
+
+    if (!oldPin || !newPin) {
+      return res.status(400).json({
+        message: "Old PIN and New PIN are required",
+      });
+    }
+
+    const shop = await Shop.findById(shopId)
+      .select("+analyticsPin");
+
+    const isValid = await shop.verifyAnalyticsPin(oldPin);
+    if (!isValid) {
+      return res.status(401).json({
+        message: "Invalid old Analytics PIN",
+      });
+    }
+
+    shop.analyticsPin = newPin;
+    await shop.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Analytics PIN updated successfully",
+    });
+  } catch (error) {
+    console.error("Update Analytics PIN Error:", error);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+}
+
+/* =====================================================
+   ONBOARD SHOP
+===================================================== */
 export async function onboard(req, res) {
   try {
     const shopId = req.user._id;
@@ -132,8 +318,6 @@ export async function onboard(req, res) {
       });
     }
 
-    /* ================= PROFILE COMPLETION ================= */
-    // GST is OPTIONAL → excluded from calculation
     const completionFields = {
       shopName,
       ownerName,
@@ -142,23 +326,20 @@ export async function onboard(req, res) {
       location,
     };
 
-    const totalFields = Object.keys(completionFields).length;
-
     const filledFields = Object.values(completionFields).filter(
-      (value) => value && value.toString().trim() !== ""
+      (v) => v && v.toString().trim() !== ""
     ).length;
 
     const profileCompletion = Math.round(
-      (filledFields / totalFields) * 100
+      (filledFields / Object.keys(completionFields).length) * 100
     );
-    /* ====================================================== */
 
     const shop = await Shop.findByIdAndUpdate(
       shopId,
       {
         shopName,
         ownerName,
-        gstNumber,        // stored but not counted
+        gstNumber,
         storeCategory,
         upiId,
         location,
@@ -168,25 +349,22 @@ export async function onboard(req, res) {
       { new: true }
     );
 
-    if (!shop) {
-      return res.status(404).json({ message: "Shop not found" });
-    }
-
-    res.status(200).json({
-      success: true,
-      shop,
-    });
+    res.status(200).json({ success: true, shop });
   } catch (error) {
     console.error("Onboarding Error:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 }
 
-
-/**
- * LOGOUT
- */
+/* =====================================================
+   LOGOUT
+===================================================== */
 export function logout(req, res) {
+  // Optional: clear cookie for web
   res.clearCookie("jwt");
-  res.status(200).json({ success: true, message: "Logout successful" });
+
+  res.status(200).json({
+    success: true,
+    message: "Logout successful",
+  });
 }
