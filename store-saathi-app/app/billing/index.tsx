@@ -12,6 +12,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+// 1. Import useIsFocused
+import { useIsFocused } from "@react-navigation/native";
 
 /* COMPONENTS */
 import BarcodeScanner from "../../components/billing/BarcodeScanner";
@@ -32,6 +34,9 @@ import { useLanguage } from "../../providers/LanguageProvider";
 export default function BillingPage() {
   const { language } = useLanguage();
   const t = LANGUAGE_TEXT_BILLING[language] || LANGUAGE_TEXT_BILLING.en;
+  
+  // 2. Initialize focus state
+  const isFocused = useIsFocused();
 
   /* ---------------- BILLING HOOK ---------------- */
   const {
@@ -163,29 +168,25 @@ export default function BillingPage() {
         </TouchableOpacity>
       </View>
 
-      {/* SCANNER - Clean Rectangular Cut-out (No Corner Brackets) */}
+      {/* SCANNER - Conditionally rendered based on isFocused */}
       <View style={styles.scannerContainer}>
-        <BarcodeScanner
-          onScan={handleScan}
-          style={StyleSheet.absoluteFillObject}
-        />
+        {isFocused ? (
+          <BarcodeScanner
+            onScan={handleScan}
+            style={StyleSheet.absoluteFillObject}
+          />
+        ) : (
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#000" }]} />
+        )}
 
         {/* Dark Overlay with Transparent Rectangular Window */}
         <View style={styles.overlay}>
-          {/* Top Mask */}
           <View style={styles.maskTop} />
-
-          {/* Middle Row: Left + Transparent Center + Right */}
           <View style={styles.maskRow}>
             <View style={styles.maskSide} />
-
-            {/* Transparent Scan Area - No borders or corners */}
             <View style={styles.scanFrame} />
-
             <View style={styles.maskSide} />
           </View>
-
-          {/* Bottom Mask */}
           <View style={[styles.maskTop, { flex: 1 }]} />
         </View>
 
@@ -402,10 +403,12 @@ function SearchOverlay({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
   header: {
+    marginTop:-45,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 45,
+    paddingBottom: 15,
     borderBottomWidth: 1,
     borderColor: "#f1f5f9",
     gap: 12,
@@ -437,8 +440,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#2563eb",
   },
-
-  // Scanner Container - Clean Rectangular Focus Area
   scannerContainer: {
     height: "28%",
     backgroundColor: "#000",
@@ -464,7 +465,7 @@ const styles = StyleSheet.create({
   scanFrame: {
     width: 240,
     height: 200,
-    backgroundColor: "transparent", // Fully transparent scan window
+    backgroundColor: "transparent",
   },
   scanHint: {
     position: "absolute",

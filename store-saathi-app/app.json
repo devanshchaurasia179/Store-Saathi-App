@@ -2,7 +2,7 @@
   "expo": {
     "name": "Store Saathi",
     "slug": "store-saathi-app",
-    "version": "1.0.5",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/Logo.png",
     "scheme": "storesaathiapp",
@@ -54,9 +54,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "38fb4972-1179-4b37-8250-cb5b0f73e4c2"
+        "projectId": "bb372d43-b2cb-4f9a-84a5-c6a7cbaecdf4"
       }
     },
-    "owner": "dc2410"
+    "owner": "dc24106031"
   }
 }

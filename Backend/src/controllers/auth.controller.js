@@ -92,15 +92,15 @@ export async function verifyOtp(req, res) {
     const token = jwt.sign(
       { shopId: shop._id },
       process.env.JWT_SECRET_KEY,
-      { expiresIn: "7d" }
+      { expiresIn: "365d" }
     );
 
-    res.cookie("jwt", token, {
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      httpOnly: true,
-      sameSite: "Strict",
-      secure: process.env.NODE_ENV === "Production",
-    });
+res.status(200).json({
+  success: true,
+  token,
+  shop
+});
+
 
     res.status(200).json({ success: true, shop });
   } catch (error) {
