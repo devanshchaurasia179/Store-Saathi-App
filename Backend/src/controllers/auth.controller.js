@@ -258,6 +258,46 @@ export async function setAnalyticsPin(req, res) {
     res.status(500).json({ message: "Something went wrong" });
   }
 }
+/* =====================================================
+   VERIFY ANALYTICS PIN (UNLOCK ANALYTICS VIEW)
+===================================================== */
+export async function verifyAnalyticsPin(req, res) {
+  try {
+    const shopId = req.user._id;
+    const { analyticsPin } = req.body;
+
+    if (!analyticsPin) {
+      return res.status(400).json({
+        message: "Analytics PIN is required",
+      });
+    }
+
+    const shop = await Shop.findById(shopId)
+      .select("+analyticsPin");
+
+    if (!shop || !shop.analyticsPin) {
+      return res.status(404).json({
+        message: "Analytics PIN not set",
+      });
+    }
+
+    const isValid = await shop.verifyAnalyticsPin(analyticsPin);
+
+    if (!isValid) {
+      return res.status(401).json({
+        message: "Invalid Analytics PIN",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Analytics unlocked",
+    });
+  } catch (error) {
+    console.error("Verify Analytics PIN Error:", error);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+}
 
 /* =====================================================
    UPDATE ANALYTICS PIN
