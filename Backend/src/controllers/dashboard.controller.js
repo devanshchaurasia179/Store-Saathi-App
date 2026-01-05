@@ -1,6 +1,7 @@
 import Product from "../models/Product.js";
 import Bill from "../models/Bill.js";
 import Customer from "../models/Customer.js";
+import { DASHBOARD_UPDATE_CONFIG } from "../config/dashboardUpdateConfig.js";
 
 /* -------------------------------
    PROFILE COMPLETION
@@ -29,10 +30,16 @@ export async function getDashboard(req, res) {
     const profileCompletion = calculateProfileCompletion(shop);
 
     /* -------------------------------
-       🆕 UPDATE FLAG (SAFE)
-       If shop.update === true → show update
+       🆕 DASHBOARD-CONTROLLED UPDATE
+       (FILE BASED – SAFE)
     -------------------------------- */
-    const updateAvailable = shop.update === true;
+    const {
+      updateAvailable,
+      updateMessage,
+      latestVersion,
+      forceUpdate,
+      playStoreUrl,
+    } = DASHBOARD_UPDATE_CONFIG;
 
     /* -------------------------------
        ✅ TOP DEBTOR (CUSTOMERS ONLY)
@@ -102,10 +109,14 @@ export async function getDashboard(req, res) {
           profileCompletion,
         },
 
-        // 🆕 UPDATE INDICATOR
+        /* 🆕 UPDATE INFO (DASHBOARD OWNED) */
         updateAvailable,
+        updateMessage,
+        latestVersion,
+        forceUpdate,
+        playStoreUrl,
 
-        // ✅ SAFE RESPONSE
+        /* ✅ SAFE RESPONSE */
         topDebtor: topDebtor
           ? {
               customerId: topDebtor._id,
