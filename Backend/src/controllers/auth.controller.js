@@ -215,7 +215,7 @@ export async function resetSecretKey(req, res) {
     res.status(200).json({
       success: true,
       secretKey: rawSecret,
-      message: "Secret key regenerated successfully. Save it safely.",
+      message: "Secret key Ready to view",
     });
   } catch (error) {
     console.error("Reset Secret Error:", error);
