@@ -43,7 +43,8 @@ router.post("/logout", logout);
 router.get("/me", protectRoute, async (req, res) => {
   try {
     const shop = await Shop.findById(req.user._id)
-      .select("_id shopName ownerName isOnboarded analyticsPin");
+      .select("_id shopName ownerName isOnboarded analyticsPin mobileNumber");
+
 
     res.status(200).json({
       success: true,
