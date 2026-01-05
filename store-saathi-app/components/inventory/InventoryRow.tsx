@@ -28,7 +28,7 @@ export default function InventoryRow({ product, onRefresh }: any) {
     LANGUAGE_TEXT_INVENTORY_ROW[language] ||
     LANGUAGE_TEXT_INVENTORY_ROW.en;
 
-  const unit = product.unit || "unit"; // 🆕 SAFE FALLBACK
+  const unit = product.unit || "unit";
 
   const [qty, setQty] = useState(product.quantity || 0);
   const [price, setPrice] = useState(product.price?.sellingPrice || 0);
@@ -36,6 +36,44 @@ export default function InventoryRow({ product, onRefresh }: any) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  /* ---------- EXPIRY LOGIC ---------- */
+  const getExpiryInfo = () => {
+    if (!product.expiryDate) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const expDate = new Date(product.expiryDate);
+    expDate.setHours(0, 0, 0, 0);
+
+    const diffTime = expDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      return {
+        text: "Expired",
+        color: "#dc2626",
+        bg: "#fee2e2",
+        icon: "alert-circle",
+      };
+    } else if (diffDays <= 15) {
+      return {
+        text: `Expires in ${diffDays} days`,
+        color: "#ca8a04",
+        bg: "#fef9c3",
+        icon: "time-outline",
+      };
+    } else {
+      return {
+        text: `Expires in ${diffDays} days`,
+        color: "#64748b",
+        bg: "#f1f5f9",
+        icon: "calendar-outline",
+      };
+    }
+  };
+
+  const expiryInfo = getExpiryInfo();
 
   /* ---------- STOCK STATUS LOGIC ---------- */
   let status = { text: t.inStock, color: "#16a34a", bg: "#dcfce7" };
@@ -96,16 +134,30 @@ export default function InventoryRow({ product, onRefresh }: any) {
             <Text style={styles.name} numberOfLines={1}>
               {product.name}
             </Text>
-            <View style={[styles.badge, { backgroundColor: status.bg }]}>
-              <View
-                style={[
-                  styles.statusDot,
-                  { backgroundColor: status.color },
-                ]}
-              />
-              <Text style={[styles.badgeText, { color: status.color }]}>
-                {status.text}
-              </Text>
+            
+            <View style={styles.badgeRow}>
+              {/* Stock Status Badge */}
+              <View style={[styles.badge, { backgroundColor: status.bg }]}>
+                <View
+                  style={[
+                    styles.statusDot,
+                    { backgroundColor: status.color },
+                  ]}
+                />
+                <Text style={[styles.badgeText, { color: status.color }]}>
+                  {status.text}
+                </Text>
+              </View>
+
+              {/* Expiry Badge - Only shows if expiryDate exists */}
+              {expiryInfo && (
+                <View style={[styles.badge, { backgroundColor: expiryInfo.bg, marginLeft: 6 }]}>
+                  <Ionicons name={expiryInfo.icon as any} size={10} color={expiryInfo.color} style={{ marginRight: 4 }} />
+                  <Text style={[styles.badgeText, { color: expiryInfo.color }]}>
+                    {expiryInfo.text}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -131,7 +183,7 @@ export default function InventoryRow({ product, onRefresh }: any) {
           {/* STOCK CONTROL */}
           <View style={styles.inputCol}>
             <Text style={styles.label}>
-              {t.stockLabel} in ({unit})
+              {t.stockLabel} ({unit})
             </Text>
             <View style={styles.inputContainer}>
               <TextInput
@@ -207,14 +259,19 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 15,
     color: "#1e293b",
-    marginBottom: 4,
+    marginBottom: 6,
+  },
+  badgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
   },
   badge: {
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   statusDot: {
@@ -224,7 +281,7 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   badgeText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "800",
     textTransform: "uppercase",
   },
@@ -233,11 +290,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   label: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "800",
     color: "#64748b",
     marginBottom: 4,
     letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
   inputContainer: {
     flexDirection: "row",
@@ -255,7 +313,7 @@ const styles = StyleSheet.create({
     marginRight: 2,
   },
   input: {
-    width: 60, // Slightly wider for placeholders
+    width: 55,
     textAlign: "center",
     fontWeight: "700",
     color: "#1e293b",

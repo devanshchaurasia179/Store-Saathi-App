@@ -11,7 +11,8 @@ import {
   ScrollView,
   Platform,
 } from "react-native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 /* 🛠 API & UTILS */
 import { createProduct, updateProduct } from "../../constants/inventory.api";
@@ -23,7 +24,6 @@ import { useLanguage } from "../../providers/LanguageProvider";
 
 const THEME_BLUE = "#1e3a8a";
 
-/* 🆕 UNIT OPTIONS */
 const UNIT_OPTIONS = [
   { label: "Unit / Pcs", value: "unit", icon: "cube-outline" },
   { label: "Kilogram (kg)", value: "kg", icon: "scale-outline" },
@@ -41,7 +41,7 @@ const DEFAULT_FORM = {
   unit: "unit",
   category: "Other",
   size: "",
-  expiryDate: "",
+  expiryDate: null as Date | null, // Changed to Date object for picker
   isActive: true,
 };
 
@@ -58,6 +58,7 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
   const [showMore, setShowMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     if (!initialData) {
@@ -75,7 +76,7 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
       unit: initialData.unit || "unit",
       category: initialData.category || "Other",
       size: initialData.size || "",
-      expiryDate: initialData.expiryDate ? initialData.expiryDate.slice(0, 10) : "",
+      expiryDate: initialData.expiryDate ? new Date(initialData.expiryDate) : null,
       isActive: initialData.isActive ?? true,
     });
 
@@ -84,6 +85,13 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
 
   const update = (key: string, value: any) =>
     setForm((f: any) => ({ ...f, [key]: value }));
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === 'ios'); // iOS keeps it open
+    if (selectedDate) {
+      update("expiryDate", selectedDate);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!form.name || !form.price.sellingPrice) {
@@ -95,7 +103,8 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
       ...form,
       quantity: Number(form.quantity),
       price: { sellingPrice: Number(form.price.sellingPrice) },
-      expiryDate: form.expiryDate || null,
+      // Convert Date object to ISO string for Backend
+      expiryDate: form.expiryDate ? form.expiryDate.toISOString() : null,
     };
 
     try {
@@ -126,7 +135,6 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
-      {/* BASIC INFO SECTION */}
       <View style={styles.card}>
         <Text style={styles.sectionLabel}>{t.productDetails || "Product Details"}</Text>
         
@@ -162,27 +170,47 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
           </View>
         </View>
 
-        {/* 🆕 UNIT DROPDOWN */}
+        {/* EXPIRY DATE SELECTOR */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>{t.expiryDate || "EXPIRY DATE"}</Text>
+          <TouchableOpacity 
+            style={styles.dropdownTrigger} 
+            onPress={() => setShowDatePicker(true)}
+          >
+            <View style={styles.triggerInner}>
+              <Ionicons name="calendar-outline" size={20} color={THEME_BLUE} />
+              <Text style={[styles.triggerText, !form.expiryDate && { color: '#94a3b8' }]}>
+                {form.expiryDate ? form.expiryDate.toLocaleDateString() : (t.selectDate || "Select Expiry Date")}
+              </Text>
+            </View>
+            {form.expiryDate && (
+                <TouchableOpacity onPress={() => update("expiryDate", null)}>
+                    <Ionicons name="close-circle" size={20} color="#ef4444" />
+                </TouchableOpacity>
+            )}
+          </TouchableOpacity>
+          {showDatePicker && (
+            <DateTimePicker
+              value={form.expiryDate || new Date()}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={onDateChange}
+              minimumDate={new Date()}
+            />
+          )}
+        </View>
+
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>{t.unit || "UNIT"}</Text>
           <TouchableOpacity 
             style={[styles.dropdownTrigger, isDropdownOpen && styles.dropdownTriggerActive]} 
             onPress={() => setIsDropdownOpen(!isDropdownOpen)}
-            activeOpacity={0.8}
           >
             <View style={styles.triggerInner}>
-              <Ionicons 
-                name={selectedUnit?.icon as any || "options-outline"} 
-                size={20} 
-                color={THEME_BLUE} 
-              />
+              <Ionicons name={selectedUnit?.icon as any || "options-outline"} size={20} color={THEME_BLUE} />
               <Text style={styles.triggerText}>{selectedUnit?.label || "Select Unit"}</Text>
             </View>
-            <Ionicons 
-              name={isDropdownOpen ? "chevron-up" : "chevron-down"} 
-              size={20} 
-              color="#94a3b8" 
-            />
+            <Ionicons name={isDropdownOpen ? "chevron-up" : "chevron-down"} size={20} color="#94a3b8" />
           </TouchableOpacity>
 
           {isDropdownOpen && (
@@ -198,14 +226,8 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
                       setIsDropdownOpen(false);
                     }}
                   >
-                    <Ionicons 
-                      name={u.icon as any} 
-                      size={20} 
-                      color={isActive ? "#fff" : "#64748b"} 
-                    />
-                    <Text style={[styles.dropdownItemText, isActive && styles.dropdownItemTextActive]}>
-                      {u.label}
-                    </Text>
+                    <Ionicons name={u.icon as any} size={20} color={isActive ? "#fff" : "#64748b"} />
+                    <Text style={[styles.dropdownItemText, isActive && styles.dropdownItemTextActive]}>{u.label}</Text>
                     {isActive && <Ionicons name="checkmark-circle" size={18} color="#fff" />}
                   </TouchableOpacity>
                 );
@@ -215,7 +237,6 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
         </View>
       </View>
 
-      {/* BARCODE SECTION */}
       <View style={styles.card}>
         <Text style={styles.sectionLabel}>{t.identification}</Text>
         <View style={styles.barcodeWrapper}>
@@ -230,11 +251,7 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
             />
           </View>
           {!initialData && (
-            <TouchableOpacity
-              style={styles.regenBtn}
-              onPress={() => update("barcode", generateBarcode())}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity style={styles.regenBtn} onPress={() => update("barcode", generateBarcode())}>
               <Ionicons name="refresh" size={22} color="#fff" />
             </TouchableOpacity>
           )}
@@ -254,18 +271,12 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
         </View>
       </View>
 
-      {/* ADDITIONAL DETAILS */}
       <TouchableOpacity
         style={styles.moreHeader}
-        activeOpacity={0.6}
         onPress={() => setShowMore(!showMore)}
       >
         <Text style={styles.moreTitle}>{t.additionalDetails}</Text>
-        <Ionicons
-          name={showMore ? "chevron-up" : "chevron-down"}
-          size={18}
-          color={THEME_BLUE}
-        />
+        <Ionicons name={showMore ? "chevron-up" : "chevron-down"} size={18} color={THEME_BLUE} />
       </TouchableOpacity>
 
       {showMore && (
@@ -300,11 +311,9 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
         </View>
       )}
 
-      {/* SUBMIT BUTTON */}
       <TouchableOpacity
         onPress={handleSubmit}
         disabled={loading}
-        activeOpacity={0.8}
         style={[styles.submit, loading && styles.submitDisabled]}
       >
         {loading ? (
@@ -322,17 +331,11 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
   );
 }
 
-/* ---------- UI HELPERS ---------- */
-
 const Field = ({ label, value, onChange, keyboard, icon, placeholder, isPrice }: any) => (
   <View style={styles.fieldContainer}>
     <Text style={styles.label}>{label}</Text>
     <View style={styles.inputContainer}>
-      {isPrice ? (
-          <Text style={styles.currencyPrefix}>$</Text>
-      ) : (
-          <Ionicons name={icon} size={20} color="#94a3b8" />
-      )}
+      {isPrice ? <Text style={styles.currencyPrefix}>$</Text> : <Ionicons name={icon} size={20} color="#94a3b8" />}
       <TextInput
         value={value}
         onChangeText={onChange}
@@ -345,184 +348,34 @@ const Field = ({ label, value, onChange, keyboard, icon, placeholder, isPrice }:
   </View>
 );
 
-/* ---------- STYLES ---------- */
-
 const styles = StyleSheet.create({
   container: { padding: 16, paddingBottom: 60 },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: "900",
-    color: "#94a3b8",
-    marginBottom: 16,
-    textTransform: "uppercase",
-    letterSpacing: 1.2,
-  },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 28,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1.5,
-    borderColor: "#f1f5f9",
-    ...Platform.select({
-      ios: { shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } },
-      android: { elevation: 3 },
-    }),
-  },
+  sectionLabel: { fontSize: 11, fontWeight: "900", color: "#94a3b8", marginBottom: 16, textTransform: "uppercase", letterSpacing: 1.2 },
+  card: { backgroundColor: "#fff", borderRadius: 28, padding: 20, marginBottom: 16, borderWidth: 1.5, borderColor: "#f1f5f9", elevation: 3 },
   row: { flexDirection: "row", gap: 12 },
   fieldContainer: { marginBottom: 18 },
-  label: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#64748b",
-    marginBottom: 8,
-    marginLeft: 4,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f8fafc",
-    borderWidth: 1.5,
-    borderColor: "#e2e8f0",
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    height: 56,
-  },
-  currencyPrefix: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: THEME_BLUE,
-  },
-  input: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1e293b",
-  },
+  label: { fontSize: 11, fontWeight: "800", color: "#64748b", marginBottom: 8, marginLeft: 4, textTransform: "uppercase" },
+  inputContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#f8fafc", borderWidth: 1.5, borderColor: "#e2e8f0", borderRadius: 18, paddingHorizontal: 16, height: 56 },
+  currencyPrefix: { fontSize: 16, fontWeight: "700", color: THEME_BLUE },
+  input: { flex: 1, marginLeft: 12, fontSize: 16, fontWeight: "600", color: "#1e293b" },
   disabledInput: { backgroundColor: "#f1f5f9", borderColor: '#cbd5e1' },
-
-  /* DROPDOWN */
-  dropdownTrigger: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#f8fafc",
-    borderWidth: 1.5,
-    borderColor: "#e2e8f0",
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    height: 56,
-  },
-  dropdownTriggerActive: {
-    borderColor: THEME_BLUE,
-    backgroundColor: "#fff",
-  },
-  triggerInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  triggerText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1e293b",
-  },
-  dropdownMenu: {
-    marginTop: 8,
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    padding: 8,
-    ...Platform.select({
-      ios: { shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 15, shadowOffset: { width: 0, height: 8 } },
-      android: { elevation: 6 },
-    }),
-  },
-  dropdownItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    borderRadius: 14,
-    gap: 14,
-    marginBottom: 4,
-  },
-  dropdownItemActive: {
-    backgroundColor: THEME_BLUE,
-  },
-  dropdownItemText: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#475569",
-  },
-  dropdownItemTextActive: {
-    color: "#fff",
-  },
-
-  /* BARCODE */
-  barcodeWrapper: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 20,
-    alignItems: "center",
-  },
-  regenBtn: {
-    backgroundColor: THEME_BLUE,
-    height: 56,
-    width: 56,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 4,
-  },
-  toggleCard: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#f1f5f9",
-    padding: 16,
-    borderRadius: 20,
-  },
-  toggleRowInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
+  dropdownTrigger: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#f8fafc", borderWidth: 1.5, borderColor: "#e2e8f0", borderRadius: 18, paddingHorizontal: 16, height: 56 },
+  dropdownTriggerActive: { borderColor: THEME_BLUE, backgroundColor: "#fff" },
+  triggerInner: { flexDirection: "row", alignItems: "center", gap: 12 },
+  triggerText: { fontSize: 16, fontWeight: "600", color: "#1e293b" },
+  dropdownMenu: { marginTop: 8, backgroundColor: "#fff", borderRadius: 20, borderWidth: 1, borderColor: "#e2e8f0", padding: 8, elevation: 6 },
+  dropdownItem: { flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 14, gap: 14, marginBottom: 4 },
+  dropdownItemActive: { backgroundColor: THEME_BLUE },
+  dropdownItemText: { flex: 1, fontSize: 15, fontWeight: "600", color: "#475569" },
+  dropdownItemTextActive: { color: "#fff" },
+  barcodeWrapper: { flexDirection: "row", gap: 12, marginBottom: 20, alignItems: "center" },
+  regenBtn: { backgroundColor: THEME_BLUE, height: 56, width: 56, borderRadius: 18, justifyContent: "center", alignItems: "center" },
+  toggleCard: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#f1f5f9", padding: 16, borderRadius: 20 },
+  toggleRowInner: { flexDirection: "row", alignItems: "center", gap: 12 },
   toggleLabel: { fontSize: 14, fontWeight: "700", color: "#1e293b" },
-  
-  /* FOOTER & MORE */
-  moreHeader: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 12,
-    marginBottom: 8,
-  },
+  moreHeader: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, paddingVertical: 12 },
   moreTitle: { color: THEME_BLUE, fontWeight: "800", fontSize: 14 },
-  submit: {
-    backgroundColor: THEME_BLUE,
-    height: 64,
-    borderRadius: 22,
-    flexDirection: 'row',
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 12,
-    shadowColor: THEME_BLUE,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 8,
-  },
+  submit: { backgroundColor: THEME_BLUE, height: 64, borderRadius: 22, flexDirection: 'row', justifyContent: "center", alignItems: "center", marginTop: 12, elevation: 8 },
   submitDisabled: { backgroundColor: "#94a3b8" },
-  submitText: {
-    color: "#fff",
-    fontWeight: "900",
-    fontSize: 18,
-    letterSpacing: 0.5,
-  },
+  submitText: { color: "#fff", fontWeight: "900", fontSize: 18 },
 });

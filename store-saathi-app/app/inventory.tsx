@@ -10,9 +10,11 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Modal,
+  Pressable,
 } from "react-native";
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 /* COMPONENTS */
@@ -31,7 +33,7 @@ import { getProductByBarcode } from "../constants/inventory.api";
 import { LANGUAGE_TEXT_INVENTORY_PAGE } from "../constants/language_inventory";
 import { useLanguage } from "../providers/LanguageProvider";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function InventoryPage() {
   const { products, loading, refresh } = useInventory();
@@ -41,10 +43,11 @@ export default function InventoryPage() {
 
   /* UI STATES */
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"ALL" | "LOW" | "HIGH" | "OUT">("ALL");
+  const [filter, setFilter] = useState<"ALL" | "LOW" | "HIGH" | "OUT" | "EXPIRY">("ALL");
   const [showAdd, setShowAdd] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
 
   /* ANIMATION STATE FOR TOP MODAL */
   const slideAnim = useRef(new Animated.Value(-SCREEN_HEIGHT)).current;
@@ -81,10 +84,19 @@ export default function InventoryPage() {
   const filteredProducts = useMemo(() => {
     let list = [...products];
 
+    // Search filter
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((p) => p.name?.toLowerCase().includes(q));
     }
+
+    // Expiry thresholds
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const fifteenDaysFromNow = new Date();
+    fifteenDaysFromNow.setDate(today.getDate() + 15);
+    fifteenDaysFromNow.setHours(23, 59, 59, 999);
 
     switch (filter) {
       case "LOW":
@@ -93,6 +105,12 @@ export default function InventoryPage() {
         return list.filter((p) => p.quantity > 5);
       case "OUT":
         return list.filter((p) => p.quantity === 0);
+      case "EXPIRY":
+        return list.filter((p) => {
+          if (!p.expiryDate) return false;
+          const expiry = new Date(p.expiryDate);
+          return expiry <= fifteenDaysFromNow;
+        });
       default:
         return list;
     }
@@ -140,6 +158,29 @@ export default function InventoryPage() {
     scanningLockedRef.current = false;
   };
 
+  /* RENDER HELPER FOR DROPDOWN ITEM */
+  const FilterOption = ({ type, label, icon }: { type: typeof filter, label: string, icon: string }) => (
+    <TouchableOpacity 
+      style={[styles.dropdownItem, filter === type && styles.dropdownItemActive]} 
+      onPress={() => {
+        setFilter(type);
+        setShowFilterDropdown(false);
+      }}
+    >
+      <MaterialCommunityIcons 
+        name={icon as any} 
+        size={22} 
+        color={filter === type ? "#1e3a8a" : "#64748b"} 
+      />
+      <Text style={[styles.dropdownText, filter === type && styles.dropdownTextActive]}>
+        {label}
+      </Text>
+      {filter === type && (
+        <Ionicons name="checkmark-circle" size={18} color="#1e3a8a" />
+      )}
+    </TouchableOpacity>
+  );
+
   if (loading && !refreshing) {
     return <PageLoader />;
   }
@@ -148,14 +189,15 @@ export default function InventoryPage() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.container}>
+        
         {/* HEADER */}
         <InventoryHeader
           onAddProduct={() => setShowAdd(true)}
           onQuickEntry={openScanner}
         />
 
-        {/* SEARCH + FILTER */}
-        <View style={styles.topActions}>
+        {/* SEARCH + FILTER ICON SECTION */}
+        <View style={styles.searchSection}>
           <View style={styles.searchBox}>
             <Ionicons name="search-outline" size={20} color="#94a3b8" />
             <TextInput
@@ -166,35 +208,43 @@ export default function InventoryPage() {
               style={styles.searchInput}
               clearButtonMode="while-editing"
             />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => setSearch("")}>
-                <Ionicons name="close-circle" size={18} color="#cbd5e1" />
-              </TouchableOpacity>
-            )}
           </View>
 
-          <View style={styles.filterRow}>
-            {(["ALL", "LOW", "OUT"] as const).map((type) => (
-              <TouchableOpacity
-                key={type}
-                onPress={() => setFilter(type)}
-                style={[styles.pill, filter === type && styles.pillActive]}
-              >
-                <Text
-                  style={[styles.pillText, filter === type && styles.pillTextActive]}
-                >
-                  {type === "ALL"
-                    ? t.allItems
-                    : type === "LOW"
-                    ? t.lowStock
-                    : t.outOfStock}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <TouchableOpacity 
+            style={[styles.filterIconButton, filter !== "ALL" && styles.filterIconButtonActive]} 
+            onPress={() => setShowFilterDropdown(true)}
+          >
+            <Ionicons 
+              name={filter === "ALL" ? "filter-outline" : "filter"} 
+              size={22} 
+              color={filter !== "ALL" ? "#fff" : "#1e3a8a"} 
+            />
+            {filter !== "ALL" && <View style={styles.activeFilterDot} />}
+          </TouchableOpacity>
         </View>
 
-        {/* BARCODE SCANNER SECTION - only rendered when needed */}
+        {/* FILTER DROPDOWN MODAL */}
+        <Modal
+          visible={showFilterDropdown}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowFilterDropdown(false)}
+        >
+          <Pressable 
+            style={styles.modalOverlay} 
+            onPress={() => setShowFilterDropdown(false)}
+          >
+            <View style={[styles.dropdownContainer, { top: insets.top + 120 }]}>
+              <Text style={styles.dropdownHeader}>Filter Inventory</Text>
+              <FilterOption type="ALL" label={t.allItems} icon="layers-outline" />
+              <FilterOption type="LOW" label={t.lowStock} icon="trending-down" />
+              <FilterOption type="OUT" label={t.outOfStock} icon="alert-circle-outline" />
+              <FilterOption type="EXPIRY" label="Near Expiry" icon="calendar-clock" />
+            </View>
+          </Pressable>
+        </Modal>
+
+        {/* BARCODE SCANNER SECTION */}
         {showScanner && (
           <View style={styles.scannerWrapper}>
             <BarcodeScanner onScan={handleScan} onClose={closeScanner} />
@@ -209,9 +259,21 @@ export default function InventoryPage() {
         <View
           style={[
             styles.listContainer,
-            (showScanner || productNotFound) && styles.listDimmed,
+            (showScanner || productNotFound || showFilterDropdown) && styles.listDimmed,
           ]}
         >
+          {/* Active Filter Badge indicator */}
+          {filter !== "ALL" && (
+             <View style={styles.activeFilterIndicator}>
+                <Text style={styles.activeFilterLabel}>
+                  Showing: <Text style={{fontWeight: '800'}}>{filter === "EXPIRY" ? "Near Expiry" : filter}</Text>
+                </Text>
+                <TouchableOpacity onPress={() => setFilter("ALL")}>
+                   <Ionicons name="close-circle" size={16} color="#1e3a8a" />
+                </TouchableOpacity>
+             </View>
+          )}
+
           <FlatList
             data={filteredProducts}
             keyExtractor={(item) => item._id}
@@ -273,7 +335,6 @@ export default function InventoryPage() {
                 refresh();
               }}
             />
-            {/* Optional: Add a small handle at the bottom of the modal */}
             <View style={styles.modalHandle} />
           </View>
         </Animated.View>
@@ -301,23 +362,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F8FAFC",
   },
-  topActions: {
-    paddingTop: 5,
+  searchSection: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
-    gap: 16,
-    backgroundColor: "#fff",
     paddingBottom: 16,
+    paddingTop: 8,
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#E2E8F0",
+    gap: 12,
     zIndex: 10,
   },
   searchBox: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F1F5F9",
     borderRadius: 14,
     paddingHorizontal: 12,
-    height: 50,
+    height: 48,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
@@ -328,30 +392,98 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1E293B",
   },
-  filterRow: {
-    flexDirection: "row",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  pill: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 25,
+  filterIconButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     backgroundColor: "#F1F5F9",
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
-  pillActive: {
+  filterIconButtonActive: {
     backgroundColor: "#1e3a8a",
     borderColor: "#1e3a8a",
   },
-  pillText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#64748B",
+  activeFilterDot: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#ef4444",
+    borderWidth: 1.5,
+    borderColor: "#1e3a8a",
   },
-  pillTextActive: {
-    color: "#FFF",
+
+  /* DROPDOWN MODAL STYLES */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.2)",
+  },
+  dropdownContainer: {
+    position: "absolute",
+    right: 16,
+    width: 220,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 8,
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+  },
+  dropdownHeader: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#94a3b8",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    gap: 12,
+  },
+  dropdownItemActive: {
+    backgroundColor: "#F1F5F9",
+  },
+  dropdownText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  dropdownTextActive: {
+    color: "#1e3a8a",
+    fontWeight: "700",
+  },
+
+  /* ACTIVE FILTER INDICATOR */
+  activeFilterIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: 'flex-start',
+    backgroundColor: "#E0E7FF",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginHorizontal: 16,
+    marginTop: 12,
+    gap: 8,
+  },
+  activeFilterLabel: {
+    fontSize: 12,
+    color: "#1e3a8a",
+    fontWeight: "600",
   },
 
   /* SCANNER */

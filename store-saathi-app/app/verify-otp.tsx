@@ -116,9 +116,9 @@ export default function VerifyOtpPage() {
             </View>
 
             <View style={styles.infoRow}>
-              <Text style={styles.label}>{text.otpSentTo || "OTP SENT TO"}: {mobileNumber}</Text>
+              <Text style={styles.label}>{text.otpSentTo || "OTP SENT TO"}: Store Saathi Executive</Text>
               <TouchableOpacity onPress={() => router.push("/login")}>
-                <Text style={styles.changeNumberText}>{text.changeNumber || "Edit"}</Text>
+                <Text style={styles.changeNumberText}>Edit Number</Text>
               </TouchableOpacity>
             </View>
 
@@ -244,7 +244,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "bold",
     color: "#EF4444", 
-    textDecorationLine: "underline",
   },
   inputContainer: {
     backgroundColor: "#F1F5F9",

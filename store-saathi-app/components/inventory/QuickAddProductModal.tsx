@@ -9,9 +9,11 @@ import {
   StyleSheet,
   ActivityIndicator,
   Switch,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 /* 🛠 API */
 import { createProduct } from "../../constants/inventory.api";
@@ -21,7 +23,7 @@ import { LANGUAGE_TEXT_QUICK_ADD } from "../../constants/language_inventory";
 import { useLanguage } from "../../providers/LanguageProvider";
 
 /* 🆕 UNIT OPTIONS */
-const UNIT_OPTIONS = ["unit", "kg", "g", "litre","dozen"];
+const UNIT_OPTIONS = ["unit", "kg", "g", "litre", "dozen"];
 
 type Props = {
   visible: boolean;
@@ -41,21 +43,28 @@ export default function QuickAddProductModal({
 
   const [loading, setLoading] = useState(false);
   const [showMore, setShowMore] = useState(false);
-  
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
     price: "",
     quantity: "0",
-    unit: "unit", // 🆕
+    unit: "unit",
     category: "Other",
     size: "",
-    expiryDate: "",
+    expiryDate: null as Date | null, // Changed to Date object
     isTrackable: true,
   });
 
   const update = (key: string, value: any) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === "ios");
+    if (selectedDate) {
+      update("expiryDate", selectedDate);
+    }
+  };
 
   /* ---------------- SAVE PRODUCT ---------------- */
   const handleSave = async () => {
@@ -77,10 +86,11 @@ export default function QuickAddProductModal({
         isBarcodeListed: true,
         isTrackable: form.isTrackable,
         quantity: Number(form.quantity) || 0,
-        unit: form.unit, // 🆕
+        unit: form.unit,
         category: form.category || "Other",
         size: form.size || "",
-        expiryDate: form.expiryDate || null,
+        // Convert Date object to ISO string for the Backend
+        expiryDate: form.expiryDate ? form.expiryDate.toISOString() : null,
         price: { sellingPrice: Number(form.price) },
         isActive: true,
       };
@@ -99,22 +109,15 @@ export default function QuickAddProductModal({
       });
 
       onSuccess(newProduct);
+      // Reset form on success
+      setForm({ ...form, name: "", price: "", quantity: "0", expiryDate: null });
       onClose();
     } catch (e: any) {
       console.error("Quick add error:", e);
-
       if (e?.response?.status === 409) {
-        Toast.show({
-          type: "error",
-          text1: t.duplicateBarcode,
-          text2: t.duplicateMsg,
-        });
+        Toast.show({ type: "error", text1: t.duplicateBarcode, text2: t.duplicateMsg });
       } else {
-        Toast.show({
-          type: "error",
-          text1: t.error,
-          text2: e?.message || t.errorSave,
-        });
+        Toast.show({ type: "error", text1: t.error, text2: e?.message || t.errorSave });
       }
     } finally {
       setLoading(false);
@@ -140,7 +143,7 @@ export default function QuickAddProductModal({
             contentContainerStyle={styles.body}
             showsVerticalScrollIndicator={false}
           >
-            {/* BARCODE */}
+            {/* BARCODE BOX */}
             <View style={styles.barcodeBox}>
               <Text style={styles.label}>{t.scannedBarcode}</Text>
               <Text style={styles.barcode}>{barcode}</Text>
@@ -178,7 +181,7 @@ export default function QuickAddProductModal({
               </View>
             </View>
 
-            {/* 🆕 UNIT DROPDOWN */}
+            {/* UNIT OPTIONS */}
             <Text style={styles.label}>{t.unit || "UNIT"}</Text>
             <View style={styles.unitRow}>
               {UNIT_OPTIONS.map((u) => {
@@ -187,17 +190,9 @@ export default function QuickAddProductModal({
                   <TouchableOpacity
                     key={u}
                     onPress={() => update("unit", u)}
-                    style={[
-                      styles.unitChip,
-                      active && styles.unitChipActive,
-                    ]}
+                    style={[styles.unitChip, active && styles.unitChipActive]}
                   >
-                    <Text
-                      style={[
-                        styles.unitText,
-                        active && styles.unitTextActive,
-                      ]}
-                    >
+                    <Text style={[styles.unitText, active && styles.unitTextActive]}>
                       {u}
                     </Text>
                   </TouchableOpacity>
@@ -205,18 +200,45 @@ export default function QuickAddProductModal({
               })}
             </View>
 
-            {/* TRACKING */}
+            {/* TRACKING SWITCH */}
             <View style={styles.switchRow}>
               <Text style={styles.switchLabel}>{t.enableTracking}</Text>
               <Switch
                 value={form.isTrackable}
                 onValueChange={(v) => update("isTrackable", v)}
                 trackColor={{ false: "#e2e8f0", true: "#93c5fd" }}
-                thumbColor={form.isTrackable ? "#2563eb" : "#f4f3f4"}
+                thumbColor={form.isTrackable ? "#1e3a8a" : "#f4f3f4"}
               />
             </View>
 
-            {/* MORE DETAILS */}
+            {/* EXPIRY DATE SELECTOR (Added for Quick Add) */}
+            <Text style={styles.label}>{t.expiryDate || "Expiry Date"}</Text>
+            <TouchableOpacity 
+              style={styles.dateSelector} 
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Ionicons name="calendar-outline" size={18} color="#1e3a8a" />
+              <Text style={[styles.dateText, !form.expiryDate && { color: "#94a3b8" }]}>
+                {form.expiryDate ? form.expiryDate.toLocaleDateString() : "Set Expiry (Optional)"}
+              </Text>
+              {form.expiryDate && (
+                <TouchableOpacity onPress={() => update("expiryDate", null)}>
+                  <Ionicons name="close-circle" size={18} color="#ef4444" />
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={form.expiryDate || new Date()}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={onDateChange}
+                minimumDate={new Date()}
+              />
+            )}
+
+            {/* MORE DETAILS TOGGLE */}
             <TouchableOpacity
               style={styles.moreBtn}
               onPress={() => setShowMore((p) => !p)}
@@ -239,26 +261,12 @@ export default function QuickAddProductModal({
                   value={form.category}
                   onChangeText={(t) => update("category", t)}
                 />
-
-                <View style={styles.row}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.label}>{t.size}</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={form.size}
-                      onChangeText={(t) => update("size", t)}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.label}>{t.expiryDate}</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="YYYY-MM-DD"
-                      value={form.expiryDate}
-                      onChangeText={(t) => update("expiryDate", t)}
-                    />
-                  </View>
-                </View>
+                <Text style={styles.label}>{t.size}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={form.size}
+                  onChangeText={(t) => update("size", t)}
+                />
               </>
             )}
           </ScrollView>
@@ -287,8 +295,6 @@ export default function QuickAddProductModal({
   );
 }
 
-/* ---------- STYLES ---------- */
-
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -310,28 +316,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  headerTitle: {
-    color: "#fff",
-    fontSize: 20,
-    fontWeight: "900",
-  },
-  headerSub: {
-    color: "#bfdbfe",
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: 2,
-  },
-  body: {
-    padding: 20,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#64748b",
-    marginBottom: 8,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
+  headerTitle: { color: "#fff", fontSize: 20, fontWeight: "900" },
+  headerSub: { color: "#bfdbfe", fontSize: 12, fontWeight: "600", marginTop: 2 },
+  body: { padding: 20 },
+  label: { fontSize: 11, fontWeight: "800", color: "#64748b", marginBottom: 8, textTransform: "uppercase" },
   input: {
     backgroundColor: "#f8fafc",
     borderRadius: 14,
@@ -343,10 +331,7 @@ const styles = StyleSheet.create({
     color: "#1e293b",
     fontWeight: "600",
   },
-  row: {
-    flexDirection: "row",
-    gap: 12,
-  },
+  row: { flexDirection: "row", gap: 12 },
   barcodeBox: {
     backgroundColor: "#f1f5f9",
     borderRadius: 14,
@@ -356,12 +341,24 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
     borderColor: "#cbd5e1",
   },
-  barcode: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#1e293b",
-    letterSpacing: 1,
+  barcode: { fontSize: 16, fontWeight: "bold", color: "#1e293b", letterSpacing: 1 },
+  unitRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
+  unitChip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: "#f1f5f9", borderWidth: 1, borderColor: "#e2e8f0" },
+  unitChipActive: { backgroundColor: "#1e3a8a", borderColor: "#1e3a8a" },
+  unitText: { fontSize: 12, fontWeight: "700", color: "#334155" },
+  unitTextActive: { color: "#fff" },
+  dateSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    marginBottom: 16,
+    gap: 10,
   },
+  dateText: { flex: 1, fontSize: 15, fontWeight: "600", color: "#1e293b" },
   switchRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -369,85 +366,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#eff6ff",
     padding: 14,
     borderRadius: 16,
-    marginBottom: 12,
-  },
-  switchLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1e40af",
-  },
-  moreBtn: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-    marginVertical: 12,
-  },
-  moreText: {
-    fontSize: 14,
-    fontWeight: "800",
-  },
-
-  /* 🆕 UNIT STYLES */
-  unitRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
     marginBottom: 16,
   },
-  unitChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    backgroundColor: "#f1f5f9",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  unitChipActive: {
-    backgroundColor: "#1e3a8a",
-    borderColor: "#1e3a8a",
-  },
-  unitText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#334155",
-    textTransform: "uppercase",
-  },
-  unitTextActive: {
-    color: "#fff",
-  },
-
-  footer: {
-    flexDirection: "row",
-    padding: 20,
-    gap: 12,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: "#f1f5f9",
-  },
-  cancelBtn: {
-    flex: 1,
-    padding: 16,
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  cancelText: {
-    fontWeight: "800",
-    color: "#64748b",
-  },
-  saveBtn: {
-    flex: 1,
-    padding: 16,
-    backgroundColor: "#1e3a8a",
-    borderRadius: 16,
-    alignItems: "center",
-    elevation: 4,
-  },
-  saveText: {
-    color: "#fff",
-    fontWeight: "800",
-  },
+  switchLabel: { fontSize: 13, fontWeight: "700", color: "#1e40af" },
+  moreBtn: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, marginVertical: 8 },
+  moreText: { fontSize: 13, fontWeight: "800" },
+  footer: { flexDirection: "row", padding: 20, gap: 12, borderTopWidth: 1, borderTopColor: "#f1f5f9" },
+  cancelBtn: { flex: 1, padding: 16, borderRadius: 16, alignItems: "center", borderWidth: 1, borderColor: "#e2e8f0" },
+  cancelText: { fontWeight: "800", color: "#64748b" },
+  saveBtn: { flex: 1, padding: 16, backgroundColor: "#1e3a8a", borderRadius: 16, alignItems: "center" },
+  saveText: { color: "#fff", fontWeight: "800" },
 });
