@@ -42,25 +42,35 @@ router.post("/logout", logout);
 
 router.get("/me", protectRoute, async (req, res) => {
   try {
-    const shop = await Shop.findById(req.user._id)
-      .select("_id shopName ownerName isOnboarded analyticsPin mobileNumber");
+    const shop = await Shop.findById(req.user._id);
 
+    if (!shop) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+
+    // Convert mongoose doc → plain object
+    const shopObj = shop.toObject();
+
+    // 🔒 Explicitly remove sensitive fields (double safety)
+    delete shopObj.otp;
+    delete shopObj.otpExpiresAt;
+    delete shopObj.analyticsPin;
+    delete shopObj.secretKey;
+    delete shopObj.analyticsPinOtpAttempts;
+    delete shopObj.analyticsPinOtpBlockedUntil;
 
     res.status(200).json({
       success: true,
       shop: {
-        _id: shop._id,
-        shopName: shop.shopName,
-        ownerName: shop.ownerName,
-        isOnboarded: shop.isOnboarded,
-        hasAnalyticsPin: !!shop.analyticsPin, // ✅ ONLY BOOLEAN
-        mobileNumber:shop.mobileNumber,
+        ...shopObj,
+        hasAnalyticsPin: !!shop.analyticsPin,
       },
     });
   } catch (err) {
     res.status(500).json({ message: "Failed to load profile" });
   }
 });
+
 router.post(
   "/analytics-pin/send-reset-otp",
   protectRoute,
