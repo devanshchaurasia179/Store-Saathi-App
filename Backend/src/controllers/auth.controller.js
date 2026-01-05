@@ -298,6 +298,49 @@ export async function verifyAnalyticsPin(req, res) {
     res.status(500).json({ message: "Something went wrong" });
   }
 }
+/* =====================================================
+   SEND OTP FOR ANALYTICS PIN RESET
+===================================================== */
+export async function sendAnalyticsPinResetOtp(req, res) {
+  try {
+    const shopId = req.user._id;
+    const shop = await Shop.findById(shopId);
+
+    if (!shop) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+
+    const otp = generateOtp();
+    shop.otp = otp;
+    shop.otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    await shop.save();
+
+    const transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      auth: {
+        user: "devanshchaurasia2410@gmail.com",
+        pass: process.env.NODEMAILER_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from: '"Store Saathi Security" <security@storesaathi.dev>',
+      to: "devanshshopsaathi@gmail.com",
+      subject: "OTP to Reset Analytics PIN",
+      text: `Your OTP to reset Analytics PIN is ${otp}. Valid for 5 minutes.`,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "OTP sent for PIN reset",
+    });
+  } catch (error) {
+    console.error("Send PIN Reset OTP Error:", error);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+}
 
 /* =====================================================
    UPDATE ANALYTICS PIN
@@ -332,6 +375,43 @@ export async function updateAnalyticsPin(req, res) {
     });
   } catch (error) {
     console.error("Update Analytics PIN Error:", error);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+}
+/* =====================================================
+   VERIFY OTP & RESET ANALYTICS PIN
+===================================================== */
+export async function resetAnalyticsPinWithOtp(req, res) {
+  try {
+    const shopId = req.user._id;
+    const { otp, newPin } = req.body;
+
+    if (!otp || !newPin) {
+      return res.status(400).json({
+        message: "OTP and new PIN are required",
+      });
+    }
+
+    const shop = await Shop.findById(shopId)
+      .select("+otp +otpExpiresAt +analyticsPin");
+
+    if (!shop || !shop.verifyOtp(otp)) {
+      return res.status(401).json({
+        message: "Invalid or expired OTP",
+      });
+    }
+
+    shop.analyticsPin = newPin;
+    shop.otp = undefined;
+    shop.otpExpiresAt = undefined;
+    await shop.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Analytics PIN reset successfully",
+    });
+  } catch (error) {
+    console.error("Reset Analytics PIN Error:", error);
     res.status(500).json({ message: "Something went wrong" });
   }
 }

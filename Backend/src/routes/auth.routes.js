@@ -10,6 +10,8 @@ import {
   verifyAnalyticsPin,
   updateAnalyticsPin,
   onboard,
+  sendAnalyticsPinResetOtp,
+  resetAnalyticsPinWithOtp,
   logout,
 } from "../controllers/auth.controller.js";
 
@@ -57,6 +59,17 @@ router.get("/me", protectRoute, async (req, res) => {
     res.status(500).json({ message: "Failed to load profile" });
   }
 });
+router.post(
+  "/analytics-pin/send-reset-otp",
+  protectRoute,
+  sendAnalyticsPinResetOtp
+);
+
+router.post(
+  "/analytics-pin/reset-with-otp",
+  protectRoute,
+  resetAnalyticsPinWithOtp
+);
 
 
 export default router;
