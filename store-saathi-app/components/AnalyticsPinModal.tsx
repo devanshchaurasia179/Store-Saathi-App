@@ -25,7 +25,7 @@ import {
 type Props = {
   visible: boolean;
   mode: "set" | "verify";
-  onSuccess: () => void;
+  onSuccess: (pin: string) => void;
   onClose: () => void;
 };
 
@@ -42,12 +42,11 @@ export default function AnalyticsPinModal({
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
-  // Focus management: Ensure keyboard opens on mount and on step changes
   useEffect(() => {
     if (visible) {
       const timer = setTimeout(() => {
         inputRef.current?.focus();
-      }, 300); // Increased delay for better reliability with Modal transitions
+      }, 300);
       return () => clearTimeout(timer);
     }
   }, [visible, step]);
@@ -75,15 +74,15 @@ export default function AnalyticsPinModal({
 
         if (mode === "set") {
           await setAnalyticsPin(pin);
-          Toast.show({ type: "success", text1: "PIN Created" });
-          onSuccess();
+          Toast.show({ type: "success", text1: "Security PIN Created" });
+          onSuccess(pin);
           onClose();
           return;
         }
 
         await verifyAnalyticsPin(pin);
-        Toast.show({ type: "success", text1: "Access Granted" });
-        onSuccess();
+        Toast.show({ type: "success", text1: "Identity Verified" });
+        onSuccess(pin);
         onClose();
         return;
       }
@@ -106,13 +105,13 @@ export default function AnalyticsPinModal({
 
         await resetAnalyticsPinWithOtp(otp, pin);
         Toast.show({ type: "success", text1: "PIN Reset Successful" });
-        onSuccess();
+        onSuccess(pin);
         onClose();
       }
     } catch (err: any) {
       Toast.show({
         type: "error",
-        text1: err?.response?.data?.message || "Something went wrong",
+        text1: err?.response?.data?.message || "Verification Failed",
       });
     } finally {
       setLoading(false);
@@ -127,7 +126,7 @@ export default function AnalyticsPinModal({
       <Pressable
         style={[
           styles.pinContainer,
-          step === "otp" && { paddingHorizontal: 0 } // Use full width for 6 digits
+          step === "otp" && { paddingHorizontal: 0 }
         ]}
         onPress={() => inputRef.current?.focus()}
       >
@@ -139,7 +138,7 @@ export default function AnalyticsPinModal({
               key={index}
               style={[
                 styles.pinBox,
-                step === "otp" && styles.pinBoxOtp, // Smaller boxes for OTP
+                step === "otp" && styles.pinBoxOtp,
                 char ? styles.pinBoxFilled : null,
                 isCurrent ? styles.pinBoxActive : null,
               ]}
@@ -190,8 +189,8 @@ export default function AnalyticsPinModal({
               : step === "newPin"
               ? "Set New PIN"
               : mode === "set"
-              ? "Secure Analytics"
-              : "Privacy Protected"}
+              ? "Setup Security PIN"
+              : "Security Verification"}
           </Text>
 
           <Text style={styles.subtitle}>
@@ -200,8 +199,8 @@ export default function AnalyticsPinModal({
               : step === "newPin"
               ? "Create a new 4-digit access PIN"
               : mode === "set"
-              ? "Create a 4-digit PIN to hide sensitive data"
-              : "Enter your 4-digit PIN to view analytics"}
+              ? "Create a 4-digit PIN to secure sensitive features"
+              : "Enter your 4-digit security PIN to continue"}
           </Text>
 
           <TextInput
@@ -261,7 +260,7 @@ export default function AnalyticsPinModal({
                   ? "Reset PIN"
                   : mode === "set"
                   ? "Create PIN"
-                  : "Unlock Analytics"}
+                  : "Authorize Access"}
               </Text>
             )}
           </TouchableOpacity>
@@ -271,9 +270,10 @@ export default function AnalyticsPinModal({
             style={styles.cancelBtn}
             disabled={loading}
           >
-            <Text style={styles.cancelText}>Not now, keep hidden</Text>
+            <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
+        <Toast />
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   pinBoxOtp: {
-    width: 42, // Narrower boxes to fit 6 in a row
+    width: 42,
     height: 56,
     gap: 6,
   },
