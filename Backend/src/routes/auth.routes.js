@@ -53,6 +53,7 @@ router.get("/me", protectRoute, async (req, res) => {
         ownerName: shop.ownerName,
         isOnboarded: shop.isOnboarded,
         hasAnalyticsPin: !!shop.analyticsPin, // ✅ ONLY BOOLEAN
+        mobileNumber:shop.mobileNumber,
       },
     });
   } catch (err) {
