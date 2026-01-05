@@ -73,6 +73,17 @@ const shopSchema = new mongoose.Schema(
       select: false,
     },
 
+    
+analyticsPinOtpAttempts: {
+  type: Number,
+  default: 0,
+  select: false,
+},
+analyticsPinOtpBlockedUntil: {
+  type: Date,
+  select: false,
+},
+
     /* ================= STATUS ================= */
     isOnboarded: {
       type: Boolean,

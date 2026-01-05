@@ -381,6 +381,9 @@ export async function updateAnalyticsPin(req, res) {
 /* =====================================================
    VERIFY OTP & RESET ANALYTICS PIN (FIXED)
 ===================================================== */
+/* =====================================================
+   VERIFY OTP & RESET ANALYTICS PIN (WITH LOCKOUT)
+===================================================== */
 export async function resetAnalyticsPinWithOtp(req, res) {
   try {
     const shopId = req.user._id;
@@ -392,27 +395,58 @@ export async function resetAnalyticsPinWithOtp(req, res) {
       });
     }
 
-    const shop = await Shop.findById(shopId)
-      .select("+otp +otpExpiresAt +analyticsPin");
+    const shop = await Shop.findById(shopId).select(
+      "+otp +otpExpiresAt +analyticsPin +analyticsPinOtpAttempts +analyticsPinOtpBlockedUntil"
+    );
 
     if (!shop) {
       return res.status(404).json({ message: "Shop not found" });
     }
 
-    // ✅ SAME LOGIC AS LOGIN OTP (IMPORTANT)
+    /* ================= BLOCK CHECK ================= */
+    if (
+      shop.analyticsPinOtpBlockedUntil &&
+      shop.analyticsPinOtpBlockedUntil > new Date()
+    ) {
+      const minutesLeft = Math.ceil(
+        (shop.analyticsPinOtpBlockedUntil - Date.now()) / (1000 * 60)
+      );
+
+      return res.status(429).json({
+        message: `Too many invalid attempts. Try again in ${minutesLeft} minutes.`,
+      });
+    }
+
+    /* ================= OTP VERIFY ================= */
     const isValid = await shop.verifyOtp(otp);
+
     if (!isValid) {
+      shop.analyticsPinOtpAttempts =
+        (shop.analyticsPinOtpAttempts || 0) + 1;
+
+      // 🚫 BLOCK AFTER 5 FAILURES
+      if (shop.analyticsPinOtpAttempts >= 5) {
+        shop.analyticsPinOtpBlockedUntil = new Date(
+          Date.now() + 1 * 60 * 60 * 1000 // 6 hours
+        );
+        shop.analyticsPinOtpAttempts = 0; // reset counter after block
+      }
+
+      await shop.save();
+
       return res.status(401).json({
         message: "Invalid or expired OTP",
       });
     }
 
-    // ✅ Update PIN
+    /* ================= SUCCESS ================= */
     shop.analyticsPin = newPin;
 
-    // ✅ Clear OTP after use (SECURITY)
+    // ✅ Clear OTP + reset security counters
     shop.otp = undefined;
     shop.otpExpiresAt = undefined;
+    shop.analyticsPinOtpAttempts = 0;
+    shop.analyticsPinOtpBlockedUntil = undefined;
 
     await shop.save();
 
@@ -425,6 +459,7 @@ export async function resetAnalyticsPinWithOtp(req, res) {
     res.status(500).json({ message: "Something went wrong" });
   }
 }
+
 
 
 /* =====================================================
