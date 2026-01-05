@@ -9,64 +9,56 @@ import {
   Image,
   Dimensions,
   KeyboardAvoidingView,
-  ScrollView,
   Platform,
+  ScrollView,
 } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
-// Correct Library Import
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import Toast from "react-native-toast-message";
-import WelcomeHeader from "../components/WelcomeHeader";
-import { verifyOtp } from "../constants/auth.api";
+import { loginWithSecretKey } from "../constants/auth.api";
 import { useAuth } from "../providers/AuthProvider";
-import { useLanguage } from "../providers/LanguageProvider";
-import { LANGUAGE_TEXT } from "../constants/language";
+import { Ionicons } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
 
-export default function VerifyOtpPage() {
+export default function LoginSecretPage() {
   const router = useRouter();
-  const { mobileNumber } = useLocalSearchParams<{ mobileNumber: string }>();
   const { login } = useAuth();
-  const { language } = useLanguage();
 
-  const text = LANGUAGE_TEXT[language] || LANGUAGE_TEXT.en;
-
-  const [otp, setOtp] = useState("");
+  const [mobileNumber, setMobileNumber] = useState("");
+  const [secretKey, setSecretKey] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleVerifyOtp = async () => {
-    if (!otp || otp.length !== 6) {
+  const handleLogin = async () => {
+    const cleanMobile = mobileNumber.trim();
+    const cleanSecret = secretKey.trim().toUpperCase();
+
+    if (cleanMobile.length !== 10 || cleanSecret.length < 6) {
       Toast.show({
         type: "error",
-        text1: text.invalidOtp,
+        text1: "Enter valid mobile number and secret key",
       });
       return;
     }
 
+    setLoading(true);
     try {
-      setLoading(true);
-      const res = await verifyOtp(mobileNumber!, otp);
+      const res = await loginWithSecretKey(cleanMobile, cleanSecret);
 
       if (res?.data?.success) {
+        await login(res.data.token);
         Toast.show({
           type: "success",
-          text1: text.loginSuccess,
+          text1: "Login successful",
         });
-
-        await login(res.data.token);
         router.replace("/dashboard");
+      } else {
+        throw new Error("Login failed");
       }
-    } catch (error: any) {
-      const backendMessage =
-        error?.response?.data?.message ||
-        error?.response?.data?.error ||
-        text.somethingWentWrong;
-
+    } catch (err: any) {
       Toast.show({
         type: "error",
-        text1: backendMessage,
+        text1: err?.response?.data?.message || "Invalid credentials",
       });
     } finally {
       setLoading(false);
@@ -80,70 +72,78 @@ export default function VerifyOtpPage() {
         style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
           bounces={false}
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
         >
-          {/* Top Section */}
+          {/* Enhanced Header */}
           <View style={styles.topSection}>
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
               <Ionicons name="arrow-back" size={20} color="#1E3A8A" />
-              <Text style={styles.backText}>{text.back || "Back"}</Text>
+              <Text style={styles.backText}>Back</Text>
             </TouchableOpacity>
 
-            <View style={styles.headerSection}>
-              <WelcomeHeader />
+            <View style={styles.headerInfo}>
+              <Text style={styles.title}>Secret Key Login</Text>
+              <Text style={styles.subtitle}>Enter your credentials to access your account</Text>
             </View>
 
+            {/* Added Image Here */}
             <View style={styles.imageContainer}>
               <Image
-                source={require("../assets/images/login.png")} 
+                source={require("../assets/images/login.png")}
                 style={styles.illustration}
                 resizeMode="contain"
               />
             </View>
           </View>
 
-          {/* Bottom Card */}
+          {/* Bottom Card Style */}
           <View style={styles.loginCard}>
-            <Text style={styles.cardTitle}>{text.verifyOtpTitle || "Verify OTP"}</Text>
-
-            <View style={styles.separatorContainer}>
-              <View style={styles.line} />
-              <Text style={styles.secureText}>{text.secureLabel || "SECURE"}</Text>
-              <View style={styles.line} />
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>MOBILE NUMBER</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="call-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
+                <TextInput
+                  keyboardType="number-pad"
+                  maxLength={10}
+                  value={mobileNumber}
+                  onChangeText={setMobileNumber}
+                  placeholder="Enter 10 digit number"
+                  style={styles.input}
+                  placeholderTextColor="#94A3B8"
+                  autoCorrect={false}
+                />
+              </View>
             </View>
 
-            <View style={styles.infoRow}>
-              <Text style={styles.label}>{text.otpSentTo || "OTP SENT TO"}: {mobileNumber}</Text>
-              <TouchableOpacity onPress={() => router.push("/login")}>
-                <Text style={styles.changeNumberText}>{text.changeNumber || "Edit"}</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.inputContainer}>
-              <TextInput
-                placeholder="------"
-                keyboardType="number-pad"
-                maxLength={6}
-                value={otp}
-                onChangeText={setOtp}
-                style={styles.otpInput}
-                placeholderTextColor="#94A3B8"
-                letterSpacing={Platform.OS === 'ios' ? 10 : 5}
-              />
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>SECRET KEY</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="key-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
+                <TextInput
+                  value={secretKey}
+                  onChangeText={setSecretKey}
+                  placeholder="SS-XXXXXXX"
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  spellCheck={false}
+                  style={styles.input}
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
             </View>
 
             <TouchableOpacity
-              onPress={handleVerifyOtp}
-              disabled={loading}
               style={[styles.button, loading && { opacity: 0.7 }]}
+              onPress={handleLogin}
+              disabled={loading}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.buttonText}>{text.verifyOtpBtn || "VERIFY OTP"}</Text>
+                <Text style={styles.buttonText}>VERIFY & LOGIN</Text>
               )}
             </TouchableOpacity>
 
@@ -160,9 +160,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F8FAFC",
   },
-  scrollContent: {
-    flexGrow: 1,
-  },
   topSection: {
     backgroundColor: "#F8FAFC",
   },
@@ -178,14 +175,27 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginLeft: 4,
   },
-  headerSection: {
+  headerInfo: {
     alignItems: "center",
     marginTop: 10,
+    paddingHorizontal: 24,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#1E3A8A",
+    textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    marginTop: 8,
   },
   imageContainer: {
     alignItems: "center",
     justifyContent: "center",
-    marginVertical: 10,
+    marginVertical: 15,
     height: width * 0.45,
   },
   illustration: {
@@ -205,67 +215,40 @@ const styles = StyleSheet.create({
     shadowRadius: 15,
     elevation: 10,
   },
-  cardTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#334155",
-    textAlign: "center",
+  inputGroup: {
     marginBottom: 20,
-  },
-  separatorContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 25,
-  },
-  line: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#E2E8F0",
-  },
-  secureText: {
-    marginHorizontal: 10,
-    fontSize: 12,
-    fontWeight: "bold",
-    color: "#94A3B8",
-    letterSpacing: 1,
-  },
-  infoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
   },
   label: {
     fontSize: 12,
     fontWeight: "bold",
     color: "#1E3A8A",
-  },
-  changeNumberText: {
-    fontSize: 13,
-    fontWeight: "bold",
-    color: "#EF4444", 
-    textDecorationLine: "underline",
+    marginBottom: 8,
+    marginLeft: 4,
   },
   inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#F1F5F9",
     borderRadius: 14,
-    height: 60,
-    justifyContent: "center",
-    marginBottom: 30,
     paddingHorizontal: 16,
+    height: 60,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: "#E2E8F0",
   },
-  otpInput: {
-    fontSize: 22,
+  inputIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
     color: "#1E293B",
-    textAlign: "center",
-    fontWeight: "bold",
+    fontWeight: "600",
   },
   button: {
+    marginTop: 10,
     backgroundColor: "#1E3A8A",
-    borderRadius: 14,
     height: 60,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#1E3A8A",

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,10 @@ import PageLoader from "@/components/PageLoader";
 import { useAnalytics } from "../hooks/useAnalytics";
 import { formatRupee } from "../utils/formatCurrency";
 import ViewBillModal from "../components/bills/ViewBillModal";
+
+/* 🔒 PIN COMPONENTS & API */
+import AnalyticsPinModal from "../components/AnalyticsPinModal";
+import { getMe } from "../constants/auth.api";
 
 /* 🔤 LANGUAGE */
 import { LANGUAGE_TEXT_ANALYTICS } from "../constants/language";
@@ -35,8 +39,25 @@ export default function AnalyticsScreen() {
   
   const [showAllProducts, setShowAllProducts] = useState(false);
   
-  // 👁️ Privacy State (Initially Hidden)
+  // 👁️ Privacy & PIN State
   const [isDataVisible, setIsDataVisible] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinMode, setPinMode] = useState<"set" | "verify" | "forgot">("verify");
+  const [hasPin, setHasPin] = useState<boolean | null>(null);
+
+  // 🔍 Step 3: Detect if PIN exists on load
+  useEffect(() => {
+    async function checkPin() {
+      try {
+        const res = await getMe();
+        // Detect presence via backend response
+       setHasPin(res.data.shop.hasAnalyticsPin);
+      } catch {
+        setHasPin(false);
+      }
+    }
+    checkPin();
+  }, []);
 
   const getLocalDateString = (date: Date) => {
     const year = date.getFullYear();
@@ -69,6 +90,22 @@ export default function AnalyticsScreen() {
       setSelectedDate(date);
       setMode("daily");
     }
+  };
+
+  // 👁️ Step 4: Logic for the Eye Button
+  const handleToggleVisibility = () => {
+    if (isDataVisible) {
+      setIsDataVisible(false);
+      return;
+    }
+
+    if (!hasPin) {
+      setPinMode("set");
+    } else {
+      setPinMode("verify");
+    }
+
+    setShowPinModal(true);
   };
 
   const handleOpenBill = (id: string) => {
@@ -127,7 +164,7 @@ export default function AnalyticsScreen() {
             <Text style={styles.screenTitle}>{t.title}</Text>
             <TouchableOpacity 
               style={styles.eyeBtn} 
-              onPress={() => setIsDataVisible(!isDataVisible)}
+              onPress={handleToggleVisibility}
             >
               <Ionicons 
                 name={isDataVisible ? "eye-outline" : "eye-off-outline"} 
@@ -318,6 +355,21 @@ export default function AnalyticsScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
+      {/* 🔌 Step 6: PIN MODAL */}
+      <AnalyticsPinModal
+        visible={showPinModal}
+        mode={pinMode}
+        onClose={() => setShowPinModal(false)}
+        onSuccess={(modeOverride?: string) => {
+          if (modeOverride === "forgot") {
+            setPinMode("forgot");
+            return;
+          }
+          setIsDataVisible(true);
+          setHasPin(true); // Ensure state updates after a new PIN is set
+        }}
+      />
+
       {selectedBillId && (
         <ViewBillModal
           billId={selectedBillId}
@@ -329,6 +381,7 @@ export default function AnalyticsScreen() {
 }
 
 const styles = StyleSheet.create({
+  // ... (Keeping your existing styles untouched)
   safeArea: { flex: 1, backgroundColor: "#F8FAFC" },
   container: { flex: 1, paddingHorizontal: 16 },
   navBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8, marginBottom: 10 },

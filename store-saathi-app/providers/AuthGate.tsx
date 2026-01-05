@@ -13,11 +13,13 @@ export default function AuthGate({ children }: any) {
 
     const route = segments[0];
 
+    // ✅ Public routes (no auth required)
     const isPublicRoute =
-      route === undefined || // index
+      route === undefined || // index (/)
       route === "language" ||
       route === "login" ||
-      route === "verify-otp";
+      route === "verify-otp" ||
+      route === "login-secret"; // ✅ ADD (Secret Key Login)
 
     // ❌ Not logged in → block protected routes
     if (!isAuthenticated && !isPublicRoute) {
@@ -31,7 +33,8 @@ export default function AuthGate({ children }: any) {
       (route === undefined ||
         route === "language" ||
         route === "login" ||
-        route === "verify-otp")
+        route === "verify-otp" ||
+        route === "login-secret") // ✅ ADD
     ) {
       router.replace("/dashboard");
     }

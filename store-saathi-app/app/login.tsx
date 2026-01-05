@@ -13,7 +13,6 @@ import {
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
-// Correct Library Import
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
@@ -72,19 +71,20 @@ export default function LoginPage() {
     }
   };
 
+  const handleSecretLogin = () => {
+    router.push("/login-secret");
+  };
+
   return (
-    // Applied left and right edges to handle horizontal safe areas (like landscape or dynamic island)
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
-        // keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20} // Optional tweak if input is hidden
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           bounces={false}
           showsVerticalScrollIndicator={false}
-          // Important for forms: allows keyboard to dismiss when clicking outside input
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.topSection}>
@@ -147,7 +147,23 @@ export default function LoginPage() {
               )}
             </TouchableOpacity>
 
-            {/* Spacer for better scrolling on small screens */}
+            {/* --- Enhanced OR Separator --- */}
+            <View style={styles.orContainer}>
+              <View style={styles.orLine} />
+              <Text style={styles.orText}>OR</Text>
+              <View style={styles.orLine} />
+            </View>
+
+            {/* Login via Secret Key Link */}
+            <TouchableOpacity
+              onPress={handleSecretLogin}
+              style={styles.secretLoginContainer}
+            >
+              <Text style={styles.secretLoginText}>
+                {text.loginWithSecretKey || "Login using Secret Key"}
+              </Text>
+            </TouchableOpacity>
+
             <View style={{ height: 40 }} />
           </View>
         </ScrollView>
@@ -200,7 +216,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 35,
     borderTopRightRadius: 35,
     padding: 24,
-    // Add extra padding at the bottom for iOS home indicator
     paddingBottom: Platform.OS === "ios" ? 40 : 24,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -10 },
@@ -278,5 +293,33 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     letterSpacing: 0.5,
+  },
+  // --- New OR Separator Styles ---
+  orContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 25,
+    marginBottom: 10,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#E2E8F0",
+  },
+  orText: {
+    marginHorizontal: 15,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#94A3B8",
+  },
+  secretLoginContainer: {
+    marginTop: 15,
+    alignItems: "center",
+  },
+  secretLoginText: {
+    color: "#1E3A8A",
+    fontSize: 15,
+    fontWeight: "700",
+    textDecorationLine: "none", // Underline removed
   },
 });
