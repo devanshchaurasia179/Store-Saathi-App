@@ -38,25 +38,11 @@ router.post("/onboarding", protectRoute, onboard);
 /* ================= SESSION ================= */
 router.post("/logout", logout);
 
-router.get("/me", protectRoute, async (req, res) => {
-  try {
-    const shop = await Shop.findById(req.user._id)
-      .select("_id shopName ownerName isOnboarded analyticsPin");
-
-    res.status(200).json({
-      success: true,
-      shop: {
-        _id: shop._id,
-        shopName: shop.shopName,
-        ownerName: shop.ownerName,
-        isOnboarded: shop.isOnboarded,
-        hasAnalyticsPin: !!shop.analyticsPin, // ✅ ONLY BOOLEAN
-      },
-    });
-  } catch (err) {
-    res.status(500).json({ message: "Failed to load profile" });
-  }
+router.get("/me", protectRoute, (req, res) => {
+  res.status(200).json({
+    success: true,
+    shop: req.user,
+  });
 });
-
 
 export default router;
