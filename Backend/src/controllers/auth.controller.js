@@ -379,7 +379,7 @@ export async function updateAnalyticsPin(req, res) {
   }
 }
 /* =====================================================
-   VERIFY OTP & RESET ANALYTICS PIN
+   VERIFY OTP & RESET ANALYTICS PIN (FIXED)
 ===================================================== */
 export async function resetAnalyticsPinWithOtp(req, res) {
   try {
@@ -395,15 +395,25 @@ export async function resetAnalyticsPinWithOtp(req, res) {
     const shop = await Shop.findById(shopId)
       .select("+otp +otpExpiresAt +analyticsPin");
 
-    if (!shop || !shop.verifyOtp(otp)) {
+    if (!shop) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+
+    // ✅ SAME LOGIC AS LOGIN OTP (IMPORTANT)
+    const isValid = await shop.verifyOtp(otp);
+    if (!isValid) {
       return res.status(401).json({
         message: "Invalid or expired OTP",
       });
     }
 
+    // ✅ Update PIN
     shop.analyticsPin = newPin;
+
+    // ✅ Clear OTP after use (SECURITY)
     shop.otp = undefined;
     shop.otpExpiresAt = undefined;
+
     await shop.save();
 
     res.status(200).json({
@@ -415,6 +425,7 @@ export async function resetAnalyticsPinWithOtp(req, res) {
     res.status(500).json({ message: "Something went wrong" });
   }
 }
+
 
 /* =====================================================
    ONBOARD SHOP
