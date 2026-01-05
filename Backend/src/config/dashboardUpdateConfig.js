@@ -1,5 +1,5 @@
 export const DASHBOARD_UPDATE_CONFIG = {
-  updateAvailable: true, // 🔥 set true when pushing update
+  updateAvailable: false, // 🔥 set true when pushing update
 
   updateMessage: "Bug fixes & performance improvements",
   latestVersion: "1.0.6",
