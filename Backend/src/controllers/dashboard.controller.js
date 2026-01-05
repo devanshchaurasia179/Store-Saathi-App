@@ -29,6 +29,12 @@ export async function getDashboard(req, res) {
     const profileCompletion = calculateProfileCompletion(shop);
 
     /* -------------------------------
+       🆕 UPDATE FLAG (SAFE)
+       If shop.update === true → show update
+    -------------------------------- */
+    const updateAvailable = shop.update === true;
+
+    /* -------------------------------
        ✅ TOP DEBTOR (CUSTOMERS ONLY)
     -------------------------------- */
     const topDebtor = await Customer.findOne({
@@ -50,7 +56,7 @@ export async function getDashboard(req, res) {
       quantity: { $lte: 5 },
     })
       .limit(5)
-      .select("name quantity unit"); // 🆕 FIX HERE
+      .select("name quantity unit");
 
     /* -------------------------------
        MOST SOLD PRODUCTS
@@ -96,6 +102,9 @@ export async function getDashboard(req, res) {
           profileCompletion,
         },
 
+        // 🆕 UPDATE INDICATOR
+        updateAvailable,
+
         // ✅ SAFE RESPONSE
         topDebtor: topDebtor
           ? {
@@ -107,7 +116,7 @@ export async function getDashboard(req, res) {
             }
           : null,
 
-        lowStock, // 🆕 NOW HAS unit
+        lowStock,
         mostSold,
         recentBills,
       },
