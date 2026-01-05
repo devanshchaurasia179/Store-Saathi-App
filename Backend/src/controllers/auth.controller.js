@@ -203,7 +203,7 @@ export async function resetSecretKey(req, res) {
     const isPinValid = await shop.verifyAnalyticsPin(analyticsPin);
     if (!isPinValid) {
       return res.status(401).json({
-        message: "Invalid Analytics PIN",
+        message: "Invalid PIN",
       });
     }
 
