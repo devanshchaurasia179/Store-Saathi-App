@@ -371,16 +371,13 @@ export async function updateAnalyticsPin(req, res) {
 
     res.status(200).json({
       success: true,
-      message: "Analytics PIN updated successfully",
+      message: "PIN updated successfully",
     });
   } catch (error) {
     console.error("Update Analytics PIN Error:", error);
     res.status(500).json({ message: "Something went wrong" });
   }
 }
-/* =====================================================
-   VERIFY OTP & RESET ANALYTICS PIN (FIXED)
-===================================================== */
 /* =====================================================
    VERIFY OTP & RESET ANALYTICS PIN (WITH LOCKOUT)
 ===================================================== */
