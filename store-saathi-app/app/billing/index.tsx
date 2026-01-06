@@ -12,7 +12,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-// 1. Import useIsFocused
 import { useIsFocused } from "@react-navigation/native";
 
 /* COMPONENTS */
@@ -21,6 +20,8 @@ import BillItemsList from "../../components/billing/BillItemsList";
 import BillSummary from "../../components/billing/BillSummary";
 import QuickAddProductModal from "../../components/inventory/QuickAddProductModal";
 import AddCustomerModal from "../../components/ledger/AddCustomerModal";
+// Import the AddProductModal
+import AddProductModal from "../../components/inventory/AddProductModal";
 
 /* HOOKS & API */
 import { useBilling } from "../../hooks/useBilling";
@@ -35,7 +36,6 @@ export default function BillingPage() {
   const { language } = useLanguage();
   const t = LANGUAGE_TEXT_BILLING[language] || LANGUAGE_TEXT_BILLING.en;
   
-  // 2. Initialize focus state
   const isFocused = useIsFocused();
 
   /* ---------------- BILLING HOOK ---------------- */
@@ -66,9 +66,11 @@ export default function BillingPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [productSearch, setProductSearch] = useState("");
   const [productOpen, setProductOpen] = useState(false);
+  // State for Add Product Modal
+  const [addProductModalVisible, setAddProductModalVisible] = useState(false);
 
   /* ---------------- FETCH ---------------- */
-  useEffect(() => {
+  const fetchInitialData = () => {
     getLedgerCustomers()
       .then((res) => {
         const all = res.data.customers || [];
@@ -80,6 +82,10 @@ export default function BillingPage() {
     getProducts()
       .then((res) => setProducts(res.data.products || []))
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchInitialData();
   }, []);
 
   /* ---------------- FILTERS ---------------- */
@@ -104,7 +110,7 @@ export default function BillingPage() {
   const selectedCustomer =
     customers.find((c) => c._id === customerId)?.name || t.walkInCustomer;
 
-  /* ---------------- ADD PRODUCT ---------------- */
+  /* ---------------- ADD PRODUCT TO BILL ---------------- */
   const addProductToBill = (product: any) => {
     const productId = product._id || product.id;
 
@@ -120,10 +126,9 @@ export default function BillingPage() {
         {
           productId: productId,
           name: product.name,
-          price: product.price.sellingPrice,
+          price: product.price?.sellingPrice || product.sellingPrice,
           unit: product.unit || "unit",
-          quantity:
-            product.unit === "kg" || product.unit === "litre" ? 1 : 1,
+          quantity: 1,
         },
       ];
     });
@@ -168,7 +173,7 @@ export default function BillingPage() {
         </TouchableOpacity>
       </View>
 
-      {/* SCANNER - Conditionally rendered based on isFocused */}
+      {/* SCANNER */}
       <View style={styles.scannerContainer}>
         {isFocused ? (
           <BarcodeScanner
@@ -179,7 +184,6 @@ export default function BillingPage() {
           <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#000" }]} />
         )}
 
-        {/* Dark Overlay with Transparent Rectangular Window */}
         <View style={styles.overlay}>
           <View style={styles.maskTop} />
           <View style={styles.maskRow}>
@@ -190,7 +194,6 @@ export default function BillingPage() {
           <View style={[styles.maskTop, { flex: 1 }]} />
         </View>
 
-        {/* Scan Hint */}
         <View style={styles.scanHint}>
           <Ionicons name="scan" size={14} color="#fff" />
           <Text style={styles.scanText}>{t.alignBarcode}</Text>
@@ -306,9 +309,23 @@ export default function BillingPage() {
             <Text style={styles.price}>₹{p.price.sellingPrice}</Text>
           </View>
         )}
+        extraTopOption={
+          <TouchableOpacity
+            style={styles.addNewOption}
+            onPress={() => {
+              setProductOpen(false);
+              setAddProductModalVisible(true);
+            }}
+          >
+            <View style={styles.addIconCircle}>
+              <Ionicons name="add" size={18} color="#2563eb" />
+            </View>
+            <Text style={styles.addNewText}>Add New Product</Text>
+          </TouchableOpacity>
+        }
       />
 
-      {/* QUICK ADD MODAL */}
+      {/* QUICK ADD MODAL (From Scanner) */}
       {productNotFound && lastScannedBarcode && (
         <QuickAddProductModal
           visible={productNotFound}
@@ -316,9 +333,29 @@ export default function BillingPage() {
           onClose={() => setProductNotFound(false)}
           onSuccess={(newProduct) => {
             addProductToBill(newProduct);
+            getProducts().then((res) => setProducts(res.data.products || []));
           }}
         />
       )}
+
+      {/* FULL ADD PRODUCT MODAL (From Search) */}
+      <AddProductModal
+        visible={addProductModalVisible}
+        onClose={() => setAddProductModalVisible(false)}
+        onAdded={() => {
+          // 1. Refresh global product list
+          getProducts().then((res) => {
+            const updatedProducts = res.data.products || [];
+            setProducts(updatedProducts);
+            
+            // 2. Add the most recently created product to the bill
+            if (updatedProducts.length > 0) {
+              const latestProduct = updatedProducts[0]; // Assumes API returns newest first
+              addProductToBill(latestProduct);
+            }
+          });
+        }}
+      />
 
       {/* ADD CUSTOMER MODAL */}
       <AddCustomerModal

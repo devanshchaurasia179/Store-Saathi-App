@@ -6,6 +6,7 @@ import {
   Image,
   TouchableOpacity,
   Platform,
+  Linking, // Import Linking to handle phone calls
 } from "react-native";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -19,6 +20,11 @@ import { useAuth } from "../providers/AuthProvider";
 export default function WelcomeScreen() {
   const router = useRouter();
   const { isAuthenticated, loading } = useAuth();
+
+  // Function to trigger the phone dialer
+  const handleCallSupport = () => {
+    Linking.openURL("tel:+919015422926");
+  };
 
   // 🔑 ROOT LOGIC
   useEffect(() => {
@@ -59,12 +65,22 @@ export default function WelcomeScreen() {
         </View>
 
         <View style={styles.footer}>
+          {/* Primary Action Button */}
           <TouchableOpacity
             style={styles.button}
             onPress={() => router.push("/language")}
             activeOpacity={0.8}
           >
             <Text style={styles.buttonText}>Get Started</Text>
+          </TouchableOpacity>
+
+          {/* New Call Executive Button */}
+          <TouchableOpacity
+            style={styles.callButton}
+            onPress={handleCallSupport}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.callButtonText}>Call Store Saathi Executive</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -121,7 +137,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingHorizontal: 30,
-    paddingBottom: 50,
+    paddingBottom: 40, // Adjusted for two buttons
   },
   button: {
     backgroundColor: "#1E3A8A",
@@ -133,11 +149,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 15,
     elevation: 8,
+    marginBottom: 12, // Space between the two buttons
   },
   buttonText: {
     color: "#FFFFFF",
     fontSize: 18,
     fontWeight: "700",
     letterSpacing: 0.5,
+  },
+  // New styles for the call button
+  callButton: {
+    backgroundColor: "transparent",
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#1E3A8A",
+  },
+  callButtonText: {
+    color: "#1E3A8A",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });
