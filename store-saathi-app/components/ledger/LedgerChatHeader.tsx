@@ -98,9 +98,6 @@ export default function LedgerChatHeader({ customer, onRefresh }: any) {
                 <Ionicons name="create-outline" size={18} color="#1e293b" />
                 <Text style={styles.menuText}>{t.editCustomer}</Text>
               </TouchableOpacity>
-              
-              <View style={styles.menuDivider} />
-
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => {
@@ -108,8 +105,6 @@ export default function LedgerChatHeader({ customer, onRefresh }: any) {
                   // Logic for delete can go here
                 }}
               >
-                <Ionicons name="trash-outline" size={18} color="#ef4444" />
-                <Text style={[styles.menuText, { color: "#ef4444" }]}>{t.deleteCustomer}</Text>
               </TouchableOpacity>
             </View>
           </View>

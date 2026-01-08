@@ -37,7 +37,10 @@ const getUnitShorthand = (unit: string): string => {
 /**
  * Connect to a Bluetooth thermal printer
  */
-export const connectPrinter = async (address: string, name?: string): Promise<void> => {
+export const connectPrinter = async (
+  address: string,
+  name?: string
+): Promise<void> => {
   try {
     const isEnabled = await BluetoothManager.isBluetoothEnabled();
     if (!isEnabled) {
@@ -65,7 +68,7 @@ export const connectPrinter = async (address: string, name?: string): Promise<vo
 
     if (connected) {
       await setConnectedPrinter(address, name);
-      return; 
+      return;
     }
 
     Alert.alert("Connection Failed", "Please ensure printer is on and paired.");
@@ -82,8 +85,12 @@ export const printBill = async (bill: any): Promise<void> => {
   try {
     const dashboardResponse = await getDashboard();
     const shop = dashboardResponse.data.dashboard.shop;
+
     const shopName = shop.shopName || "Our Shop";
     const upiId = shop.upiId || "";
+    const gstNumber = shop.gstNumber || "";
+    const address = shop.address || "";
+    const mobileNumber = shop.mobileNumber || "";
 
     const subTotal = bill.subTotal || bill.totalAmount || 0;
     const discount = bill.discount || 0;
@@ -92,89 +99,175 @@ export const printBill = async (bill: any): Promise<void> => {
     const remaining = totalAmount - paidAmount;
 
     await BluetoothEscposPrinter.printerInit();
-    await BluetoothEscposPrinter.printerAlign(BluetoothEscposPrinter.ALIGN.CENTER);
+    await BluetoothEscposPrinter.printerAlign(
+      BluetoothEscposPrinter.ALIGN.CENTER
+    );
     await BluetoothEscposPrinter.setBlob(0);
 
     // Header
-    await BluetoothEscposPrinter.printText(`${shopName.toUpperCase()}\n\r`, { bold: true });
-    await BluetoothEscposPrinter.printText("Amritsar, Punjab\n\r", {});
-    if (shop.mobileNumber) {
-        await BluetoothEscposPrinter.printText(`Phone: +91 ${shop.mobileNumber}\n\r`, {});
+    await BluetoothEscposPrinter.printText(
+      `${shopName.toUpperCase()}\n\r`,
+      { bold: true }
+    );
+
+    if (address) {
+      await BluetoothEscposPrinter.printText(`${address}\n\r`, {});
     }
-    await BluetoothEscposPrinter.printText("================================\n\r", {});
+
+    if (mobileNumber) {
+      await BluetoothEscposPrinter.printText(
+        `Phone: +91 ${mobileNumber}\n\r`,
+        {}
+      );
+    }
+
+    if (gstNumber) {
+      await BluetoothEscposPrinter.printText(`GSTIN: ${gstNumber}\n\r`, {});
+    }
+
+    await BluetoothEscposPrinter.printText(
+      "================================\n\r",
+      {}
+    );
 
     // Bill Info
-    await BluetoothEscposPrinter.printerAlign(BluetoothEscposPrinter.ALIGN.LEFT);
-    await BluetoothEscposPrinter.printText(`Bill No: #${bill.dailyBillNumber || "N/A"}\n\r`, {});
-    
-    // --- FIXED TIME FORMATTING ---
+    await BluetoothEscposPrinter.printerAlign(
+      BluetoothEscposPrinter.ALIGN.LEFT
+    );
+    await BluetoothEscposPrinter.printText(
+      `Bill No: #${bill.dailyBillNumber || "N/A"}\n\r`,
+      {}
+    );
+
+    // --- FIXED TIME FORMATTING (12-HOUR AM/PM) ---
     const dateObj = new Date(bill.createdAt);
     const datePart = dateObj.toLocaleDateString();
-    // We manually format the time and replace the non-breaking space (U+202F) with a normal space
-    const timePart = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                            .replace(/\u202f/g, ' '); 
-    
-    await BluetoothEscposPrinter.printText(`Date: ${datePart} ${timePart}\n\r`, {});
-    // ------------------------------
 
-    await BluetoothEscposPrinter.printText(`Customer: ${bill.customerId?.name || "Walk-in"}\n\r`, {});
-    await BluetoothEscposPrinter.printText("================================\n\r", {});
+    const timePart = dateObj
+      .toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+      .replace(/\u202f/g, " ");
+
+    await BluetoothEscposPrinter.printText(
+      `Date: ${datePart} ${timePart}\n\r`,
+      {}
+    );
+    // --------------------------------------------
+
+    await BluetoothEscposPrinter.printText(
+      `Customer: ${bill.customerId?.name || "Walk-in"}\n\r`,
+      {}
+    );
+    await BluetoothEscposPrinter.printText(
+      "================================\n\r",
+      {}
+    );
 
     // Table Header
     await BluetoothEscposPrinter.printColumn(
       [14, 8, 10],
-      [BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.CENTER, BluetoothEscposPrinter.ALIGN.RIGHT],
+      [
+        BluetoothEscposPrinter.ALIGN.LEFT,
+        BluetoothEscposPrinter.ALIGN.CENTER,
+        BluetoothEscposPrinter.ALIGN.RIGHT,
+      ],
       ["Item", "Qty", "Amount"],
       { bold: true }
     );
-    await BluetoothEscposPrinter.printText("--------------------------------\n\r", {});
+    await BluetoothEscposPrinter.printText(
+      "--------------------------------\n\r",
+      {}
+    );
 
     // Item Loop
     for (const item of bill.items || []) {
       let name = item.name || "Item";
       if (name.length > 13) name = name.substring(0, 12) + ".";
-      
+
       const shorthand = getUnitShorthand(item.unit);
       const qtyAndUnit = `${item.quantity || 1} ${shorthand}`;
       const amount = `Rs.${item.total || 0}`;
 
       await BluetoothEscposPrinter.printColumn(
         [14, 8, 10],
-        [BluetoothEscposPrinter.ALIGN.LEFT, BluetoothEscposPrinter.ALIGN.CENTER, BluetoothEscposPrinter.ALIGN.RIGHT],
+        [
+          BluetoothEscposPrinter.ALIGN.LEFT,
+          BluetoothEscposPrinter.ALIGN.CENTER,
+          BluetoothEscposPrinter.ALIGN.RIGHT,
+        ],
         [name, qtyAndUnit, amount],
         {}
       );
     }
-    await BluetoothEscposPrinter.printText("================================\n\r", {});
+
+    await BluetoothEscposPrinter.printText(
+      "================================\n\r",
+      {}
+    );
 
     // Totals
-    await BluetoothEscposPrinter.printerAlign(BluetoothEscposPrinter.ALIGN.RIGHT);
-    await BluetoothEscposPrinter.printText(`Sub Total:    Rs.${subTotal}\n\r`, {});
+    await BluetoothEscposPrinter.printerAlign(
+      BluetoothEscposPrinter.ALIGN.RIGHT
+    );
+    await BluetoothEscposPrinter.printText(
+      `Sub Total:    Rs.${subTotal}\n\r`,
+      {}
+    );
+
     if (discount > 0) {
-      await BluetoothEscposPrinter.printText(`Discount:     -Rs.${discount}\n\r`, {});
+      await BluetoothEscposPrinter.printText(
+        `Discount:     -Rs.${discount}\n\r`,
+        {}
+      );
     }
-    await BluetoothEscposPrinter.printText(`Total:        Rs.${totalAmount}\n\r`, { bold: true });
-    await BluetoothEscposPrinter.printText(`Paid:         Rs.${paidAmount}\n\r`, {});
-    
+
+    await BluetoothEscposPrinter.printText(
+      `Total:        Rs.${totalAmount}\n\r`,
+      { bold: true }
+    );
+    await BluetoothEscposPrinter.printText(
+      `Paid:         Rs.${paidAmount}\n\r`,
+      {}
+    );
+
     if (remaining > 0) {
-      await BluetoothEscposPrinter.printText(`Balance Due:  Rs.${remaining}\n\r`, { bold: true });
+      await BluetoothEscposPrinter.printText(
+        `Balance Due:  Rs.${remaining}\n\r`,
+        { bold: true }
+      );
     }
 
     // Status & QR
-    await BluetoothEscposPrinter.printerAlign(BluetoothEscposPrinter.ALIGN.CENTER);
+    await BluetoothEscposPrinter.printerAlign(
+      BluetoothEscposPrinter.ALIGN.CENTER
+    );
     await BluetoothEscposPrinter.printText("\n\r", {});
     await BluetoothEscposPrinter.printText(
-      bill.paymentStatus === "PAID" ? "*** PAID IN FULL ***\n\r" : "*** PARTIAL PAYMENT ***\n\r",
+      bill.paymentStatus === "PAID"
+        ? "*** PAID IN FULL ***\n\r"
+        : "*** PARTIAL PAYMENT ***\n\r",
       { bold: true }
     );
 
     if (upiId) {
-        const upiLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(shopName)}&am=${totalAmount}&cu=INR`;
-        await BluetoothEscposPrinter.printText("\n\rScan QR to Pay:\n\r", {});
-        await BluetoothEscposPrinter.printQRCode(upiLink, 120, BluetoothEscposPrinter.ERROR_CORRECTION.L);
+      const upiLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(
+        shopName
+      )}&am=${totalAmount}&cu=INR`;
+      await BluetoothEscposPrinter.printText("\n\rScan QR to Pay:\n\r", {});
+      await BluetoothEscposPrinter.printQRCode(
+        upiLink,
+        185,
+        BluetoothEscposPrinter.ERROR_CORRECTION.L
+      );
     }
 
-    await BluetoothEscposPrinter.printText("\n\r\n\rThank you! Visit again\n\r\n\r\n\r\n\r", {});
+    await BluetoothEscposPrinter.printText(
+      "\n\r\n\rThank you! Visit again\n\r\n\r\n\r\n\r",
+      {}
+    );
     await BluetoothEscposPrinter.cutOnePoint();
 
     Alert.alert("Success", "Bill printed!");
@@ -198,7 +291,7 @@ export const printTestBill = async (): Promise<void> => {
     createdAt: new Date().toISOString(),
     items: [
       { name: "Milk", quantity: 2, unit: "liter", total: 120 },
-      { name: "Eggs", quantity: 1, unit: "dozen", total: 80 }
+      { name: "Eggs", quantity: 1, unit: "dozen", total: 80 },
     ],
   };
   await printBill(dummyBill);
