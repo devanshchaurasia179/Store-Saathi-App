@@ -100,38 +100,41 @@ export async function getDashboard(req, res) {
        RESPONSE
     -------------------------------- */
     res.status(200).json({
-      success: true,
-      dashboard: {
-        shop: {
-          ownerName: shop.ownerName,
-          shopName: shop.shopName,
-          upiId: shop.upiId,
-          profileCompletion,
-        },
+  success: true,
+  dashboard: {
+    shop: {
+      ownerName: shop.ownerName,
+      shopName: shop.shopName,
+      upiId: shop.upiId,
 
-        /* 🆕 UPDATE INFO (DASHBOARD OWNED) */
-        updateAvailable,
-        updateMessage,
-        latestVersion,
-        forceUpdate,
-        playStoreUrl,
+      gstNumber: shop.gstNumber, // 🧾 GST
+      address: shop.location,   // 📍 Address
 
-        /* ✅ SAFE RESPONSE */
-        topDebtor: topDebtor
-          ? {
-              customerId: topDebtor._id,
-              name: topDebtor.name,
-              amount: topDebtor.totalPending,
-              mobileNumber: topDebtor.mobileNumber,
-              isSupplier: topDebtor.isSupplier,
-            }
-          : null,
+      profileCompletion,
+    },
 
-        lowStock,
-        mostSold,
-        recentBills,
-      },
-    });
+    updateAvailable,
+    updateMessage,
+    latestVersion,
+    forceUpdate,
+    playStoreUrl,
+
+    topDebtor: topDebtor
+      ? {
+          customerId: topDebtor._id,
+          name: topDebtor.name,
+          amount: topDebtor.totalPending,
+          mobileNumber: topDebtor.mobileNumber,
+          isSupplier: topDebtor.isSupplier,
+        }
+      : null,
+
+    lowStock,
+    mostSold,
+    recentBills,
+  },
+});
+
   } catch (error) {
     console.error("Dashboard Error:", error);
     res.status(500).json({
