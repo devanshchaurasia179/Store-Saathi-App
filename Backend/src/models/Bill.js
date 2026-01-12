@@ -74,23 +74,23 @@ const billSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-
+    taxPercentage: {
+      type: Number,
+      default: 0,
+    },
     totalAmount: {
       type: Number,
       required: true,
     },
-
     paidAmount: {
       type: Number,
       required: true,
     },
-
     paymentStatus: {
       type: String,
       enum: ["PAID", "PARTIAL", "UNPAID"],
       required: true,
     },
-
     paymentMode: {
       type: String,
       enum: ["CASH", "UPI", "CARD", "NONE"],

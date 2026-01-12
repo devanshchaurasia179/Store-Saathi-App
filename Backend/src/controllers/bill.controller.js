@@ -39,11 +39,6 @@ function getISTTodayRange() {
 async function generateDailyBillNumber(shopId) {
   const { start, end } = getISTTodayRange();
 
-  // Optional: Log for debugging (remove in production if not needed)
-  // console.log("Today's IST range (UTC timestamps):");
-  // console.log("Start:", start.toISOString());
-  // console.log("End:", end.toISOString());
-
   const lastBill = await Bill.findOne({
     shopId,
     createdAt: { $gte: start, $lte: end },
@@ -65,6 +60,7 @@ export async function createBill(req, res) {
     const {
       items = [],
       discount = 0,
+      taxPercentage = 0,
       customerId = null,
       paidAmount = 0,
       paymentMode = "NONE",
@@ -77,7 +73,7 @@ export async function createBill(req, res) {
       return res.status(400).json({ message: "Bill items are required" });
     }
 
-    if (paidAmount < 0 || discount < 0) {
+    if (paidAmount < 0 || discount < 0 || taxPercentage < 0) {
       return res.status(400).json({ message: "Invalid payment values" });
     }
 
@@ -91,12 +87,7 @@ export async function createBill(req, res) {
       const quantity = Number(item.quantity);
       const price = Number(item.price);
 
-      if (
-        !item.productId ||
-        !item.name ||
-        quantity <= 0 ||
-        price < 0
-      ) {
+      if (!item.productId || !item.name || quantity <= 0 || price < 0) {
         return res.status(400).json({
           message: "Invalid bill item data",
         });
@@ -107,7 +98,12 @@ export async function createBill(req, res) {
         shopId,
       }).select("unit isTrackable quantity");
 
-      const unit = item.unit || product?.unit || "unit";
+      // ✅ ENUM SAFE UNIT
+      const unit =
+        item.unit &&
+        ["unit", "kg", "g", "litre", "ml", "box", "pack", "dozen"].includes(item.unit)
+          ? item.unit
+          : product?.unit || "unit";
 
       const total = quantity * price;
       subTotal += total;
@@ -122,7 +118,8 @@ export async function createBill(req, res) {
       });
     }
 
-    const totalAmount = Math.max(subTotal - discount, 0);
+    const taxAmount = (subTotal * taxPercentage) / 100;
+    const totalAmount = Math.max(subTotal + taxAmount - discount, 0);
 
     /* -----------------------------
        3️⃣ PAYMENT STATUS
@@ -132,7 +129,7 @@ export async function createBill(req, res) {
     else if (paidAmount < totalAmount) paymentStatus = "PARTIAL";
 
     /* -----------------------------
-       4️⃣ DAILY BILL NUMBER (CORRECT FOR IST)
+       4️⃣ DAILY BILL NUMBER (IST SAFE)
     ----------------------------- */
     const dailyBillNumber = await generateDailyBillNumber(shopId);
 
@@ -146,6 +143,7 @@ export async function createBill(req, res) {
       items: billItems,
       subTotal,
       discount,
+      taxPercentage,
       totalAmount,
       paidAmount,
       paymentStatus,
