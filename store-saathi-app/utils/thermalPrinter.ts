@@ -98,6 +98,13 @@ export const printBill = async (bill: any): Promise<void> => {
     const paidAmount = bill.paidAmount || 0;
     const remaining = totalAmount - paidAmount;
 
+    /* ---------------- GST (SAFE ADDITION) ---------------- */
+    const taxPercentage = bill.taxPercentage || 0;
+    const taxAmount = (subTotal * taxPercentage) / 100;
+    const cgst = taxAmount / 2;
+    const sgst = taxAmount / 2;
+    /* ---------------------------------------------------- */
+
     await BluetoothEscposPrinter.printerInit();
     await BluetoothEscposPrinter.printerAlign(
       BluetoothEscposPrinter.ALIGN.CENTER
@@ -142,7 +149,6 @@ export const printBill = async (bill: any): Promise<void> => {
     // --- FIXED TIME FORMATTING (12-HOUR AM/PM) ---
     const dateObj = new Date(bill.createdAt);
     const datePart = dateObj.toLocaleDateString();
-
     const timePart = dateObj
       .toLocaleTimeString([], {
         hour: "2-digit",
@@ -224,6 +230,19 @@ export const printBill = async (bill: any): Promise<void> => {
       );
     }
 
+    /* ---------------- GST PRINT (SAFE) ---------------- */
+    if (taxPercentage > 0 && taxAmount > 0) {
+      await BluetoothEscposPrinter.printText(
+        `CGST (${taxPercentage / 2}%):  Rs.${cgst}\n\r`,
+        {}
+      );
+      await BluetoothEscposPrinter.printText(
+        `SGST (${taxPercentage / 2}%):  Rs.${sgst}\n\r`,
+        {}
+      );
+    }
+    /* -------------------------------------------------- */
+
     await BluetoothEscposPrinter.printText(
       `Total:        Rs.${totalAmount}\n\r`,
       { bold: true }
@@ -284,9 +303,10 @@ export const printTestBill = async (): Promise<void> => {
   const dummyBill = {
     dailyBillNumber: "T-01",
     subTotal: 200,
-    totalAmount: 190,
-    discount: 10,
-    paidAmount: 190,
+    taxPercentage: 5,
+    totalAmount: 210,
+    discount: 0,
+    paidAmount: 210,
     paymentStatus: "PAID",
     createdAt: new Date().toISOString(),
     items: [

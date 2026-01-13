@@ -83,19 +83,24 @@ export default function ViewBillModal({ billId, onClose }: any) {
     }
   };
 
-  const Row = ({ label, value, bold, danger, highlight }: any) => (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text
-        style={[
-          styles.rowValue,
-          bold && styles.boldText,
-          danger && { color: "#ef4444" },
-          highlight && { color: "#10b981" },
-        ]}
-      >
-        {value}
-      </Text>
+  const Row = ({ label, value, bold, danger, highlight, subText }: any) => (
+    <View style={styles.rowContainer}>
+        <View style={styles.row}>
+            <View>
+                <Text style={styles.rowLabel}>{label}</Text>
+                {subText && <Text style={styles.rowSubText}>{subText}</Text>}
+            </View>
+            <Text
+                style={[
+                styles.rowValue,
+                bold && styles.boldText,
+                danger && { color: "#ef4444" },
+                highlight && { color: "#10b981" },
+                ]}
+            >
+                {value}
+            </Text>
+        </View>
     </View>
   );
 
@@ -119,6 +124,24 @@ export default function ViewBillModal({ billId, onClose }: any) {
   }, [billId, checkPrinterStatus]);
 
   if (!billId) return null;
+
+  // TAX CALCULATION LOGIC
+  const calculateTaxSplit = () => {
+    if (!bill || !bill.taxPercentage || bill.taxPercentage <= 0) return null;
+    
+    // Total Tax Amount = (Subtotal * Tax%) / 100
+    const totalTax = (bill.subTotal * bill.taxPercentage) / 100;
+    const splitPercentage = bill.taxPercentage / 2;
+    const splitAmount = totalTax / 2;
+
+    return {
+        totalTax,
+        splitPercentage,
+        splitAmount
+    };
+  };
+
+  const taxData = calculateTaxSplit();
 
   return (
     <Modal
@@ -261,12 +284,29 @@ export default function ViewBillModal({ billId, onClose }: any) {
                   </View>
                 </View>
 
-                {/* BREAKDOWN */}
+                {/* BREAKDOWN CARD */}
                 <View style={styles.breakdownCard}>
                   <Row
                     label={t.subtotal}
                     value={formatRupee(bill.subTotal)}
                   />
+
+                  {/* TAX SPLIT SECTION */}
+                  {taxData && (
+                    <View style={styles.taxContainer}>
+                        <Row
+                            label="CGST"
+                            subText={`@${taxData.splitPercentage}%`}
+                            value={formatRupee(taxData.splitAmount)}
+                        />
+                        <Row
+                            label="SGST"
+                            subText={`@${taxData.splitPercentage}%`}
+                            value={formatRupee(taxData.splitAmount)}
+                        />
+                    </View>
+                  )}
+
                   {bill.discount > 0 && (
                     <Row
                       label={t.discount}
@@ -304,11 +344,11 @@ export default function ViewBillModal({ billId, onClose }: any) {
                    </View>
                 )}
 
-                {/* BOTTOM BUFFER: Ensures content isn't hidden by the floating footer */}
+                {/* BOTTOM BUFFER */}
                 <View style={{ height: insets.bottom + 100 }} />
               </ScrollView>
 
-              {/* FLOATING FOOTER WITH SAFE AREA INSETS */}
+              {/* FLOATING FOOTER */}
               <View 
                 style={[
                   styles.footer, 
@@ -370,7 +410,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 32,
     maxHeight: "94%",
     elevation: 20,
-    overflow: 'hidden', // Ensures safe area padding doesn't show background
+    overflow: 'hidden',
   },
   dragIndicator: {
     width: 40,
@@ -535,6 +575,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
+  taxContainer: {
+    marginVertical: 4,
+    borderLeftWidth: 2,
+    borderLeftColor: '#e2e8f0',
+    paddingLeft: 12,
+  },
   offlineWarning: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -552,15 +598,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
   },
+  rowContainer: {
+    marginBottom: 12,
+  },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 12,
+    alignItems: "center",
   },
   rowLabel: {
     fontSize: 13,
     fontWeight: "600",
     color: "#64748b",
+  },
+  rowSubText: {
+    fontSize: 10,
+    color: "#94a3b8",
+    fontWeight: "500",
   },
   rowValue: {
     fontSize: 15,

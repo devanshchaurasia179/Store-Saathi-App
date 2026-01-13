@@ -2,10 +2,17 @@ import { api } from "./api";
 
 /* ---------------- CREATE BILL ---------------- */
 export const createBill = (data: {
-  items: any[];
+  items: {
+    productId: string;
+    name: string;
+    quantity: number;
+    unit: string;
+    price: number;
+  }[];
   discount: number;
+  taxPercentage: number;
   paidAmount: number;
-  paymentMode: string;
+  paymentMode: "CASH" | "UPI" | "NONE";
   customerId?: string | null;
 }) => {
   return api.post("/bills", data);
