@@ -677,11 +677,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingTop: 10,
+    paddingTop: 40,
     paddingBottom: 15,
+    marginTop:-40,
     borderBottomWidth: 1,
     borderColor: "#f1f5f9",
     gap: 12,
+    zIndex:100,
   },
   backBtn: { padding: 4 },
   title: { fontSize: 17, fontWeight: "800", color: "#0f172a" },
@@ -697,7 +699,7 @@ const styles = StyleSheet.create({
   },
   searchBtnText: { fontSize: 11, fontWeight: "700", color: "#2563eb" },
 
-  tabBar: { paddingVertical: 10, paddingHorizontal: 16, borderBottomWidth: 1, borderColor: "#f1f5f9" },
+  tabBar: { paddingVertical: 10, paddingHorizontal: 16, borderBottomWidth: 1, borderColor: "#f1f5f9",zIndex:100},
 
   // ── Updated tab styles ───────────────────────────────────────
   tabWrapper: {
@@ -763,7 +765,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  scannerContainer: { height: "22%", backgroundColor: "#000" },
+  scannerContainer: { height: "22%", backgroundColor: "transparent" },
   overlay: { ...StyleSheet.absoluteFillObject },
   maskTop: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)" },
   maskRow: { flexDirection: "row", height: 120 },
