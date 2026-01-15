@@ -96,7 +96,7 @@ export async function createBill(req, res) {
         _id: item.productId,
         shopId,
         isActive: true,
-      }).select("name unit isTrackable quantity variants");
+      }).select("name unit isTrackable quantity variants price");
 
       if (!product) {
         return res.status(404).json({
