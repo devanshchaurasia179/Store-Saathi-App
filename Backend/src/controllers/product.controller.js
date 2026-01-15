@@ -4,7 +4,46 @@ import MasterProduct from "../models/MasterProduct.js";
 /* -------------------------------
    CONSTANTS
 -------------------------------- */
-const ALLOWED_UNITS = ["unit", "kg", "g", "litre", "ml", "box", "pack","dozen"];
+const ALLOWED_UNITS = ["unit", "kg", "g", "litre", "ml", "box", "pack", "dozen"];
+
+/* -------------------------------
+   VARIANT VALIDATION HELPER
+-------------------------------- */
+function validateVariants(variants = []) {
+  if (!Array.isArray(variants)) {
+    return "Variants must be an array";
+  }
+
+  for (const variant of variants) {
+    if (!variant.name || typeof variant.name !== "string") {
+      return "Each variant must have a valid name";
+    }
+
+    if (
+      !variant.price ||
+      typeof variant.price.sellingPrice !== "number" ||
+      variant.price.sellingPrice < 0
+    ) {
+      return "Each variant must have a valid selling price";
+    }
+
+    if (
+      variant.barcode &&
+      (typeof variant.barcode !== "string" || variant.barcode.trim() === "")
+    ) {
+      return "Variant barcode must be a non-empty string";
+    }
+
+    if (
+      variant.quantity !== undefined &&
+      (typeof variant.quantity !== "number" || variant.quantity < 0)
+    ) {
+      return "Variant quantity must be a non-negative number";
+    }
+  }
+
+  return null;
+}
 
 /**
  * CREATE PRODUCT (MANUAL / QUICK ADD)
@@ -22,15 +61,22 @@ export async function createProduct(req, res) {
       quantity,
       expiryDate,
       isBarcodeListed = true,
-      unit = "unit", // 🆕
+      unit = "unit",
+      variants = [], // 🆕
     } = req.body;
 
     // 🔴 REQUIRED FIELDS
-    if (!name || !price?.sellingPrice) {
-      return res.status(400).json({
-        message: "Product name and selling price are required",
-      });
-    }
+if (
+  !name ||
+  !price ||
+  typeof price.sellingPrice !== "number" ||
+  price.sellingPrice < 0
+) {
+  return res.status(400).json({
+    message: "Product name and selling price are required",
+  });
+}
+
 
     // 🔴 BARCODE REQUIRED
     if (!barcode || typeof barcode !== "string" || barcode.trim() === "") {
@@ -46,6 +92,14 @@ export async function createProduct(req, res) {
       });
     }
 
+    // 🔒 VARIANT VALIDATION
+    const variantError = validateVariants(variants);
+    if (variantError) {
+      return res.status(400).json({
+        message: variantError,
+      });
+    }
+
     const product = await Product.create({
       shopId,
       name,
@@ -53,9 +107,10 @@ export async function createProduct(req, res) {
       isBarcodeListed,
       category,
       size,
-      unit, // 🆕
+      unit,
       price,
       quantity,
+      variants, // 🆕
       expiryDate,
       isFromMaster: false,
     });
@@ -96,7 +151,7 @@ export async function getProducts(req, res) {
 
 /**
  * 🔥 GET PRODUCT BY BARCODE (SMART SCAN)
- * Barcode items ONLY
+ * Supports PRODUCT + VARIANT barcodes
  */
 export async function getProductByBarcode(req, res) {
   try {
@@ -109,7 +164,7 @@ export async function getProductByBarcode(req, res) {
       });
     }
 
-    // 1️⃣ Check shop products first
+    // 1️⃣ Check MAIN PRODUCT barcode
     let product = await Product.findOne({
       shopId,
       barcode,
@@ -121,11 +176,32 @@ export async function getProductByBarcode(req, res) {
       return res.status(200).json({
         success: true,
         product,
+        variant: null,
         source: "SHOP",
       });
     }
 
-    // 2️⃣ Check master catalog
+    // 2️⃣ Check VARIANT barcode
+    product = await Product.findOne({
+      shopId,
+      "variants.barcode": barcode,
+      isActive: true,
+    });
+
+    if (product) {
+      const variant = product.variants.find(
+        (v) => v.barcode === barcode
+      );
+
+      return res.status(200).json({
+        success: true,
+        product,
+        variant,
+        source: "SHOP_VARIANT",
+      });
+    }
+
+    // 3️⃣ Check master catalog
     const masterProduct = await MasterProduct.findOne({ barcode });
 
     if (!masterProduct) {
@@ -135,7 +211,7 @@ export async function getProductByBarcode(req, res) {
       });
     }
 
-    // 3️⃣ Auto-create shop product from master
+    // 4️⃣ Auto-create shop product from master
     product = await Product.create({
       shopId,
       name: masterProduct.name,
@@ -143,12 +219,13 @@ export async function getProductByBarcode(req, res) {
       isBarcodeListed: true,
       category: masterProduct.category,
       size: masterProduct.size,
-      unit: masterProduct.unit || "unit", // 🆕 fallback
+      unit: masterProduct.unit || "unit",
       price: {
         sellingPrice: masterProduct.mrp,
         mrp: masterProduct.mrp,
       },
       quantity: 0,
+      variants: [], // 🆕 safe default
       expiryDate: null,
       isFromMaster: true,
     });
@@ -156,6 +233,7 @@ export async function getProductByBarcode(req, res) {
     return res.status(200).json({
       success: true,
       product,
+      variant: null,
       source: "MASTER",
     });
   } catch (error) {
@@ -217,6 +295,16 @@ export async function updateProduct(req, res) {
       if (!ALLOWED_UNITS.includes(updateData.unit)) {
         return res.status(400).json({
           message: "Invalid unit",
+        });
+      }
+    }
+
+    // 🔒 VARIANT VALIDATION
+    if ("variants" in updateData) {
+      const variantError = validateVariants(updateData.variants);
+      if (variantError) {
+        return res.status(400).json({
+          message: variantError,
         });
       }
     }

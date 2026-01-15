@@ -78,16 +78,15 @@ export async function createBill(req, res) {
     }
 
     /* -----------------------------
-       2️⃣ CALCULATE TOTALS
+       2️⃣ CALCULATE TOTALS (VARIANT AWARE)
     ----------------------------- */
     let subTotal = 0;
     const billItems = [];
 
     for (const item of items) {
       const quantity = Number(item.quantity);
-      const price = Number(item.price);
 
-      if (!item.productId || !item.name || quantity <= 0 || price < 0) {
+      if (!item.productId || quantity <= 0) {
         return res.status(400).json({
           message: "Invalid bill item data",
         });
@@ -96,21 +95,51 @@ export async function createBill(req, res) {
       const product = await Product.findOne({
         _id: item.productId,
         shopId,
-      }).select("unit isTrackable quantity");
+        isActive: true,
+      }).select("name unit isTrackable quantity variants");
 
-      // ✅ ENUM SAFE UNIT
+      if (!product) {
+        return res.status(404).json({
+          message: "Product not found",
+        });
+      }
+
+      let variant = null;
+
+      if (item.variantId) {
+        variant = product.variants.id(item.variantId);
+        if (!variant) {
+          return res.status(400).json({
+            message: "Invalid variant selected",
+          });
+        }
+      }
+
       const unit =
         item.unit &&
         ["unit", "kg", "g", "litre", "ml", "box", "pack", "dozen"].includes(item.unit)
           ? item.unit
-          : product?.unit || "unit";
+          : product.unit || "unit";
+
+      const price = variant
+        ? Number(variant.price.sellingPrice)
+        : Number(item.price);
+
+      if (price < 0) {
+        return res.status(400).json({
+          message: "Invalid price value",
+        });
+      }
 
       const total = quantity * price;
       subTotal += total;
 
       billItems.push({
-        productId: item.productId,
-        name: item.name,
+        productId: product._id,
+        variantId: variant ? variant._id : null,
+        name: variant
+          ? `${product.name} (${variant.name})`
+          : product.name,
         quantity,
         unit,
         price,
@@ -151,7 +180,7 @@ export async function createBill(req, res) {
     });
 
     /* -----------------------------
-       6️⃣ STOCK ADJUSTMENT
+       6️⃣ STOCK ADJUSTMENT (VARIANT SAFE)
     ----------------------------- */
     for (const item of billItems) {
       const product = await Product.findOne({
@@ -163,7 +192,21 @@ export async function createBill(req, res) {
       if (!product) continue;
       if (product.isTrackable === false) continue;
 
-      product.quantity = Math.max(product.quantity - item.quantity, 0);
+      if (item.variantId) {
+        const variant = product.variants.id(item.variantId);
+        if (variant) {
+          variant.quantity = Math.max(
+            variant.quantity - item.quantity,
+            0
+          );
+        }
+      } else {
+        product.quantity = Math.max(
+          product.quantity - item.quantity,
+          0
+        );
+      }
+
       await product.save();
     }
 

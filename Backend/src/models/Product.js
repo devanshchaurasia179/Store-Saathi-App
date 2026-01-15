@@ -1,5 +1,44 @@
 import mongoose from "mongoose";
 
+/* ---------------- VARIANT SCHEMA ---------------- */
+
+const variantSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true, // e.g. "500ml", "Large", "Red"
+    },
+
+    barcode: {
+      type: String,
+      default: null,
+      index: true, // optional barcode per variant
+    },
+
+    price: {
+      sellingPrice: {
+        type: Number,
+        required: true,
+        min: 0,
+      },
+    },
+
+    quantity: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+);
+
+/* ---------------- PRODUCT SCHEMA ---------------- */
+
 const productSchema = new mongoose.Schema(
   {
     shopId: {
@@ -33,16 +72,9 @@ const productSchema = new mongoose.Schema(
       trim: true,
     },
 
-    size: {
-      type: String,
-      default: "",
-      trim: true,
-    },
-
-    /** 🆕 UNIT FIELD */
     unit: {
       type: String,
-      enum: ["unit", "kg", "g", "litre", "ml", "box", "pack","dozen"],
+      enum: ["unit", "kg", "g", "litre", "ml", "box", "pack", "dozen"],
       default: "unit",
       index: true,
     },
@@ -59,6 +91,12 @@ const productSchema = new mongoose.Schema(
       type: Number,
       default: 0,
       min: 0,
+    },
+
+    /** 🆕 VARIANTS */
+    variants: {
+      type: [variantSchema],
+      default: [],
     },
 
     expiryDate: {
@@ -80,7 +118,7 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Prevent duplicate barcode per shop
+/* Prevent duplicate main barcode per shop */
 productSchema.index(
   { shopId: 1, barcode: 1 },
   {
