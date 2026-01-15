@@ -122,8 +122,9 @@ export async function createBill(req, res) {
           : product.unit || "unit";
 
       const price = variant
-        ? Number(variant.price.sellingPrice)
-        : Number(item.price);
+  ? Number(variant.price.sellingPrice)
+  : Number(product.price.sellingPrice);
+
 
       if (price < 0) {
         return res.status(400).json({
