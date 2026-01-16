@@ -168,7 +168,6 @@ export async function getProductByBarcode(req, res) {
     let product = await Product.findOne({
       shopId,
       barcode,
-      isBarcodeListed: true,
       isActive: true,
     });
 
