@@ -10,9 +10,12 @@ import {
   Switch,
   ScrollView,
   Platform,
+  Modal,
+  Dimensions,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import Toast from "react-native-toast-message";
 
 /* 🛠 API & UTILS */
 import { createProduct, updateProduct } from "../../constants/inventory.api";
@@ -22,6 +25,10 @@ import { generateBarcode } from "../../utils/generateBarcode";
 import { LANGUAGE_TEXT_PRODUCT_FORM } from "../../constants/language_inventory";
 import { useLanguage } from "../../providers/LanguageProvider";
 
+/* 📸 SCANNER */
+import BarcodeScanner from "../billing/BarcodeScanner";
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const THEME_BLUE = "#1e3a8a";
 
 const UNIT_OPTIONS = [
@@ -31,18 +38,25 @@ const UNIT_OPTIONS = [
   { label: "Dozen", value: "dozen", icon: "grid-outline" },
 ];
 
+const DEFAULT_VARIANT = () => ({
+  name: "",
+  price: { sellingPrice: "" },
+  quantity: "0",
+  barcode: generateBarcode(),
+});
+
 const DEFAULT_FORM = {
   name: "",
   barcode: "",
   isBarcodeListed: true,
   isTrackable: true,
   price: { sellingPrice: "" },
-  quantity: 0,
+  quantity: "0",
   unit: "unit",
   category: "Other",
-  size: "",
-  expiryDate: null as Date | null, // Changed to Date object for picker
+  expiryDate: null as Date | null,
   isActive: true,
+  variants: [] as any[],
 };
 
 type Props = {
@@ -55,10 +69,15 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
   const t = LANGUAGE_TEXT_PRODUCT_FORM[language] || LANGUAGE_TEXT_PRODUCT_FORM.en;
 
   const [form, setForm] = useState(DEFAULT_FORM);
-  const [showMore, setShowMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const [scannerVisible, setScannerVisible] = useState(false);
+  const [scanningFor, setScanningFor] = useState<{
+    type: "main" | "variant";
+    variantIndex?: number;
+  } | null>(null);
 
   useEffect(() => {
     if (!initialData) {
@@ -71,40 +90,71 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
       barcode: initialData.barcode || "",
       isBarcodeListed: initialData.isBarcodeListed ?? true,
       isTrackable: initialData.isTrackable ?? true,
-      price: { sellingPrice: initialData.price?.sellingPrice ?? "" },
-      quantity: initialData.quantity ?? 0,
+      price: { sellingPrice: String(initialData.price?.sellingPrice ?? "") },
+      quantity: String(initialData.quantity ?? 0),
       unit: initialData.unit || "unit",
       category: initialData.category || "Other",
-      size: initialData.size || "",
       expiryDate: initialData.expiryDate ? new Date(initialData.expiryDate) : null,
       isActive: initialData.isActive ?? true,
+      variants: initialData.variants || [],
     });
-
-    setShowMore(true);
   }, [initialData]);
 
-  const update = (key: string, value: any) =>
-    setForm((f: any) => ({ ...f, [key]: value }));
+  const update = (key: string, value: any) => setForm((f: any) => ({ ...f, [key]: value }));
+
+  const addVariant = () => update("variants", [...form.variants, DEFAULT_VARIANT()]);
+  const removeVariant = (index: number) => {
+    const newVariants = [...form.variants];
+    newVariants.splice(index, 1);
+    update("variants", newVariants);
+  };
+
+  const updateVariant = (index: number, key: string, value: any) => {
+    const newVariants = [...form.variants];
+    if (key === "sellingPrice") {
+      newVariants[index].price = { ...newVariants[index].price, sellingPrice: value };
+    } else {
+      newVariants[index][key] = value;
+    }
+    update("variants", newVariants);
+  };
+
+  const openScannerFor = (type: "main" | "variant", variantIndex?: number) => {
+    setScanningFor({ type, variantIndex });
+    setScannerVisible(true);
+  };
+
+  const handleScan = (scanned: string) => {
+    if (!scanned?.trim()) return;
+    if (scanningFor?.type === "main") {
+      update("barcode", scanned);
+    } else if (scanningFor?.type === "variant" && scanningFor.variantIndex !== undefined) {
+      updateVariant(scanningFor.variantIndex, "barcode", scanned);
+    }
+    setScannerVisible(false);
+    setScanningFor(null);
+  };
 
   const onDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios'); // iOS keeps it open
-    if (selectedDate) {
-      update("expiryDate", selectedDate);
-    }
+    setShowDatePicker(Platform.OS === "ios");
+    if (selectedDate) update("expiryDate", selectedDate);
   };
 
   const handleSubmit = async () => {
-    if (!form.name || !form.price.sellingPrice) {
-      Alert.alert(t.requiredFields, t.requiredMsg);
+    if (!form.name.trim()) {
+      Alert.alert("Required", "Product name is required");
       return;
     }
-
     const payload = {
       ...form,
-      quantity: Number(form.quantity),
-      price: { sellingPrice: Number(form.price.sellingPrice) },
-      // Convert Date object to ISO string for Backend
+      quantity: Number(form.quantity) || 0,
+      price: { sellingPrice: Number(form.price.sellingPrice) || 0 },
       expiryDate: form.expiryDate ? form.expiryDate.toISOString() : null,
+      variants: form.variants.map((v) => ({
+        ...v,
+        quantity: Number(v.quantity) || 0,
+        price: { sellingPrice: Number(v.price.sellingPrice) || 0 },
+      })),
     };
 
     try {
@@ -115,267 +165,207 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
         await createProduct(payload);
         setForm(DEFAULT_FORM);
       }
+      Toast.show({ type: "success", text1: initialData ? "Product Updated" : "Product Created" });
       onSuccess?.();
-    } catch (e: any) {
-      Alert.alert(
-        t.errorTitle || "Error",
-        e?.response?.status === 409 ? t.errorBarcode : t.errorSave
-      );
+    } catch (err: any) {
+      Toast.show({ type: "error", text1: "Error", text2: "Check Barcode or Connection" });
     } finally {
       setLoading(false);
     }
   };
 
-  const selectedUnit = UNIT_OPTIONS.find(u => u.value === form.unit);
+  const selectedUnit = UNIT_OPTIONS.find((u) => u.value === form.unit);
 
   return (
-    <ScrollView 
-      style={{ flex: 1, backgroundColor: '#f8fafc' }} 
+    <ScrollView
+      style={{ flex: 1, backgroundColor: "#f8fafc" }}
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
+      {/* SECTION 1: CORE DETAILS */}
       <View style={styles.card}>
-        <Text style={styles.sectionLabel}>{t.productDetails || "Product Details"}</Text>
-        
-        <Field
-          label={t.productName}
-          icon="cart-outline"
-          value={form.name}
-          placeholder={t.namePlace}
-          onChange={(v: string) => update("name", v)}
-        />
+        <Text style={styles.sectionLabel}>Basic Information</Text>
+        <Field label="Product Name" value={form.name} onChange={(v) => update("name", v)} icon="cart-outline" />
 
-        <View style={styles.row}>
+        <View style={styles.gridRow}>
           <View style={{ flex: 1 }}>
-            <Field
-              label={t.sellingPrice}
-              icon="cash-outline"
-              value={String(form.price.sellingPrice)}
-              keyboard="numeric"
-              placeholder="0.00"
-              isPrice={true}
-              onChange={(v: string) => update("price", { sellingPrice: v })}
-            />
+            <Field label="Unit" value={selectedUnit?.label || "Select"} onPress={() => setIsDropdownOpen(!isDropdownOpen)} icon="options-outline" editable={false} />
           </View>
           <View style={{ flex: 1 }}>
-            <Field
-              label={t.openingStock}
-              icon="layers-outline"
-              value={String(form.quantity)}
-              keyboard="numeric"
-              placeholder="0"
-              onChange={(v: string) => update("quantity", v)}
-            />
+             <Field label="Expiry Date" value={form.expiryDate ? form.expiryDate.toLocaleDateString() : "None"} onPress={() => setShowDatePicker(true)} icon="calendar-outline" editable={false} />
           </View>
         </View>
 
-        {/* EXPIRY DATE SELECTOR */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>{t.expiryDate || "EXPIRY DATE"}</Text>
-          <TouchableOpacity 
-            style={styles.dropdownTrigger} 
-            onPress={() => setShowDatePicker(true)}
-          >
-            <View style={styles.triggerInner}>
-              <Ionicons name="calendar-outline" size={20} color={THEME_BLUE} />
-              <Text style={[styles.triggerText, !form.expiryDate && { color: '#94a3b8' }]}>
-                {form.expiryDate ? form.expiryDate.toLocaleDateString() : (t.selectDate || "Select Expiry Date")}
-              </Text>
-            </View>
-            {form.expiryDate && (
-                <TouchableOpacity onPress={() => update("expiryDate", null)}>
-                    <Ionicons name="close-circle" size={20} color="#ef4444" />
-                </TouchableOpacity>
-            )}
-          </TouchableOpacity>
-          {showDatePicker && (
-            <DateTimePicker
-              value={form.expiryDate || new Date()}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={onDateChange}
-              minimumDate={new Date()}
-            />
-          )}
-        </View>
+        {isDropdownOpen && (
+          <View style={styles.dropdownBox}>
+            {UNIT_OPTIONS.map((u) => (
+              <TouchableOpacity key={u.value} style={[styles.dropdownItem, form.unit === u.value && styles.activeDropdownItem]} onPress={() => { update("unit", u.value); setIsDropdownOpen(false); }}>
+                <Ionicons name={u.icon as any} size={18} color={form.unit === u.value ? "#fff" : "#64748b"} />
+                <Text style={[styles.dropdownText, form.unit === u.value && { color: "#fff" }]}>{u.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>{t.unit || "UNIT"}</Text>
-          <TouchableOpacity 
-            style={[styles.dropdownTrigger, isDropdownOpen && styles.dropdownTriggerActive]} 
-            onPress={() => setIsDropdownOpen(!isDropdownOpen)}
-          >
-            <View style={styles.triggerInner}>
-              <Ionicons name={selectedUnit?.icon as any || "options-outline"} size={20} color={THEME_BLUE} />
-              <Text style={styles.triggerText}>{selectedUnit?.label || "Select Unit"}</Text>
+        {form.variants.length === 0 && (
+          <View style={styles.gridRow}>
+            <View style={{ flex: 1 }}>
+              <Field label="Price" value={form.price.sellingPrice} keyboard="numeric" isPrice onChange={(v) => update("price", { sellingPrice: v })} />
             </View>
-            <Ionicons name={isDropdownOpen ? "chevron-up" : "chevron-down"} size={20} color="#94a3b8" />
-          </TouchableOpacity>
-
-          {isDropdownOpen && (
-            <View style={styles.dropdownMenu}>
-              {UNIT_OPTIONS.map((u) => {
-                const isActive = form.unit === u.value;
-                return (
-                  <TouchableOpacity
-                    key={u.value}
-                    style={[styles.dropdownItem, isActive && styles.dropdownItemActive]}
-                    onPress={() => {
-                      update("unit", u.value);
-                      setIsDropdownOpen(false);
-                    }}
-                  >
-                    <Ionicons name={u.icon as any} size={20} color={isActive ? "#fff" : "#64748b"} />
-                    <Text style={[styles.dropdownItemText, isActive && styles.dropdownItemTextActive]}>{u.label}</Text>
-                    {isActive && <Ionicons name="checkmark-circle" size={18} color="#fff" />}
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={{ flex: 1 }}>
+              <Field label="Stock" value={form.quantity} keyboard="numeric" onChange={(v) => update("quantity", v)} />
             </View>
-          )}
-        </View>
+          </View>
+        )}
       </View>
 
+      {/* SECTION 2: VARIANTS */}
       <View style={styles.card}>
-        <Text style={styles.sectionLabel}>{t.identification}</Text>
-        <View style={styles.barcodeWrapper}>
-          <View style={[styles.inputContainer, { flex: 1, marginBottom: 0 }, initialData && styles.disabledInput]}>
-            <Ionicons name="barcode-outline" size={20} color={THEME_BLUE} />
-            <TextInput
-              value={form.barcode}
-              editable={!initialData}
-              style={styles.input}
-              placeholder={t.barcode}
-              placeholderTextColor="#94a3b8"
-            />
-          </View>
-          {!initialData && (
-            <TouchableOpacity style={styles.regenBtn} onPress={() => update("barcode", generateBarcode())}>
-              <Ionicons name="refresh" size={22} color="#fff" />
-            </TouchableOpacity>
-          )}
+        <View style={styles.headerWithAction}>
+          <Text style={styles.sectionLabel}>Variants</Text>
+          <TouchableOpacity style={styles.outlineBtn} onPress={addVariant}>
+            <Ionicons name="add" size={16} color={THEME_BLUE} />
+            <Text style={styles.outlineBtnText}>Add New</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.toggleCard}>
-          <View style={styles.toggleRowInner}>
-            <Ionicons name="print-outline" size={20} color={THEME_BLUE} />
-            <Text style={styles.toggleLabel}>{t.printBarcode}</Text>
+        {form.variants.map((v, idx) => (
+          <View key={idx} style={styles.variantBox}>
+            <View style={styles.variantBoxHeader}>
+              <Text style={styles.variantIndexLabel}>#0{idx + 1}</Text>
+              <TouchableOpacity onPress={() => removeVariant(idx)}><Ionicons name="trash-outline" size={20} color="#ef4444" /></TouchableOpacity>
+            </View>
+            <Field label="Variant Name" value={v.name} placeholder="e.g. Small / Red" onChange={(val) => updateVariant(idx, "name", val)} />
+            <View style={styles.gridRow}>
+              <View style={{ flex: 1 }}><Field label="Price" value={v.price.sellingPrice} keyboard="numeric" isPrice onChange={(val) => updateVariant(idx, "sellingPrice", val)} /></View>
+              <View style={{ flex: 1 }}><Field label="Stock" value={v.quantity} keyboard="numeric" onChange={(val) => updateVariant(idx, "quantity", val)} /></View>
+            </View>
+            <View style={styles.compactBarcodeRow}>
+               <View style={styles.miniInputWrapper}>
+                 <Ionicons name="barcode-outline" size={16} color="#94a3b8" />
+                 <TextInput style={styles.miniInput} value={v.barcode} onChangeText={(val) => updateVariant(idx, "barcode", val)} placeholder="Barcode" />
+               </View>
+               <TouchableOpacity style={styles.miniScanBtn} onPress={() => openScannerFor("variant", idx)}><Ionicons name="scan" size={18} color="#fff" /></TouchableOpacity>
+            </View>
           </View>
-          <Switch
-            value={form.isBarcodeListed}
-            onValueChange={(v) => update("isBarcodeListed", v)}
-            trackColor={{ false: "#cbd5e1", true: "#93c5fd" }}
-            thumbColor={form.isBarcodeListed ? THEME_BLUE : "#f4f3f4"}
+        ))}
+      </View>
+
+      {/* SECTION 3: IDENTIFICATION & TRACKING */}
+      <View style={styles.card}>
+        <Text style={styles.sectionLabel}>Identification & Settings</Text>
+        <View style={styles.barcodeControl}>
+            <View style={[styles.barcodeInputBlock, initialData && styles.disabledField]}>
+                <Ionicons name="barcode-outline" size={20} color={THEME_BLUE} />
+                <TextInput style={styles.input} value={form.barcode} onChangeText={(v) => update("barcode", v)} editable={!initialData} placeholder="Main Barcode" />
+            </View>
+            {!initialData && (
+                <View style={styles.barcodeActions}>
+                    <TouchableOpacity style={styles.secondaryActionBtn} onPress={() => update("barcode", generateBarcode())}><Ionicons name="refresh" size={20} color={THEME_BLUE} /></TouchableOpacity>
+                    <TouchableOpacity style={styles.primaryActionBtn} onPress={() => openScannerFor("main")}><Ionicons name="scan" size={20} color="#fff" /></TouchableOpacity>
+                </View>
+            )}
+        </View>
+
+        <View style={styles.toggleContainer}>
+          <ToggleItem 
+            label="Stock Tracking" 
+            sub="Auto-update stock on sales" 
+            value={form.isTrackable} 
+            onToggle={(v) => update("isTrackable", v)} 
+          />
+          <View style={styles.divider} />
+          <ToggleItem 
+            label="Print Barcode" 
+            sub="Visible on Barcode sheets" 
+            value={form.isBarcodeListed} 
+            onToggle={(v) => update("isBarcodeListed", v)} 
           />
         </View>
       </View>
 
-      <TouchableOpacity
-        style={styles.moreHeader}
-        onPress={() => setShowMore(!showMore)}
-      >
-        <Text style={styles.moreTitle}>{t.additionalDetails}</Text>
-        <Ionicons name={showMore ? "chevron-up" : "chevron-down"} size={18} color={THEME_BLUE} />
+      <TouchableOpacity style={[styles.mainSubmitBtn, loading && styles.disabledBtn]} onPress={handleSubmit} disabled={loading}>
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.mainSubmitText}>{initialData ? "Update Changes" : "Create Product"}</Text>}
       </TouchableOpacity>
 
-      {showMore && (
-        <View style={styles.card}>
-          <Field
-            label={t.category}
-            icon="grid-outline"
-            value={form.category}
-            placeholder={t.catPlace}
-            onChange={(v: string) => update("category", v)}
-          />
-          <Field
-            label={t.sizeVariant}
-            icon="resize-outline"
-            value={form.size}
-            placeholder={t.sizePlace}
-            onChange={(v: string) => update("size", v)}
-          />
-          
-          <View style={[styles.toggleCard, { marginTop: 8 }]}>
-            <View style={styles.toggleRowInner}>
-              <Ionicons name="stats-chart-outline" size={20} color={THEME_BLUE} />
-              <Text style={styles.toggleLabel}>{t.enableTracking}</Text>
-            </View>
-            <Switch
-              value={form.isTrackable}
-              onValueChange={(v: boolean) => update("isTrackable", v)}
-              trackColor={{ false: "#cbd5e1", true: "#93c5fd" }}
-              thumbColor={form.isTrackable ? THEME_BLUE : "#f4f3f4"}
-            />
-          </View>
-        </View>
+      {showDatePicker && Platform.OS === "android" && (
+         <DateTimePicker value={form.expiryDate || new Date()} mode="date" onChange={onDateChange} minimumDate={new Date()} />
       )}
 
-      <TouchableOpacity
-        onPress={handleSubmit}
-        disabled={loading}
-        style={[styles.submit, loading && styles.submitDisabled]}
-      >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <>
-            <Ionicons name={initialData ? "save-outline" : "add-circle-outline"} size={22} color="#fff" style={{marginRight: 8}} />
-            <Text style={styles.submitText}>
-                {initialData ? t.updateProduct : t.saveProduct}
-            </Text>
-          </>
-        )}
-      </TouchableOpacity>
+      <Modal visible={scannerVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.scannerContainer}>
+            <TouchableOpacity style={styles.closeBtn} onPress={() => setScannerVisible(false)}><Ionicons name="close" size={28} color="#fff" /></TouchableOpacity>
+            <BarcodeScanner onScan={handleScan} onClose={() => setScannerVisible(false)} />
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
 
-const Field = ({ label, value, onChange, keyboard, icon, placeholder, isPrice }: any) => (
+const Field = ({ label, value, onChange, keyboard = "default", icon, isPrice, onPress, editable = true, placeholder }: any) => (
   <View style={styles.fieldContainer}>
-    <Text style={styles.label}>{label}</Text>
-    <View style={styles.inputContainer}>
-      {isPrice ? <Text style={styles.currencyPrefix}>$</Text> : <Ionicons name={icon} size={20} color="#94a3b8" />}
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        keyboardType={keyboard}
-        placeholder={placeholder}
-        placeholderTextColor="#94a3b8"
-        style={[styles.input, isPrice && { marginLeft: 5 }]}
-      />
+    <Text style={styles.fieldLabel}>{label}</Text>
+    <TouchableOpacity activeOpacity={onPress ? 0.7 : 1} onPress={onPress} style={[styles.inputContainer, !editable && styles.disabledField, !!onPress && styles.pressableField]}>
+      {icon && <Ionicons name={icon as any} size={18} color="#94a3b8" style={{ marginRight: 8 }} />}
+      {isPrice && <Text style={styles.pricePrefix}>₹</Text>}
+      <TextInput style={styles.input} value={String(value ?? "")} onChangeText={onChange} keyboardType={keyboard as any} placeholder={placeholder || "..."} editable={editable && !onPress} />
+    </TouchableOpacity>
+  </View>
+);
+
+const ToggleItem = ({ label, sub, value, onToggle }: any) => (
+  <View style={styles.toggleItem}>
+    <View style={{ flex: 1 }}>
+      <Text style={styles.toggleMainText}>{label}</Text>
+      <Text style={styles.toggleSubText}>{sub}</Text>
     </View>
+    <Switch value={value} onValueChange={onToggle} trackColor={{ false: "#cbd5e1", true: "#93c5fd" }} thumbColor={value ? THEME_BLUE : "#f4f3f4"} />
   </View>
 );
 
 const styles = StyleSheet.create({
-  container: { padding: 16, paddingBottom: 60 },
-  sectionLabel: { fontSize: 11, fontWeight: "900", color: "#94a3b8", marginBottom: 16, textTransform: "uppercase", letterSpacing: 1.2 },
-  card: { backgroundColor: "#fff", borderRadius: 28, padding: 20, marginBottom: 16, borderWidth: 1.5, borderColor: "#f1f5f9", elevation: 3 },
-  row: { flexDirection: "row", gap: 12 },
-  fieldContainer: { marginBottom: 18 },
-  label: { fontSize: 11, fontWeight: "800", color: "#64748b", marginBottom: 8, marginLeft: 4, textTransform: "uppercase" },
-  inputContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#f8fafc", borderWidth: 1.5, borderColor: "#e2e8f0", borderRadius: 18, paddingHorizontal: 16, height: 56 },
-  currencyPrefix: { fontSize: 16, fontWeight: "700", color: THEME_BLUE },
-  input: { flex: 1, marginLeft: 12, fontSize: 16, fontWeight: "600", color: "#1e293b" },
-  disabledInput: { backgroundColor: "#f1f5f9", borderColor: '#cbd5e1' },
-  dropdownTrigger: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#f8fafc", borderWidth: 1.5, borderColor: "#e2e8f0", borderRadius: 18, paddingHorizontal: 16, height: 56 },
-  dropdownTriggerActive: { borderColor: THEME_BLUE, backgroundColor: "#fff" },
-  triggerInner: { flexDirection: "row", alignItems: "center", gap: 12 },
-  triggerText: { fontSize: 16, fontWeight: "600", color: "#1e293b" },
-  dropdownMenu: { marginTop: 8, backgroundColor: "#fff", borderRadius: 20, borderWidth: 1, borderColor: "#e2e8f0", padding: 8, elevation: 6 },
-  dropdownItem: { flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 14, gap: 14, marginBottom: 4 },
-  dropdownItemActive: { backgroundColor: THEME_BLUE },
-  dropdownItemText: { flex: 1, fontSize: 15, fontWeight: "600", color: "#475569" },
-  dropdownItemTextActive: { color: "#fff" },
-  barcodeWrapper: { flexDirection: "row", gap: 12, marginBottom: 20, alignItems: "center" },
-  regenBtn: { backgroundColor: THEME_BLUE, height: 56, width: 56, borderRadius: 18, justifyContent: "center", alignItems: "center" },
-  toggleCard: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#f1f5f9", padding: 16, borderRadius: 20 },
-  toggleRowInner: { flexDirection: "row", alignItems: "center", gap: 12 },
-  toggleLabel: { fontSize: 14, fontWeight: "700", color: "#1e293b" },
-  moreHeader: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, paddingVertical: 12 },
-  moreTitle: { color: THEME_BLUE, fontWeight: "800", fontSize: 14 },
-  submit: { backgroundColor: THEME_BLUE, height: 64, borderRadius: 22, flexDirection: 'row', justifyContent: "center", alignItems: "center", marginTop: 12, elevation: 8 },
-  submitDisabled: { backgroundColor: "#94a3b8" },
-  submitText: { color: "#fff", fontWeight: "900", fontSize: 18 },
+  container: { padding: 14, paddingBottom: 60 },
+  card: { backgroundColor: "#fff", borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: "#e2e8f0" },
+  sectionLabel: { fontSize: 11, fontWeight: "800", color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 14 },
+  gridRow: { flexDirection: "row", gap: 12 },
+  fieldContainer: { marginBottom: 14 },
+  fieldLabel: { fontSize: 11, fontWeight: "700", color: "#64748b", marginBottom: 6, marginLeft: 2 },
+  inputContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#f8fafc", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 12, paddingHorizontal: 12, height: 48 },
+  input: { flex: 1, fontSize: 15, color: "#1e293b", fontWeight: "600" },
+  pricePrefix: { fontSize: 15, fontWeight: "700", color: THEME_BLUE, marginRight: 4 },
+  disabledField: { backgroundColor: "#f1f5f9", borderColor: "#e2e8f0" },
+  pressableField: { borderColor: "#cbd5e1" },
+  headerWithAction: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
+  outlineBtn: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: THEME_BLUE, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  outlineBtnText: { color: THEME_BLUE, fontWeight: "700", fontSize: 12, marginLeft: 4 },
+  variantBox: { backgroundColor: "#f8fafc", borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: "#e2e8f0" },
+  variantBoxHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  variantIndexLabel: { fontSize: 10, fontWeight: "800", color: THEME_BLUE, backgroundColor: "#dbeafe", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  compactBarcodeRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  miniInputWrapper: { flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 8, paddingHorizontal: 8, height: 38 },
+  miniInput: { flex: 1, fontSize: 13, color: "#475569", marginLeft: 6 },
+  miniScanBtn: { backgroundColor: THEME_BLUE, width: 38, height: 38, borderRadius: 8, justifyContent: "center", alignItems: "center" },
+  barcodeControl: { flexDirection: "row", gap: 8, alignItems: "center", marginBottom: 16 },
+  barcodeInputBlock: { flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: "#f8fafc", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 12, paddingHorizontal: 12, height: 48 },
+  barcodeActions: { flexDirection: "row", gap: 8 },
+  primaryActionBtn: { backgroundColor: THEME_BLUE, width: 48, height: 48, borderRadius: 12, justifyContent: "center", alignItems: "center" },
+  secondaryActionBtn: { backgroundColor: "#fff", width: 48, height: 48, borderRadius: 12, borderWidth: 1, borderColor: THEME_BLUE, justifyContent: "center", alignItems: "center" },
+  toggleContainer: { marginTop: 4 },
+  toggleItem: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 10 },
+  toggleMainText: { fontSize: 14, fontWeight: "700", color: "#1e293b" },
+  toggleSubText: { fontSize: 11, color: "#94a3b8" },
+  divider: { height: 1, backgroundColor: "#f1f5f9", marginVertical: 2 },
+  mainSubmitBtn: { backgroundColor: THEME_BLUE, height: 56, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", elevation: 4, marginVertical: 20 },
+  mainSubmitText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  disabledBtn: { backgroundColor: "#94a3b8" },
+  dropdownBox: { backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", padding: 6, marginBottom: 14 },
+  dropdownItem: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 8, gap: 10 },
+  activeDropdownItem: { backgroundColor: THEME_BLUE },
+  dropdownText: { fontSize: 14, fontWeight: "600", color: "#475569" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.8)", justifyContent: "center", alignItems: "center" },
+  scannerContainer: { width: SCREEN_WIDTH * 0.85, height: SCREEN_HEIGHT * 0.5, borderRadius: 24, overflow: "hidden", backgroundColor: '#000' },
+  closeBtn: { position: "absolute", top: 12, right: 12, zIndex: 10 },
 });

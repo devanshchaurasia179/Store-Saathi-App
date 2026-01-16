@@ -24,13 +24,12 @@ import BillSummary from "../../components/billing/BillSummary";
 import QuickAddProductModal from "../../components/inventory/QuickAddProductModal";
 import AddCustomerModal from "../../components/ledger/AddCustomerModal";
 import AddProductModal from "../../components/inventory/AddProductModal";
+import ProductSearchOverlay from "../../components/billing/ProductSearchOverlay";
 /* HOOKS & API */
 import { useBilling } from "../../hooks/useBilling";
 import { getProducts } from "../../constants/inventory.api";
 import { getLedgerCustomers } from "../../constants/ledger.api";
 import { getBillById } from "../../constants/bills.api";
-import { formatRupee } from "../../utils/formatCurrency";
-import { shareBillPdf } from "../../utils/billPdf";
 import { printBill } from "../../utils/thermalPrinter";
 import { isThermalPrinterSaved } from "../../utils/printerManager";
 import { BluetoothEscposPrinter } from "@vardrz/react-native-bluetooth-escpos-printer";
@@ -90,6 +89,7 @@ export default function BillingPage() {
     setProductNotFound,
     lastScannedBarcode,
     resetBill,
+    addItemByProduct
   } = useBilling();
 
   useEffect(() => {
@@ -236,6 +236,14 @@ export default function BillingPage() {
     setProductOpen(false);
     setProductSearch("");
   };
+
+  const productsMap = useMemo(() => {
+  const map: Record<string, any> = {};
+  products.forEach((p) => {
+    map[p._id] = p;
+  });
+  return map;
+}, [products]);
 
   const [isPrinterConnected, setIsPrinterConnected] = useState(false);
   const [checkingPrinter, setCheckingPrinter] = useState(false);
@@ -561,24 +569,42 @@ export default function BillingPage() {
         }
       />
 
-      <SearchOverlay
-        visible={productOpen}
-        title={t.searchProduct}
-        value={productSearch}
-        onChange={setProductSearch}
-        onClose={() => setProductOpen(false)}
-        items={filteredProducts}
-        onSelect={addProductToBill}
-        renderItem={(p: any) => (
-          <View style={styles.productRow}>
-            <View>
-              <Text style={styles.itemTitle}>{p.name}</Text>
-              <Text style={styles.itemSub}>{p.barcode}</Text>
-            </View>
-            <Text style={styles.price}>₹{(p.price?.sellingPrice ?? 0).toFixed(2)}</Text>
-          </View>
-        )}
-      />
+      {/* PRODUCT SEARCH OVERLAY */}
+<ProductSearchOverlay
+  visible={productOpen}
+  title={t.searchProduct}
+  value={productSearch}
+  onChange={setProductSearch}
+  onClose={() => setProductOpen(false)}
+  items={filteredProducts}
+onAddMultiple={(products) => {
+  products.forEach((p) => {
+    const product = productsMap[p.productId]; // see below
+    const variant = p.variantId
+      ? product.variants.find((v: any) => v._id === p.variantId)
+      : null;
+
+    addItemByProduct(product, variant);
+  });
+}}
+
+  // or fallback: onAdd={addProductToBill}
+  extraTopOption={
+    <TouchableOpacity
+      style={styles.addNewOption}
+      onPress={() => {
+        setProductOpen(false);
+        setAddProductModalVisible(true);
+      }}
+    >
+      <View style={styles.addIconCircle}>
+        <Ionicons name="add" size={18} color="#2563eb" />
+      </View>
+      <Text style={styles.addNewText}>Add New Product</Text>
+    </TouchableOpacity>
+  }
+/>
+
 
       {productNotFound && lastScannedBarcode && (
         <QuickAddProductModal
@@ -592,10 +618,22 @@ export default function BillingPage() {
         />
       )}
 
-      <AddProductModal
+    <AddProductModal
         visible={addProductModalVisible}
         onClose={() => setAddProductModalVisible(false)}
-        onAdded={fetchInitialData}
+        onAdded={() => {
+          // 1. Refresh global product list
+          getProducts().then((res) => {
+            const updatedProducts = res.data.products || [];
+            setProducts(updatedProducts);
+            
+            // 2. Add the most recently created product to the bill
+            if (updatedProducts.length > 0) {
+              const latestProduct = updatedProducts[0]; // Assumes API returns newest first
+              addProductToBill(latestProduct);
+            }
+          });
+        }}
       />
 
       <AddCustomerModal
@@ -677,9 +715,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingTop: 40,
+    paddingTop: 100,
     paddingBottom: 15,
-    marginTop:-40,
+    marginTop:-100,
     borderBottomWidth: 1,
     borderColor: "#f1f5f9",
     gap: 12,

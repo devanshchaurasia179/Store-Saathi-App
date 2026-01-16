@@ -578,7 +578,7 @@ export const LANGUAGE_TEXT_BARCODE_SHEET: any = {
     loading: "Loading Inventory...",
     readyTitle: "Ready to Print",
     descStart: "We have generated barcodes for ",
-    descEnd: " items in your inventory. The PDF is optimized for A4 sticker sheets.",
+    descEnd: " items in your inventory. The PDF is optimized for A4 sticker sheets Try Again 2-3 times if you see Red screen instead of Barcode.",
     downloadBtn: "Download Barcode Sheet",
     formatInfo: "Format: 3 x 7 Grid (A4)",
     recommendInfo: "Recommended: Laser Printer",

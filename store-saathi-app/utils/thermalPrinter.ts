@@ -278,7 +278,7 @@ export const printBill = async (bill: any): Promise<void> => {
       await BluetoothEscposPrinter.printText("\n\rScan QR to Pay:\n\r", {});
       await BluetoothEscposPrinter.printQRCode(
         upiLink,
-        185,
+        240,
         BluetoothEscposPrinter.ERROR_CORRECTION.L
       );
     }

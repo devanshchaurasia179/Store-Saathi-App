@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -20,315 +21,230 @@ import { updateProduct, deleteProduct } from "../../constants/inventory.api";
 import { LANGUAGE_TEXT_INVENTORY_ROW } from "../../constants/language_inventory";
 import { useLanguage } from "../../providers/LanguageProvider";
 
-const LOW_STOCK_LIMIT = 5;
+const THEME_BLUE = "#1e3a8a";
 
-export default function InventoryRow({ product, onRefresh }: any) {
+export default function InventoryRow({ product: initialProduct, onRefresh }: any) {
   const { language } = useLanguage();
-  const t =
-    LANGUAGE_TEXT_INVENTORY_ROW[language] ||
-    LANGUAGE_TEXT_INVENTORY_ROW.en;
+  const t = LANGUAGE_TEXT_INVENTORY_ROW[language] || LANGUAGE_TEXT_INVENTORY_ROW.en;
 
-  const unit = product.unit || "unit";
-
-  const [qty, setQty] = useState(product.quantity || 0);
-  const [price, setPrice] = useState(product.price?.sellingPrice || 0);
-
+  const [product, setProduct] = useState(initialProduct);
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    setProduct(initialProduct);
+  }, [initialProduct]);
 
   /* ---------- EXPIRY LOGIC ---------- */
-  const getExpiryInfo = () => {
+  const getExpiryDetails = () => {
     if (!product.expiryDate) return null;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const expDate = new Date(product.expiryDate);
-    expDate.setHours(0, 0, 0, 0);
-
+    
     const diffTime = expDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     if (diffDays < 0) {
-      return {
-        text: "Expired",
-        color: "#dc2626",
-        bg: "#fee2e2",
-        icon: "alert-circle",
-      };
+      return { text: "Expired", color: "#ef4444", bg: "#fee2e2" };
     } else if (diffDays <= 15) {
-      return {
-        text: `Expires in ${diffDays} days`,
-        color: "#ca8a04",
-        bg: "#fef9c3",
-        icon: "time-outline",
-      };
+      return { text: `Exp in ${diffDays}d`, color: "#f59e0b", bg: "#fef3c7" };
     } else {
-      return {
-        text: `Expires in ${diffDays} days`,
-        color: "#64748b",
-        bg: "#f1f5f9",
-        icon: "calendar-outline",
-      };
+      return { text: `Exp: ${expDate.toLocaleDateString()}`, color: "#64748b", bg: "#f1f5f9" };
     }
   };
 
-  const expiryInfo = getExpiryInfo();
+  const expiry = getExpiryDetails();
 
-  /* ---------- STOCK STATUS LOGIC ---------- */
-  let status = { text: t.inStock, color: "#16a34a", bg: "#dcfce7" };
-  if (qty == 0)
-    status = { text: t.outOfStock, color: "#dc2626", bg: "#fee2e2" };
-  else if (qty <= LOW_STOCK_LIMIT)
-    status = { text: t.lowStock, color: "#ca8a04", bg: "#fef9c3" };
-
-  /* ---------- INLINE UPDATES ---------- */
-  const saveQuantity = async () => {
-    if (qty === product.quantity) return;
+  const handleUpdate = async (field: string, value: any, variantId?: string) => {
     try {
-      setSaving(true);
-      await updateProduct(product._id, { quantity: Number(qty) });
-    } catch {
-      Alert.alert(t.errorTitle || "Error", t.errorUpdateStock);
-      setQty(product.quantity);
-    } finally {
-      setSaving(false);
+      let updatedPayload = {};
+      let nextProductState = { ...product };
+
+      if (variantId) {
+        const updatedVariants = nextProductState.variants.map((v: any) => {
+          if (v._id === variantId || v.id === variantId) {
+            const newValue = Number(value);
+            if (field === 'price') return { ...v, price: { ...v.price, sellingPrice: newValue } };
+            return { ...v, [field]: newValue };
+          }
+          return v;
+        });
+        updatedPayload = { variants: updatedVariants };
+        nextProductState.variants = updatedVariants;
+      } else {
+        const newValue = Number(value);
+        if (field === 'price') {
+          updatedPayload = { price: { ...product.price, sellingPrice: newValue } };
+          nextProductState.price.sellingPrice = newValue;
+        } else {
+          updatedPayload = { [field]: newValue };
+          nextProductState[field] = newValue;
+        }
+      }
+
+      setProduct(nextProductState);
+      await updateProduct(product._id, updatedPayload);
+    } catch (error) {
+      Alert.alert(t.errorTitle, "Update failed.");
+      onRefresh();
     }
   };
 
-  const savePrice = async () => {
-    if (price === product.price?.sellingPrice) return;
-    try {
-      setSaving(true);
-      await updateProduct(product._id, {
-        price: { sellingPrice: Number(price) },
-      });
-    } catch {
-      Alert.alert(t.errorTitle || "Error", t.errorUpdatePrice);
-      setPrice(product.price?.sellingPrice);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const confirmDelete = () => {
-    Alert.alert(t.deleteTitle, t.deleteMsg(product.name), [
-      { text: t.cancel, style: "cancel" },
-      {
-        text: t.delete,
-        style: "destructive",
-        onPress: async () => {
-          await deleteProduct(product._id);
-          onRefresh();
-        },
-      },
-    ]);
-  };
+  const hasVariants = product.variants && product.variants.length > 0;
+  const mainStock = product.quantity || 0;
+  const stockColor = mainStock === 0 ? "#ef4444" : mainStock < 10 ? "#f59e0b" : "#22c55e";
 
   return (
-    <>
-      <View style={styles.card}>
-        <View style={styles.row}>
-          {/* PRODUCT INFO */}
-          <View style={{ flex: 1.2 }}>
-            <Text style={styles.name} numberOfLines={1}>
-              {product.name}
-            </Text>
-            
-            <View style={styles.badgeRow}>
-              {/* Stock Status Badge */}
-              <View style={[styles.badge, { backgroundColor: status.bg }]}>
-                <View
-                  style={[
-                    styles.statusDot,
-                    { backgroundColor: status.color },
-                  ]}
-                />
-                <Text style={[styles.badgeText, { color: status.color }]}>
-                  {status.text}
-                </Text>
+    <View style={styles.card}>
+      <View style={styles.mainContent}>
+        <View style={styles.topInfo}>
+          <View style={styles.nameBlock}>
+            <View style={[styles.statusIndicator, { backgroundColor: stockColor }]} />
+            <View style={{ flex: 1 }}>
+              <View style={styles.titleRow}>
+                <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
+                {/* EXPIRY BADGE */}
+                {expiry && (
+                  <View style={[styles.expiryBadge, { backgroundColor: expiry.bg }]}>
+                    <Text style={[styles.expiryText, { color: expiry.color }]}>{expiry.text}</Text>
+                  </View>
+                )}
               </View>
-
-              {/* Expiry Badge - Only shows if expiryDate exists */}
-              {expiryInfo && (
-                <View style={[styles.badge, { backgroundColor: expiryInfo.bg, marginLeft: 6 }]}>
-                  <Ionicons name={expiryInfo.icon as any} size={10} color={expiryInfo.color} style={{ marginRight: 4 }} />
-                  <Text style={[styles.badgeText, { color: expiryInfo.color }]}>
-                    {expiryInfo.text}
-                  </Text>
-                </View>
-              )}
+              <Text style={styles.categorySubText}>
+                {product.category || "General"} • {product.unit || "unit"}
+              </Text>
             </View>
           </View>
-
-          {/* PRICE CONTROL */}
-          <View style={styles.inputCol}>
-            <Text style={styles.label}>
-              {t.priceLabel} / {unit}
-            </Text>
-            <View style={styles.inputContainer}>
-              <Text style={styles.currency}>₹</Text>
-              <TextInput
-                value={String(price)}
-                keyboardType="numeric"
-                placeholderTextColor="#94a3b8"
-                onChangeText={setPrice}
-                onBlur={savePrice}
-                style={styles.input}
-                selectTextOnFocus
-              />
-            </View>
-          </View>
-
-          {/* STOCK CONTROL */}
-          <View style={styles.inputCol}>
-            <Text style={styles.label}>
-              {t.stockLabel} ({unit})
-            </Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                value={String(qty)}
-                keyboardType="numeric"
-                placeholderTextColor="#94a3b8"
-                onChangeText={setQty}
-                onBlur={saveQuantity}
-                style={[styles.input, { paddingLeft: 0 }]}
-                selectTextOnFocus
-              />
-            </View>
-          </View>
-
-          {/* MENU BUTTON */}
-          <TouchableOpacity
-            onPress={() => setMenuOpen((p) => !p)}
-            style={styles.moreButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons
-              name="ellipsis-vertical"
-              size={20}
-              color="#94a3b8"
-            />
+          <TouchableOpacity onPress={() => setMenuOpen(!menuOpen)} style={styles.iconBtn}>
+            <Ionicons name="ellipsis-horizontal" size={16} color="#94a3b8" />
           </TouchableOpacity>
         </View>
 
-        {menuOpen && (
-          <View style={styles.menuWrapper}>
-            <InventoryMenu
-              onEdit={() => {
-                setEditOpen(true);
-                setMenuOpen(false);
-              }}
-              onDelete={confirmDelete}
+        {!hasVariants ? (
+          <View style={styles.inlineControls}>
+            <CompactInput 
+              label="Price" value={String(product.price?.sellingPrice || 0)} 
+              prefix="₹" onSave={(v: any) => handleUpdate('price', v)} 
             />
+            <CompactInput 
+              label="Stock" value={String(product.quantity || 0)} 
+              onSave={(v: any) => handleUpdate('quantity', v)} 
+            />
+          </View>
+        ) : (
+          <TouchableOpacity 
+            style={[styles.variantToggle, expanded && styles.variantToggleActive]} 
+            onPress={() => setExpanded(!expanded)}
+          >
+            <Text style={styles.variantToggleText}>
+              <Ionicons name="layers-outline" size={12} /> {product.variants.length} Variants
+            </Text>
+            <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={14} color="#64748b" />
+          </TouchableOpacity>
+        )}
+
+        {hasVariants && expanded && (
+          <View style={styles.variantsWrapper}>
+            {product.variants.map((variant: any, idx: number) => (
+              <View key={variant._id || idx} style={styles.variantRow}>
+                <Text style={styles.variantName} numberOfLines={1}>{variant.name}</Text>
+                <View style={styles.variantInputs}>
+                  <CompactInput 
+                    value={String(variant.price?.sellingPrice || 0)} 
+                    prefix="₹" isSmall onSave={(v: any) => handleUpdate('price', v, variant._id || variant.id)} 
+                  />
+                  <CompactInput 
+                    value={String(variant.quantity || 0)} 
+                    isSmall onSave={(v: any) => handleUpdate('quantity', v, variant._id || variant.id)} 
+                  />
+                </View>
+              </View>
+            ))}
           </View>
         )}
       </View>
 
-      <EditProductModal
-        visible={editOpen}
-        product={product}
-        onClose={() => setEditOpen(false)}
-        onSaved={onRefresh}
-      />
-    </>
+      {menuOpen && (
+        <View style={styles.menuArea}>
+          <InventoryMenu
+            onEdit={() => { setEditOpen(true); setMenuOpen(false); }}
+            onDelete={() => {
+              Alert.alert("Delete", "Delete this product?", [
+                { text: "Cancel", style: "cancel" },
+                { text: "Delete", style: "destructive", onPress: async () => { await deleteProduct(product._id); onRefresh(); }}
+              ]);
+            }}
+          />
+        </View>
+      )}
+
+      <EditProductModal visible={editOpen} product={product} onClose={() => setEditOpen(false)} onSaved={onRefresh} />
+    </View>
   );
 }
 
+const CompactInput = ({ label, value, prefix, onSave, isSmall }: any) => {
+  const [localVal, setLocalVal] = useState(value);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setLocalVal(value);
+  }, [value]);
+
+  const handleBlur = async () => {
+    if (localVal === value) return;
+    setIsSaving(true);
+    await onSave(localVal);
+    setIsSaving(false);
+  };
+
+  return (
+    <View style={[styles.compactInputBox, isSmall && styles.smallInputBox]}>
+      {label && <Text style={styles.inputLabel}>{label}</Text>}
+      <View style={[styles.inputInner, isSaving && { borderColor: THEME_BLUE }]}>
+        {prefix && <Text style={styles.inputPrefix}>{prefix}</Text>}
+        <TextInput
+          value={String(localVal)}
+          onChangeText={setLocalVal}
+          onBlur={handleBlur}
+          keyboardType="numeric"
+          style={[styles.miniInput, isSmall && { fontSize: 12, height: 26 }]}
+          selectTextOnFocus
+        />
+        {isSaving && <ActivityIndicator size="small" color={THEME_BLUE} style={{ marginLeft: 2 }} />}
+      </View>
+    </View>
+  );
+};
+
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: "#fff",
-    marginHorizontal: 12,
-    marginVertical: 6,
-    borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: "#f1f5f9",
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    gap: 8,
-  },
-  name: {
-    fontWeight: "700",
-    fontSize: 15,
-    color: "#1e293b",
-    marginBottom: 6,
-  },
-  badgeRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 4,
-  },
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 6,
-  },
-  badgeText: {
-    fontSize: 9,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-  inputCol: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  label: {
-    fontSize: 9,
-    fontWeight: "800",
-    color: "#64748b",
-    marginBottom: 4,
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f8fafc",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    paddingHorizontal: 6,
-  },
-  currency: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#94a3b8",
-    marginRight: 2,
-  },
-  input: {
-    width: 55,
-    textAlign: "center",
-    fontWeight: "700",
-    color: "#1e293b",
-    paddingVertical: 6,
-    fontSize: 13,
-  },
-  moreButton: {
-    padding: 4,
-    marginLeft: 4,
-  },
-  menuWrapper: {
-    borderTopWidth: 1,
-    borderTopColor: "#f1f5f9",
-    backgroundColor: "#fafafa",
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-  },
+  card: { backgroundColor: "#fff", marginHorizontal: 10, marginVertical: 3, borderRadius: 10, borderWidth: 1, borderColor: "#f1f5f9" },
+  mainContent: { padding: 10 },
+  topInfo: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  nameBlock: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flex: 1, paddingRight: 5 },
+  statusIndicator: { width: 3, height: 18, borderRadius: 2, marginRight: 8 },
+  productName: { fontSize: 14, fontWeight: "700", color: "#1e293b", flex: 1 },
+  categorySubText: { fontSize: 10, color: "#94a3b8", fontWeight: "500" },
+  expiryBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 },
+  expiryText: { fontSize: 9, fontWeight: "800", textTransform: "uppercase" },
+  iconBtn: { padding: 4 },
+  inlineControls: { flexDirection: "row", gap: 8, marginTop: 8 },
+  variantToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f8fafc', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, marginTop: 8, borderWidth: 1, borderColor: '#e2e8f0' },
+  variantToggleActive: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, backgroundColor: '#eff6ff' },
+  variantToggleText: { fontSize: 11, fontWeight: '700', color: THEME_BLUE },
+  variantsWrapper: { backgroundColor: "#fff", borderWidth: 1, borderColor: '#e2e8f0', borderTopWidth: 0, borderBottomLeftRadius: 6, borderBottomRightRadius: 6, paddingHorizontal: 8 },
+  variantRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: "#f8fafc" },
+  variantName: { fontSize: 12, fontWeight: "600", color: "#475569", flex: 1 },
+  variantInputs: { flexDirection: "row", gap: 6 },
+  compactInputBox: { flex: 1 },
+  smallInputBox: { flex: 0, width: 85 },
+  inputLabel: { fontSize: 8, fontWeight: "800", color: "#94a3b8", textTransform: "uppercase", marginBottom: 2 },
+  inputInner: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 6, paddingHorizontal: 6 },
+  inputPrefix: { fontSize: 11, fontWeight: "800", color: "#cbd5e1", marginRight: 1 },
+  miniInput: { flex: 1, height: 30, fontSize: 13, fontWeight: "700", color: "#334155", padding: 0 },
+  menuArea: { borderTopWidth: 1, borderTopColor: "#f1f5f9" },
 });

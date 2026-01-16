@@ -1,22 +1,23 @@
 import { api } from "./api";
 
 /* ---------------- CREATE BILL ---------------- */
-export const createBill = (data: {
+type CreateBillPayload = {
   items: {
     productId: string;
-    name: string;
+    variantId?: string | null;
     quantity: number;
-    unit: string;
-    price: number;
   }[];
   discount: number;
   taxPercentage: number;
   paidAmount: number;
-  paymentMode: "CASH" | "UPI" | "NONE";
+  paymentMode: "CASH" | "UPI";
   customerId?: string | null;
-}) => {
-  return api.post("/bills", data);
 };
+
+export function createBill(payload: CreateBillPayload) {
+  return api.post("/bills", payload);
+}
+
 
 /* ---------------- GET BILLS ---------------- */
 export const getBills = () => {

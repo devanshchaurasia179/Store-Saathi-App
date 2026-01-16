@@ -262,7 +262,7 @@ export default function BillItemsList({ items, setItems }) {
     <FlatList
       data={items}
       renderItem={renderItem}
-      keyExtractor={i => i.productId}
+      keyExtractor={(item) => `${item.productId}-${item.variantId ?? 'no-variant'}`}
       contentContainerStyle={styles.list}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}

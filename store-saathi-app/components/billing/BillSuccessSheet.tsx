@@ -78,7 +78,7 @@ export default function BillSuccessSheet({
               nestedScrollEnabled={true}
             >
               {items.map((item, index) => (
-                <View key={item.productId || index} style={styles.itemRow}>
+                <View key={`${item.productId}-${item.variantId ?? 'no-variant'}-${index}`}>
                   <View style={styles.itemMain}>
                     <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
                     <Text style={styles.itemDetails}>

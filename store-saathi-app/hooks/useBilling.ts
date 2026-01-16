@@ -8,6 +8,7 @@ import { createBill } from "../constants/billing.api";
 
 type BillItem = {
   productId: string;
+  variantId?: string | null;
   name: string;
   price: number;
   unit: string; // unit | kg | g | litre | ml | pack | box
@@ -32,7 +33,7 @@ export const useBilling = () => {
 
   const scanLockRef = useRef<string | null>(null);
 
-  /* ---------------- TOTALS (Memoized) ---------------- */
+  /* ---------------- TOTALS ---------------- */
   const subTotal = useMemo(() => {
     return items.reduce((sum, i) => sum + i.quantity * i.price, 0);
   }, [items]);
@@ -45,17 +46,12 @@ export const useBilling = () => {
     return Math.max(subTotal + taxAmount - discount, 0);
   }, [subTotal, taxAmount, discount]);
 
-  /* ---------------- ✅ THE FIX ---------------- */
-  /**
-   * Automatically update paidAmount to match totalAmount.
-   * This ensures that as you scan items, the "Amount Received" 
-   * field updates in real-time.
-   */
+  /* ---------------- AUTO PAID AMOUNT ---------------- */
   useEffect(() => {
     setPaidAmount(totalAmount);
   }, [totalAmount]);
 
-  /* ---------------- SCAN ---------------- */
+  /* ---------------- SCAN (VARIANT SAFE) ---------------- */
   const handleScan = useCallback(async (barcode: string) => {
     if (!barcode) return;
     if (scanLockRef.current === barcode) return;
@@ -65,7 +61,9 @@ export const useBilling = () => {
 
     try {
       const res = await getProductByBarcode(barcode);
+
       const product = res.data?.product;
+      const variant = res.data?.variant || null;
 
       if (!product) {
         setProductNotFound(true);
@@ -76,12 +74,15 @@ export const useBilling = () => {
 
       setItems((prev) => {
         const existing = prev.find(
-          (i) => i.productId === product._id
+          (i) =>
+            i.productId === product._id &&
+            i.variantId === (variant?._id || null)
         );
 
         if (existing) {
           return prev.map((i) =>
-            i.productId === product._id
+            i.productId === product._id &&
+            i.variantId === (variant?._id || null)
               ? { ...i, quantity: i.quantity + 1 }
               : i
           );
@@ -91,8 +92,13 @@ export const useBilling = () => {
           ...prev,
           {
             productId: product._id,
-            name: product.name,
-            price: product.price?.sellingPrice || 0,
+            variantId: variant?._id || null,
+            name: variant
+              ? `${product.name} (${variant.name})`
+              : product.name,
+            price: variant
+              ? variant.price?.sellingPrice
+              : product.price?.sellingPrice || 0,
             unit: product.unit || "unit",
             displayUnit: undefined,
             quantity: 1,
@@ -106,7 +112,6 @@ export const useBilling = () => {
         Alert.alert("Scan Failed", "Unable to fetch product");
       }
     } finally {
-      // Debounce the lock slightly to prevent jitter scans
       setTimeout(() => {
         scanLockRef.current = null;
       }, 500);
@@ -121,15 +126,20 @@ export const useBilling = () => {
     }
 
     try {
-      const res = await createBill({
-        items,
+      const payload = {
+        items: items.map((i) => ({
+          productId: i.productId,
+          variantId: i.variantId || null,
+          quantity: i.quantity,
+        })),
         discount,
         taxPercentage,
         paidAmount,
         paymentMode: paymentMode === "NONE" ? "CASH" : paymentMode,
         customerId,
-      });
-
+      };
+      
+      const res = await createBill(payload);
       return res.data;
     } catch (err) {
       Alert.alert("Error", "Failed to create bill");
@@ -137,7 +147,7 @@ export const useBilling = () => {
     }
   };
 
-  /* ---------------- RESET BILL ---------------- */
+  /* ---------------- RESET ---------------- */
   const resetBill = () => {
     setItems([]);
     setDiscount(0);
@@ -147,13 +157,51 @@ export const useBilling = () => {
     setLastScannedBarcode(null);
     setProductNotFound(false);
   };
+const addItemByProduct = useCallback(
+  (product: any, variant: any | null = null) => {
+    setItems((prev) => {
+      const productId = product._id;
+      const variantId = variant?._id ?? null;
+
+      const existing = prev.find(
+        (i) =>
+          i.productId === productId &&
+          i.variantId === variantId
+      );
+
+      if (existing) {
+        return prev.map((i) =>
+          i.productId === productId &&
+          i.variantId === variantId
+            ? { ...i, quantity: i.quantity + 1 }
+            : i
+        );
+      }
+
+      return [
+        ...prev,
+        {
+          productId,
+          variantId,
+          name: variant
+            ? `${product.name} (${variant.name})`
+            : product.name,
+          price: variant
+            ? variant.price?.sellingPrice ?? 0
+            : product.price?.sellingPrice ?? 0,
+          unit: product.unit || "unit",
+          quantity: 1,
+        },
+      ];
+    });
+  },
+  []
+);
 
   return {
-    // items
     items,
     setItems,
 
-    // amounts
     discount,
     setDiscount,
     taxPercentage,
@@ -166,14 +214,14 @@ export const useBilling = () => {
     subTotal,
     totalAmount,
 
-    // actions
     handleScan,
     checkout,
     resetBill,
 
-    // scan flow
     productNotFound,
     setProductNotFound,
     lastScannedBarcode,
+
+    addItemByProduct
   };
 };
