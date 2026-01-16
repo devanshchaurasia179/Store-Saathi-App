@@ -61,22 +61,22 @@ export async function createProduct(req, res) {
       quantity,
       expiryDate,
       isBarcodeListed = true,
+      isTrackable = true,
       unit = "unit",
-      variants = [], // 🆕
+      variants = [],
     } = req.body;
 
     // 🔴 REQUIRED FIELDS
-if (
-  !name ||
-  !price ||
-  typeof price.sellingPrice !== "number" ||
-  price.sellingPrice < 0
-) {
-  return res.status(400).json({
-    message: "Product name and selling price are required",
-  });
-}
-
+    if (
+      !name ||
+      !price ||
+      typeof price.sellingPrice !== "number" ||
+      price.sellingPrice < 0
+    ) {
+      return res.status(400).json({
+        message: "Product name and selling price are required",
+      });
+    }
 
     // 🔴 BARCODE REQUIRED
     if (!barcode || typeof barcode !== "string" || barcode.trim() === "") {
@@ -104,13 +104,14 @@ if (
       shopId,
       name,
       barcode: barcode.trim(),
-      isBarcodeListed,
+      isBarcodeListed: Boolean(isBarcodeListed),
+      isTrackable: Boolean(isTrackable), // ✅ FIXED
       category,
       size,
       unit,
       price,
       quantity,
-      variants, // 🆕
+      variants,
       expiryDate,
       isFromMaster: false,
     });
@@ -119,7 +120,6 @@ if (
   } catch (error) {
     console.error("Create Product Error:", error);
 
-    // duplicate barcode protection
     if (error.code === 11000) {
       return res.status(409).json({
         message: "Product with this barcode already exists",
@@ -164,7 +164,7 @@ export async function getProductByBarcode(req, res) {
       });
     }
 
-    // 1️⃣ Check MAIN PRODUCT barcode
+    // 1️⃣ Check MAIN PRODUCT barcode (NO isBarcodeListed filter)
     let product = await Product.findOne({
       shopId,
       barcode,
@@ -216,6 +216,7 @@ export async function getProductByBarcode(req, res) {
       name: masterProduct.name,
       barcode: masterProduct.barcode,
       isBarcodeListed: true,
+      isTrackable: true, // ✅ FIXED
       category: masterProduct.category,
       size: masterProduct.size,
       unit: masterProduct.unit || "unit",
@@ -224,7 +225,7 @@ export async function getProductByBarcode(req, res) {
         mrp: masterProduct.mrp,
       },
       quantity: 0,
-      variants: [], // 🆕 safe default
+      variants: [],
       expiryDate: null,
       isFromMaster: true,
     });
