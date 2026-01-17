@@ -104,16 +104,19 @@ export async function createBill(req, res) {
         });
       }
 
-      let variant = null;
+let variant = null;
+let variantId = null; // ✅ ADD THIS
 
-      if (item.variantId) {
-        variant = product.variants.id(item.variantId);
-        if (!variant) {
-          return res.status(400).json({
-            message: "Invalid variant selected",
-          });
-        }
-      }
+if (item.variantId) {
+  variant = product.variants.id(item.variantId);
+  if (!variant) {
+    return res.status(400).json({
+      message: "Invalid variant selected",
+    });
+  }
+  variantId = variant._id; // ✅ ADD THIS
+}
+
 
       const unit =
         item.unit &&
@@ -137,7 +140,7 @@ export async function createBill(req, res) {
 
       billItems.push({
         productId: product._id,
-        variantId: variant ? variant._id : null,
+        variantId,
         name: variant
           ? `${product.name} (${variant.name})`
           : product.name,

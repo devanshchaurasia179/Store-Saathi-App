@@ -6,24 +6,6 @@ import Bill from "../models/Bill.js";
 const IST_OFFSET_MINUTES = 330; // UTC +5:30
 
 /* --------------------------------------------------
-   IST → UTC HELPERS
--------------------------------------------------- */
-function getISTDate(dateStr) {
-  const d = dateStr ? new Date(dateStr) : new Date();
-  return new Date(
-    Date.UTC(
-      d.getFullYear(),
-      d.getMonth(),
-      d.getDate(),
-      d.getHours(),
-      d.getMinutes(),
-      d.getSeconds(),
-      d.getMilliseconds()
-    )
-  );
-}
-
-/* --------------------------------------------------
    IST DAY RANGE
 -------------------------------------------------- */
 function getISTDayRange(dateStr) {
@@ -55,8 +37,8 @@ function getISTDayRange(dateStr) {
 -------------------------------------------------- */
 function getISTWeekRange(dateStr) {
   const d = dateStr ? new Date(dateStr) : new Date();
+  const day = d.getDay();
 
-  const day = d.getDay(); // IST day
   const startIST = new Date(d);
   startIST.setDate(d.getDate() - day);
   startIST.setHours(0, 0, 0, 0);
@@ -102,7 +84,7 @@ function getISTYearRange(dateStr) {
 }
 
 /* --------------------------------------------------
-   GROUPING HELPERS (IST KEYS)
+   IST GROUPING KEYS
 -------------------------------------------------- */
 function getISTDayKey(date) {
   const d = new Date(date.getTime() + IST_OFFSET_MINUTES * 60 * 1000);
@@ -122,7 +104,7 @@ function getISTMonthKey(date) {
 }
 
 /* --------------------------------------------------
-   CORE ANALYTICS
+   ✅ VARIANT-AWARE ANALYTICS CORE – NOW SORTED BY QUANTITY
 -------------------------------------------------- */
 function computeAnalyticsFromBills(bills) {
   let totalSales = 0;
@@ -131,7 +113,8 @@ function computeAnalyticsFromBills(bills) {
   let biggestBill = null;
   let maxBillAmount = 0;
 
-  const productSales = {};
+  const productMap = {};
+  // 🔥 PRODUCT + VARIANT SAFE
 
   for (const bill of bills) {
     const billTotal = Number(bill.totalAmount) || 0;
@@ -143,13 +126,27 @@ function computeAnalyticsFromBills(bills) {
     const debt = billTotal - paid;
     if (debt > 0) totalDebt += debt;
 
-    for (const item of bill.items || []) {
-      const unit = item.unit || "unit";
-      const key = `${item.productId}::${unit}`;
+    if (billTotal > maxBillAmount) {
+      maxBillAmount = billTotal;
+      biggestBill = bill;
+    }
 
-      if (!productSales[key]) {
-        productSales[key] = {
-          productId: item.productId,
+    for (const item of bill.items || []) {
+      const productId = String(item.productId);
+      const variantId = item.variantId ? String(item.variantId) : "NO_VARIANT";
+      const unit = item.unit || "unit";
+
+      if (!productMap[productId]) {
+        productMap[productId] = {
+          productId,
+          name: item.name.split(" (")[0], // base product name
+          variants: {},
+        };
+      }
+
+      if (!productMap[productId].variants[variantId]) {
+        productMap[productId].variants[variantId] = {
+          variantId: variantId === "NO_VARIANT" ? null : variantId,
           name: item.name,
           unit,
           quantity: 0,
@@ -157,27 +154,51 @@ function computeAnalyticsFromBills(bills) {
         };
       }
 
-      productSales[key].quantity += Number(item.quantity) || 0;
-      productSales[key].revenue += Number(item.total) || 0;
-    }
-
-    if (billTotal > maxBillAmount) {
-      maxBillAmount = billTotal;
-      biggestBill = bill;
+      productMap[productId].variants[variantId].quantity += Number(item.quantity) || 0;
+      productMap[productId].variants[variantId].revenue += Number(item.total) || 0;
     }
   }
 
-  const topProducts = Object.values(productSales).sort(
-    (a, b) => b.quantity - a.quantity
-  );
+  // ────────────────────────────────────────────────
+  //  NEW: Prepare array + calculate product totals
+  // ────────────────────────────────────────────────
+  const productsArray = Object.values(productMap).map(product => {
+    let totalQuantity = 0;
+    let totalRevenue = 0;
 
+    const variantsArray = Object.values(product.variants).map(variant => {
+      totalQuantity += variant.quantity;
+      totalRevenue += variant.revenue;
+      return variant;
+    });
+
+    return {
+      ...product,
+      totalQuantity,
+      totalRevenue,
+      variants: variantsArray,
+    };
+  });
+
+  // ────────────────────────────────────────────────
+  //  Sort VARIANTS inside each product by quantity ↓
+  // ────────────────────────────────────────────────
+  productsArray.forEach(product => {
+    product.variants.sort((a, b) => b.quantity - a.quantity);
+  });
+
+  // ────────────────────────────────────────────────
+  //  Sort PRODUCTS themselves by total quantity ↓
+  // ────────────────────────────────────────────────
+  productsArray.sort((a, b) => b.totalQuantity - a.totalQuantity);
+
+  // ────────────────────────────────────────────────
+  //  Final return – now sorted
+  // ────────────────────────────────────────────────
   return {
     totalSales,
     biggestBill,
-    topProduct: topProducts[0] || null,
-    topProducts,
-
-    // 🔥 THIS FIXES YOUR UI
+    products: productsArray,           // ← sorted by quantity (product level + variant level)
     debtVsSales: {
       totalDebt,
       totalSales,
@@ -185,7 +206,6 @@ function computeAnalyticsFromBills(bills) {
     },
   };
 }
-
 
 /* --------------------------------------------------
    AUTH
@@ -199,7 +219,7 @@ function getShopId(req, res) {
 }
 
 /* --------------------------------------------------
-   DAILY ANALYTICS (IST)
+   DAILY ANALYTICS
 -------------------------------------------------- */
 export async function getDailyAnalytics(req, res) {
   try {
@@ -219,13 +239,13 @@ export async function getDailyAnalytics(req, res) {
       date: getISTDayKey(start),
       ...computeAnalyticsFromBills(bills),
     });
-  } catch (err) {
+  } catch {
     res.status(500).json({ success: false });
   }
 }
 
 /* --------------------------------------------------
-   WEEKLY ANALYTICS (IST)
+   WEEKLY ANALYTICS
 -------------------------------------------------- */
 export async function getWeeklyAnalytics(req, res) {
   try {
@@ -257,13 +277,13 @@ export async function getWeeklyAnalytics(req, res) {
       ...computeAnalyticsFromBills(bills),
       days,
     });
-  } catch (err) {
+  } catch {
     res.status(500).json({ success: false });
   }
 }
 
 /* --------------------------------------------------
-   MONTHLY ANALYTICS (IST)
+   MONTHLY ANALYTICS
 -------------------------------------------------- */
 export async function getMonthlyAnalytics(req, res) {
   try {
@@ -295,13 +315,13 @@ export async function getMonthlyAnalytics(req, res) {
       ...computeAnalyticsFromBills(bills),
       weeks,
     });
-  } catch (err) {
+  } catch {
     res.status(500).json({ success: false });
   }
 }
 
 /* --------------------------------------------------
-   YEARLY ANALYTICS (IST)
+   YEARLY ANALYTICS
 -------------------------------------------------- */
 export async function getYearlyAnalytics(req, res) {
   try {
@@ -333,7 +353,7 @@ export async function getYearlyAnalytics(req, res) {
       ...computeAnalyticsFromBills(bills),
       months,
     });
-  } catch (err) {
+  } catch {
     res.status(500).json({ success: false });
   }
 }

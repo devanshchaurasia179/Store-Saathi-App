@@ -1,11 +1,20 @@
 import mongoose from "mongoose";
 
+/* -----------------------------------
+   BILL ITEM SCHEMA (VARIANT-AWARE)
+----------------------------------- */
 const billItemSchema = new mongoose.Schema(
   {
     productId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Product",
       required: true,
+    },
+
+    // 🔥 NEW — REQUIRED FOR VARIANT ANALYTICS
+    variantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null, // null = no variant (base product)
     },
 
     name: {
@@ -16,13 +25,12 @@ const billItemSchema = new mongoose.Schema(
     quantity: {
       type: Number,
       required: true,
-
     },
 
     unit: {
       type: String,
-      enum: ["unit", "kg", "g", "litre", "ml", "box", "pack","dozen"],
-      default: "unit", // 🆕 SAFE FALLBACK
+      enum: ["unit", "kg", "g", "litre", "ml", "box", "pack", "dozen"],
+      default: "unit", // ✅ SAFE FALLBACK
     },
 
     price: {
@@ -38,6 +46,9 @@ const billItemSchema = new mongoose.Schema(
   { _id: false }
 );
 
+/* -----------------------------------
+   BILL SCHEMA
+----------------------------------- */
 const billSchema = new mongoose.Schema(
   {
     shopId: {
@@ -74,23 +85,28 @@ const billSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+
     taxPercentage: {
       type: Number,
       default: 0,
     },
+
     totalAmount: {
       type: Number,
       required: true,
     },
+
     paidAmount: {
       type: Number,
       required: true,
     },
+
     paymentStatus: {
       type: String,
       enum: ["PAID", "PARTIAL", "UNPAID"],
       required: true,
     },
+
     paymentMode: {
       type: String,
       enum: ["CASH", "UPI", "CARD", "NONE"],
@@ -99,6 +115,10 @@ const billSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+/* -----------------------------------
+   INDEXES
+----------------------------------- */
 
 // 🔒 Prevent duplicate bill numbers per shop per day
 billSchema.index(
