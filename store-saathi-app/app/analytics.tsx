@@ -139,9 +139,11 @@ export default function AnalyticsScreen() {
   }
 
   const debt = data?.debtVsSales || {};
-  const products = data?.topProducts || [];
   const biggestBill = data?.biggestBill;
-  const displayedProducts = showAllProducts ? products : products.slice(0, 5);
+  
+  // Logic to handle Products from JSON
+  const productsSource = data?.products || [];
+  const displayedProducts = showAllProducts ? productsSource : productsSource.slice(0, 5);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -299,55 +301,75 @@ export default function AnalyticsScreen() {
           </View>
         )}
 
-        {/* PRODUCT LIST */}
+        {/* PRODUCT LIST (SINGLE TILE PER PRODUCT WITH VARIANTS) */}
         <View style={styles.card}>
           <View style={styles.productHeader}>
             <Text style={styles.cardLabel}>
-              {t.productsSold(products.length)}
+              {t.productsSold(productsSource.length)}
             </Text>
             <Ionicons name="trending-up" size={18} color="#64748b" />
           </View>
 
-          {products.length === 0 ? (
+          {productsSource.length === 0 ? (
             <Text style={styles.emptyText}>{t.noProducts}</Text>
           ) : (
             <View>
-                {displayedProducts.map((item: any, index: number) => (
-                    <View key={index} style={[styles.productItem, index === displayedProducts.length - 1 && !(!showAllProducts && products.length > 5) && { marginBottom: 0 }]}>
-                        <View style={styles.rankCircle}>
-                            <Text style={styles.rankText}>{index + 1}</Text>
-                        </View>
-                        <View style={styles.productInfo}>
-                            <Text style={styles.productName} numberOfLines={2}>
-                                {maskText(item.name)}
-                            </Text>
-                            <View style={styles.productStats}>
-                                <Text style={styles.qtyText}>
-                                    Qty: {isDataVisible ? item.quantity : "••"} {isDataVisible ? (item.unit || "unit") : ""}
-                                </Text>
-                                <Text style={styles.revenueText}>
-                                    {maskValue(item.revenue)}
-                                </Text>
-                            </View>
-                        </View>
+              {displayedProducts.map((product: any, index: number) => (
+                <View key={product.productId || index} style={styles.productContainerTile}>
+                  {/* Product Header Row */}
+                  <View style={styles.productMainRow}>
+                    <View style={styles.rankCircle}>
+                      <Text style={styles.rankText}>{index + 1}</Text>
                     </View>
-                ))}
+                    <View style={styles.productInfo}>
+                      <Text style={styles.productName} numberOfLines={1}>
+                        {maskText(product.name)}
+                      </Text>
+                      <Text style={styles.totalRevenueSub}>
+                         Total: {maskValue(product.totalRevenue)}
+                      </Text>
+                    </View>
+                  </View>
 
-                {products.length > 5 && (
-                  <TouchableOpacity 
-                    style={styles.seeMoreBtn} 
-                    onPress={() => setShowAllProducts(!showAllProducts)}
-                  >
-                    <Text style={styles.seeMoreText}>
-                        {showAllProducts ? t.showLess : t.seeMore(products.length - 5)}
-                    </Text>
-                    <Ionicons 
-                        name={showAllProducts ? "chevron-up" : "chevron-down"} 
-                        size={16} 
-                        color="#1E3A8A" 
-                    />
-                  </TouchableOpacity>
-                )}
+                  {/* Variants List Inside the same Product Tile */}
+                  <View style={styles.variantsListContainer}>
+                    {product.variants.map((variant: any, vIdx: number) => (
+                      <View key={variant.variantId || vIdx} style={styles.variantDetailRow}>
+                        <View style={styles.variantLeft}>
+                           <View style={styles.dot} />
+                           <Text style={styles.variantNameLabel} numberOfLines={1}>
+                             {maskText(variant.name)}
+                           </Text>
+                        </View>
+                        <View style={styles.variantRight}>
+                           <Text style={styles.variantQtyText}>
+                             {isDataVisible ? variant.quantity : "••"} {isDataVisible ? (variant.unit || "unit") : ""}
+                           </Text>
+                           <Text style={styles.variantRevenueText}>
+                             {maskValue(variant.revenue)}
+                           </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              ))}
+
+              {productsSource.length > 5 && (
+                <TouchableOpacity 
+                  style={styles.seeMoreBtn} 
+                  onPress={() => setShowAllProducts(!showAllProducts)}
+                >
+                  <Text style={styles.seeMoreText}>
+                    {showAllProducts ? t.showLess : t.seeMore(productsSource.length - 5)}
+                  </Text>
+                  <Ionicons 
+                    name={showAllProducts ? "chevron-up" : "chevron-down"} 
+                    size={16} 
+                    color="#1E3A8A" 
+                  />
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
@@ -355,7 +377,7 @@ export default function AnalyticsScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* 🔌 Step 6: PIN MODAL */}
+      {/* 🔌 PIN MODAL */}
       <AnalyticsPinModal
         visible={showPinModal}
         mode={pinMode}
@@ -366,7 +388,7 @@ export default function AnalyticsScreen() {
             return;
           }
           setIsDataVisible(true);
-          setHasPin(true); // Ensure state updates after a new PIN is set
+          setHasPin(true);
         }}
       />
 
@@ -381,7 +403,6 @@ export default function AnalyticsScreen() {
 }
 
 const styles = StyleSheet.create({
-  // ... (Keeping your existing styles untouched)
   safeArea: { flex: 1, backgroundColor: "#F8FAFC" },
   container: { flex: 1, paddingHorizontal: 16 },
   navBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8, marginBottom: 10 },
@@ -425,14 +446,75 @@ const styles = StyleSheet.create({
   tag: { backgroundColor: '#F1F5F9', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
   tagText: { fontSize: 10, fontWeight: "700", color: '#64748B' },
   productHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  productItem: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
-  rankCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", marginRight: 12 },
-  rankText: { fontSize: 14, fontWeight: "700", color: "#1E3A8A" },
+  
+  // Custom Styles for Nested Tile View
+  productContainerTile: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0"
+  },
+  productMainRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    paddingBottom: 8
+  },
+  rankCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#1E3A8A", alignItems: "center", justifyContent: "center", marginRight: 12 },
+  rankText: { fontSize: 14, fontWeight: "700", color: "#fff" },
   productInfo: { flex: 1 },
-  productName: { fontSize: 16, fontWeight: "600", color: "#1E293B", marginBottom: 4 },
-  productStats: { flexDirection: "row", justifyContent: "space-between" },
-  qtyText: { fontSize: 14, color: "#64748B" },
-  revenueText: { fontSize: 14, fontWeight: "700", color: "#1E293B" },
+  productName: { fontSize: 16, fontWeight: "800", color: "#1E293B" },
+  totalRevenueSub: { fontSize: 12, fontWeight: "600", color: "#64748B", marginTop: 2 },
+  
+  variantsListContainer: {
+    paddingLeft: 4,
+  },
+  variantDetailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 6,
+  },
+  variantLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 0.6
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#94A3B8",
+    marginRight: 8
+  },
+  variantNameLabel: {
+    fontSize: 14,
+    color: "#475569",
+    fontWeight: "500"
+  },
+  variantRight: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    flex: 0.4
+  },
+  variantQtyText: {
+    fontSize: 13,
+    color: "#64748B",
+    marginRight: 10
+  },
+  variantRevenueText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1E293B",
+    width: 70,
+    textAlign: 'right'
+  },
+
   emptyText: { fontSize: 15, color: "#94A3B8", textAlign: "center", paddingVertical: 20 },
   seeMoreBtn: {
     flexDirection: 'row',
