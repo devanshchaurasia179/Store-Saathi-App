@@ -109,7 +109,7 @@ const billSchema = new mongoose.Schema(
 
     paymentMode: {
       type: String,
-      enum: ["CASH", "UPI", "CARD", "NONE"],
+      enum: ["CASH", "UPI", "OTHERS"],
       default: "NONE",
     },
   },

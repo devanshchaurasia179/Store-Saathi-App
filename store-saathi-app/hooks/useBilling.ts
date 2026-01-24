@@ -119,33 +119,37 @@ export const useBilling = () => {
   }, []);
 
   /* ---------------- CHECKOUT ---------------- */
-  const checkout = async (customerId: string | null) => {
-    if (!items.length) {
-      Alert.alert("Empty Bill", "No items in bill");
-      return null;
-    }
+const checkout = async (
+  customerId: string | null,
+  mode: "CASH" | "UPI" | "CARD" | "NONE" | "OTHERS"
+) => {
+  if (!items.length) {
+    Alert.alert("Empty Bill", "No items in bill");
+    return null;
+  }
 
-    try {
-      const payload = {
-        items: items.map((i) => ({
-          productId: i.productId,
-          variantId: i.variantId || null,
-          quantity: i.quantity,
-        })),
-        discount,
-        taxPercentage,
-        paidAmount,
-        paymentMode: paymentMode === "NONE" ? "CASH" : paymentMode,
-        customerId,
-      };
-      
-      const res = await createBill(payload);
-      return res.data;
-    } catch (err) {
-      Alert.alert("Error", "Failed to create bill");
-      throw err;
-    }
-  };
+  try {
+    const payload = {
+      items: items.map((i) => ({
+        productId: i.productId,
+        variantId: i.variantId || null,
+        quantity: i.quantity,
+      })),
+      discount,
+      taxPercentage,
+      paidAmount,
+      paymentMode: paidAmount === 0 ? "NONE" : mode,
+      customerId,
+    };
+
+    const res = await createBill(payload);
+    return res.data;
+  } catch (err) {
+    Alert.alert("Error", "Failed to create bill");
+    throw err;
+  }
+};
+
 
   /* ---------------- RESET ---------------- */
   const resetBill = () => {

@@ -115,10 +115,19 @@ function computeAnalyticsFromBills(bills) {
 
   const productMap = {};
   // 🔥 PRODUCT + VARIANT SAFE
+    const paymentModeStats = {
+    CASH: 0,
+    UPI: 0,
+    OTHERS:0,
+  };
 
   for (const bill of bills) {
     const billTotal = Number(bill.totalAmount) || 0;
     const paid = Number(bill.paidAmount) || 0;
+  const mode = bill.paymentMode || "NONE";
+  if (paymentModeStats[mode] !== undefined) {
+    paymentModeStats[mode] += paid;
+  }
 
     totalSales += billTotal;
     totalCollected += paid;
@@ -195,16 +204,18 @@ function computeAnalyticsFromBills(bills) {
   // ────────────────────────────────────────────────
   //  Final return – now sorted
   // ────────────────────────────────────────────────
-  return {
+    return {
     totalSales,
     biggestBill,
-    products: productsArray,           // ← sorted by quantity (product level + variant level)
+    products: productsArray,
+    paymentModes: paymentModeStats, // 🔥 ADDED
     debtVsSales: {
       totalDebt,
       totalSales,
       totalCollected,
     },
   };
+
 }
 
 /* --------------------------------------------------

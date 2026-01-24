@@ -13,7 +13,7 @@ export const createBill = (data: {
   items: any[];
   totalAmount: number;
   paidAmount?: number;
-  paymentStatus?: "PAID" | "PARTIAL" | "UNPAID";
+  paymentMode?: "CASH" | "UPI" | "OTHERS";
 }) => {
   return api.post("/bills", data);
 };

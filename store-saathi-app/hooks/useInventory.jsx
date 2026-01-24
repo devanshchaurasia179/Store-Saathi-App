@@ -22,6 +22,7 @@ export const useInventory = () => {
     refresh();
   }, [refresh]);
 
+  
   return {
     products,
     loading,
