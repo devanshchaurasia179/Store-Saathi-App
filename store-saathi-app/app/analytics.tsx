@@ -187,32 +187,6 @@ export default function AnalyticsScreen() {
           </Text>
         </View>
 
-        {/* QUICK FILTERS */}
-        <View style={styles.quickFilters}>
-          {QUICK_FILTERS.map((f) => {
-            const isSelected = 
-              selectedDate.toDateString() ===
-              (f === "Today" 
-                ? new Date().toDateString() 
-                : new Date(Date.now() - 86400000).toDateString());
-
-            return (
-              <TouchableOpacity
-                key={f}
-                onPress={() => setQuickFilter(f)}
-                style={[
-                  styles.miniTab,
-                  isSelected && styles.activeMiniTab,
-                ]}
-              >
-                <Text style={[styles.miniTabText, isSelected && { color: '#fff' }]}>
-                    {f === "Today" ? t.today : t.yesterday}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
         {/* PERIOD TABS */}
         <View style={styles.tabs}>
           {(["daily", "weekly", "monthly", "yearly"] as const).map((modeKey) => (
@@ -228,6 +202,34 @@ export default function AnalyticsScreen() {
           ))}
         </View>
 
+        {/* QUICK FILTERS - Logic Updated: Only shows when daily mode is active */}
+        {mode === "daily" && (
+          <View style={styles.quickFilters}>
+            {QUICK_FILTERS.map((f) => {
+              const isSelected = 
+                selectedDate.toDateString() ===
+                (f === "Today" 
+                  ? new Date().toDateString() 
+                  : new Date(Date.now() - 86400000).toDateString());
+
+              return (
+                <TouchableOpacity
+                  key={f}
+                  onPress={() => setQuickFilter(f)}
+                  style={[
+                    styles.miniTab,
+                    isSelected && styles.activeMiniTab,
+                  ]}
+                >
+                  <Text style={[styles.miniTabText, isSelected && { color: '#fff' }]}>
+                      {f === "Today" ? t.today : t.yesterday}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
         {showPicker && (
           <DateTimePicker
             value={selectedDate}
@@ -241,9 +243,12 @@ export default function AnalyticsScreen() {
         {/* TOTAL SALES CARD */}
         <View style={[styles.card, styles.mainCard]}>
           <Text style={styles.cardLabelMain}>{t.totalSales}</Text>
-          <Text style={styles.mainValue}>
-            {maskValue(data?.totalSales || 0)}
-          </Text>
+          <View style={styles.mainValueRow}>
+            <Text style={styles.mainValue}>
+                {maskValue(data?.totalSales || 0)}
+            </Text>
+            <Ionicons name="stats-chart" size={24} color="rgba(255,255,255,0.3)" />
+          </View>
         </View>
 
         {/* COLLECTION ROW */}
@@ -282,9 +287,11 @@ export default function AnalyticsScreen() {
             <Text style={styles.redValue}>
                 {maskValue(debt.totalDebt || 0)}
             </Text>
-            <Text style={[styles.breakdownLabel, {marginTop: 10}]}>
-               {t.unpaidCredit || "Unpaid Credit"}
-            </Text>
+            <View style={styles.unpaidBadge}>
+                <Text style={styles.unpaidBadgeText}>
+                   {t.unpaidCredit || "Unpaid Credit"}
+                </Text>
+            </View>
           </View>
         </View>
 
@@ -321,14 +328,22 @@ export default function AnalyticsScreen() {
         {/* PRODUCT LIST */}
         <View style={styles.card}>
           <View style={styles.productHeader}>
-            <Text style={styles.cardLabel}>
-              {t.productsSold(productsSource.length)}
-            </Text>
-            <Ionicons name="trending-up" size={18} color="#64748b" />
+            <View>
+                <Text style={styles.cardLabel}>
+                {t.productsSold(productsSource.length)}
+                </Text>
+                <Text style={styles.productSubHeader}>Top performing items</Text>
+            </View>
+            <View style={styles.trendingIconBg}>
+                <Ionicons name="trending-up" size={18} color="#1E3A8A" />
+            </View>
           </View>
 
           {productsSource.length === 0 ? (
-            <Text style={styles.emptyText}>{t.noProducts}</Text>
+            <View style={styles.emptyContainer}>
+                <Ionicons name="cart-outline" size={40} color="#CBD5E1" />
+                <Text style={styles.emptyText}>{t.noProducts}</Text>
+            </View>
           ) : (
             <View>
               {displayedProducts.map((product: any, index: number) => (
@@ -432,29 +447,35 @@ const styles = StyleSheet.create({
   eyeBtn: { marginLeft: 12, padding: 4 },
   dateSub: { fontSize: 14, color: "#64748B", marginTop: 2 },
   calendarBtn: { padding: 10, backgroundColor: "#fff", borderRadius: 12, elevation: 2, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
-  quickFilters: { flexDirection: "row", gap: 8, marginBottom: 12 },
-  miniTab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: "#E2E8F0" },
-  activeMiniTab: { backgroundColor: "#1E3A8A" }, 
-  miniTabText: { fontSize: 12, fontWeight: "600", color: "#475569" },
-  tabs: { flexDirection: "row", backgroundColor: "#E2E8F0", borderRadius: 12, padding: 4, marginBottom: 20 },
+  
+  // Quick Filters UI Enhancements
+  quickFilters: { flexDirection: "row", gap: 8, marginBottom: 16, marginTop: -4 },
+  miniTab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E2E8F0" },
+  activeMiniTab: { backgroundColor: "#1E3A8A", borderColor: "#1E3A8A" }, 
+  miniTabText: { fontSize: 12, fontWeight: "700", color: "#64748B" },
+  
+  tabs: { flexDirection: "row", backgroundColor: "#E2E8F0", borderRadius: 12, padding: 4, marginBottom: 16 },
   tab: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 10 },
   activeTab: { backgroundColor: "#fff", elevation: 2 },
   tabText: { fontSize: 13, fontWeight: "600", color: "#64748B" },
   activeTabText: { color: "#1E3A8A" },
   card: { backgroundColor: "#fff", padding: 16, borderRadius: 16, marginBottom: 16, elevation: 3, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 },
-  mainCard: { backgroundColor: "#1E3A8A" },
-  cardLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.8, color: "#94A3B8" },
-  cardLabelMain: { fontSize: 11, fontWeight: "700", letterSpacing: 0.8, color: "rgba(255,255,255,0.7)" },
-  mainValue: { fontSize: 32, fontWeight: "800", color: "#fff", marginTop: 4 },
+  mainCard: { backgroundColor: "#1E3A8A", paddingVertical: 20 },
+  cardLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.8, color: "#94A3B8", textTransform: 'uppercase' },
+  cardLabelMain: { fontSize: 11, fontWeight: "700", letterSpacing: 1, color: "rgba(255,255,255,0.6)", textTransform: 'uppercase' },
+  mainValueRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  mainValue: { fontSize: 34, fontWeight: "800", color: "#fff", marginTop: 4 },
   row: { flexDirection: "row", gap: 12, marginBottom: 16 },
   statsCard: { flex: 1, backgroundColor: "#fff", padding: 16, borderRadius: 16, elevation: 2 },
-  smallLabel: { fontSize: 12, color: "#64748B", marginVertical: 6 },
-  greenValue: { color: "#16A34A", fontSize: 18, fontWeight: "700" },
-  redValue: { color: "#DC2626", fontSize: 18, fontWeight: "700" },
+  smallLabel: { fontSize: 12, color: "#64748B", marginVertical: 6, fontWeight: '500' },
+  greenValue: { color: "#16A34A", fontSize: 20, fontWeight: "800" },
+  redValue: { color: "#DC2626", fontSize: 20, fontWeight: "800" },
   iconCircleGreen: { width: 28, height: 28, borderRadius: 14, backgroundColor: "#DCFCE7", alignItems: "center", justifyContent: "center" },
   iconCircleRed: { width: 28, height: 28, borderRadius: 14, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center" },
   
-  // Breakdown Styles
+  unpaidBadge: { marginTop: 10, backgroundColor: '#FFF1F2', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start' },
+  unpaidBadgeText: { fontSize: 10, color: '#E11D48', fontWeight: '700' },
+
   breakdownContainer: { marginTop: 12, borderTopWidth: 1, borderTopColor: "#F1F5F9", paddingTop: 8 },
   breakdownRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
   breakdownLabel: { fontSize: 10, color: "#94A3B8", fontWeight: "600" },
@@ -463,11 +484,15 @@ const styles = StyleSheet.create({
   billContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
   billAmount: { fontSize: 24, fontWeight: "800", color: "#1E293B" },
   billSubText: { fontSize: 12, color: "#64748B", marginTop: 2 },
-  detailsBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  detailsBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
   detailsBtnText: { color: '#1E3A8A', fontSize: 12, fontWeight: '700', marginRight: 2 },
   tag: { backgroundColor: '#F1F5F9', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
   tagText: { fontSize: 10, fontWeight: "700", color: '#64748B' },
-  productHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  
+  productHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 },
+  productSubHeader: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+  trendingIconBg: { backgroundColor: '#EFF6FF', padding: 8, borderRadius: 10 },
+
   productContainerTile: { backgroundColor: "#F8FAFC", borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: "#E2E8F0" },
   productMainRow: { flexDirection: "row", alignItems: "center", marginBottom: 10, borderBottomWidth: 1, borderBottomColor: "#E2E8F0", paddingBottom: 8 },
   rankCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#1E3A8A", alignItems: "center", justifyContent: "center", marginRight: 12 },
@@ -478,12 +503,14 @@ const styles = StyleSheet.create({
   variantsListContainer: { paddingLeft: 4 },
   variantDetailRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 6 },
   variantLeft: { flexDirection: "row", alignItems: "center", flex: 0.6 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#94A3B8", marginRight: 8 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#CBD5E1", marginRight: 8 },
   variantNameLabel: { fontSize: 14, color: "#475569", fontWeight: "500" },
   variantRight: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", flex: 0.4 },
   variantQtyText: { fontSize: 13, color: "#64748B", marginRight: 10 },
   variantRevenueText: { fontSize: 13, fontWeight: "700", color: "#1E293B", width: 75, textAlign: 'right' },
-  emptyText: { fontSize: 15, color: "#94A3B8", textAlign: "center", paddingVertical: 20 },
+  
+  emptyContainer: { alignItems: 'center', paddingVertical: 30 },
+  emptyText: { fontSize: 15, color: "#94A3B8", textAlign: "center", marginTop: 8 },
   seeMoreBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9', gap: 4 },
   seeMoreText: { color: '#1E3A8A', fontSize: 14, fontWeight: '700' }
 });

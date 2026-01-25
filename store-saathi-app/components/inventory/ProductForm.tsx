@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -12,13 +12,14 @@ import {
   Platform,
   Modal,
   Dimensions,
+  Keyboard,
 } from "react-native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Toast from "react-native-toast-message";
 
 /* 🛠 API & UTILS */
-import { createProduct, updateProduct } from "../../constants/inventory.api";
+import { createProduct, updateProduct, getProducts } from "../../constants/inventory.api";
 import { generateBarcode } from "../../utils/generateBarcode";
 
 /* 🔤 LANGUAGE */
@@ -53,7 +54,7 @@ const DEFAULT_FORM = {
   price: { sellingPrice: "" },
   quantity: "0",
   unit: "unit",
-  category: "Other",
+  category: "",
   expiryDate: null as Date | null,
   isActive: true,
   variants: [] as any[],
@@ -70,8 +71,13 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
 
   const [form, setForm] = useState(DEFAULT_FORM);
   const [loading, setLoading] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isUnitOpen, setIsUnitOpen] = useState(false);
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  /* CATEGORY STATE */
+  const [dbCategories, setDbCategories] = useState<string[]>([]);
+  const [categorySearch, setCategorySearch] = useState("");
 
   const [scannerVisible, setScannerVisible] = useState(false);
   const [scanningFor, setScanningFor] = useState<{
@@ -80,6 +86,14 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
   } | null>(null);
 
   useEffect(() => {
+    // 1. Fetch Categories from DB
+    getProducts().then((res) => {
+      const prods = res.data.products || [];
+      const cats: string[] = Array.from(new Set(prods.map((p: any) => p.category).filter(Boolean)));
+      setDbCategories(cats);
+    }).catch(() => {});
+
+    // 2. Handle Initial Data
     if (!initialData) {
       setForm((f) => ({ ...f, barcode: generateBarcode() }));
       return;
@@ -93,14 +107,29 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
       price: { sellingPrice: String(initialData.price?.sellingPrice ?? "") },
       quantity: String(initialData.quantity ?? 0),
       unit: initialData.unit || "unit",
-      category: initialData.category || "Other",
+      category: initialData.category || "",
       expiryDate: initialData.expiryDate ? new Date(initialData.expiryDate) : null,
       isActive: initialData.isActive ?? true,
       variants: initialData.variants || [],
     });
+    setCategorySearch(initialData.category || "");
   }, [initialData]);
 
   const update = (key: string, value: any) => setForm((f: any) => ({ ...f, [key]: value }));
+
+  const filteredCategories = useMemo(() => {
+    if (!categorySearch) return dbCategories;
+    return dbCategories.filter(c => c.toLowerCase().includes(categorySearch.toLowerCase()));
+  }, [categorySearch, dbCategories]);
+
+  const showCreateNew = categorySearch.trim().length > 0 && !dbCategories.some(c => c.toLowerCase() === categorySearch.trim().toLowerCase());
+
+  const selectCategory = (cat: string) => {
+    update("category", cat);
+    setCategorySearch(cat);
+    setIsCategoryOpen(false);
+    Keyboard.dismiss();
+  };
 
   const addVariant = () => update("variants", [...form.variants, DEFAULT_VARIANT()]);
   const removeVariant = (index: number) => {
@@ -164,6 +193,7 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
       } else {
         await createProduct(payload);
         setForm(DEFAULT_FORM);
+        setCategorySearch("");
       }
       Toast.show({ type: "success", text1: initialData ? "Product Updated" : "Product Created" });
       onSuccess?.();
@@ -181,26 +211,89 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
       style={{ flex: 1, backgroundColor: "#f8fafc" }}
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
+      keyboardShouldPersistTaps="always"
     >
       {/* SECTION 1: CORE DETAILS */}
-      <View style={styles.card}>
+      <View style={[styles.card, { zIndex: 100 }]}>
         <Text style={styles.sectionLabel}>Basic Information</Text>
         <Field label="Product Name" value={form.name} onChange={(v) => update("name", v)} icon="cart-outline" />
+        
+        {/* CATEGORY SEARCH/PICKER FIELD */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.fieldLabel}>Category</Text>
+          <View style={[styles.inputContainer, isCategoryOpen && styles.activeInputContainer]}>
+            <Ionicons name="grid-outline" size={18} color={isCategoryOpen ? THEME_BLUE : "#94a3b8"} style={{ marginRight: 8 }} />
+            <TextInput 
+              style={styles.input} 
+              value={categorySearch} 
+              placeholder="Search or Create Category" 
+              placeholderTextColor="#94a3b8"
+              onFocus={() => setIsCategoryOpen(true)}
+              onChangeText={(v) => {
+                setCategorySearch(v);
+                update("category", v);
+              }}
+            />
+            {categorySearch.length > 0 && (
+              <TouchableOpacity onPress={() => { setCategorySearch(""); update("category", ""); }}>
+                <Ionicons name="close-circle" size={18} color="#cbd5e1" />
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          {isCategoryOpen && (
+            <View style={styles.pickerDropdown}>
+              <View style={styles.pickerHeader}>
+                <Text style={styles.pickerHeaderText}>Select Category</Text>
+                <TouchableOpacity onPress={() => setIsCategoryOpen(false)}>
+                  <Text style={styles.pickerCloseText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView nestedScrollEnabled style={{ maxHeight: 220 }} keyboardShouldPersistTaps="handled">
+                {filteredCategories.map((cat, i) => (
+                  <TouchableOpacity key={i} style={styles.pickerItem} onPress={() => selectCategory(cat)}>
+                    <View style={styles.pickerItemIcon}>
+                      <Ionicons name="return-down-forward" size={14} color={THEME_BLUE} />
+                    </View>
+                    <Text style={styles.pickerItemText}>{cat}</Text>
+                  </TouchableOpacity>
+                ))}
+                
+                {showCreateNew && (
+                  <TouchableOpacity style={[styles.pickerItem, styles.createItem]} onPress={() => selectCategory(categorySearch)}>
+                    <View style={styles.createIconBg}>
+                      <Ionicons name="add" size={16} color="#fff" />
+                    </View>
+                    <View>
+                      <Text style={styles.createLabelText}>New Category</Text>
+                      <Text style={styles.createValueText}>"{categorySearch}"</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+
+                {filteredCategories.length === 0 && !showCreateNew && (
+                   <View style={styles.emptySearch}>
+                      <Text style={styles.emptySearchText}>No categories found</Text>
+                   </View>
+                )}
+              </ScrollView>
+            </View>
+          )}
+        </View>
 
         <View style={styles.gridRow}>
           <View style={{ flex: 1 }}>
-            <Field label="Unit" value={selectedUnit?.label || "Select"} onPress={() => setIsDropdownOpen(!isDropdownOpen)} icon="options-outline" editable={false} />
+            <Field label="Unit" value={selectedUnit?.label || "Select"} onPress={() => setIsUnitOpen(!isUnitOpen)} icon="options-outline" editable={false} />
           </View>
           <View style={{ flex: 1 }}>
-             <Field label="Expiry Date" value={form.expiryDate ? form.expiryDate.toLocaleDateString() : "None"} onPress={() => setShowDatePicker(true)} icon="calendar-outline" editable={false} />
+              <Field label="Expiry Date" value={form.expiryDate ? form.expiryDate.toLocaleDateString() : "None"} onPress={() => setShowDatePicker(true)} icon="calendar-outline" editable={false} />
           </View>
         </View>
 
-        {isDropdownOpen && (
+        {isUnitOpen && (
           <View style={styles.dropdownBox}>
             {UNIT_OPTIONS.map((u) => (
-              <TouchableOpacity key={u.value} style={[styles.dropdownItem, form.unit === u.value && styles.activeDropdownItem]} onPress={() => { update("unit", u.value); setIsDropdownOpen(false); }}>
+              <TouchableOpacity key={u.value} style={[styles.dropdownItem, form.unit === u.value && styles.activeDropdownItem]} onPress={() => { update("unit", u.value); setIsUnitOpen(false); }}>
                 <Ionicons name={u.icon as any} size={18} color={form.unit === u.value ? "#fff" : "#64748b"} />
                 <Text style={[styles.dropdownText, form.unit === u.value && { color: "#fff" }]}>{u.label}</Text>
               </TouchableOpacity>
@@ -242,11 +335,11 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
               <View style={{ flex: 1 }}><Field label="Stock" value={v.quantity} keyboard="numeric" onChange={(val) => updateVariant(idx, "quantity", val)} /></View>
             </View>
             <View style={styles.compactBarcodeRow}>
-               <View style={styles.miniInputWrapper}>
-                 <Ionicons name="barcode-outline" size={16} color="#94a3b8" />
-                 <TextInput style={styles.miniInput} value={v.barcode} onChangeText={(val) => updateVariant(idx, "barcode", val)} placeholder="Barcode" />
-               </View>
-               <TouchableOpacity style={styles.miniScanBtn} onPress={() => openScannerFor("variant", idx)}><Ionicons name="scan" size={18} color="#fff" /></TouchableOpacity>
+                <View style={styles.miniInputWrapper}>
+                  <Ionicons name="barcode-outline" size={16} color="#94a3b8" />
+                  <TextInput style={styles.miniInput} value={v.barcode} onChangeText={(val) => updateVariant(idx, "barcode", val)} placeholder="Barcode" />
+                </View>
+                <TouchableOpacity style={styles.miniScanBtn} onPress={() => openScannerFor("variant", idx)}><Ionicons name="scan" size={18} color="#fff" /></TouchableOpacity>
             </View>
           </View>
         ))}
@@ -269,19 +362,9 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
         </View>
 
         <View style={styles.toggleContainer}>
-          <ToggleItem 
-            label="Stock Tracking" 
-            sub="Auto-update stock on sales" 
-            value={form.isTrackable} 
-            onToggle={(v) => update("isTrackable", v)} 
-          />
+          <ToggleItem label="Stock Tracking" sub="Auto-update stock on sales" value={form.isTrackable} onToggle={(v) => update("isTrackable", v)} />
           <View style={styles.divider} />
-          <ToggleItem 
-            label="Print Barcode" 
-            sub="Visible on Barcode sheets" 
-            value={form.isBarcodeListed} 
-            onToggle={(v) => update("isBarcodeListed", v)} 
-          />
+          <ToggleItem label="Print Barcode" sub="Visible on Barcode sheets" value={form.isBarcodeListed} onToggle={(v) => update("isBarcodeListed", v)} />
         </View>
       </View>
 
@@ -290,13 +373,12 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
       </TouchableOpacity>
 
       {showDatePicker && Platform.OS === "android" && (
-         <DateTimePicker value={form.expiryDate || new Date()} mode="date" onChange={onDateChange} minimumDate={new Date()} />
+          <DateTimePicker value={form.expiryDate || new Date()} mode="date" onChange={onDateChange} minimumDate={new Date()} />
       )}
 
       <Modal visible={scannerVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.scannerContainer}>
-            <TouchableOpacity style={styles.closeBtn} onPress={() => setScannerVisible(false)}><Ionicons name="close" size={28} color="#fff" /></TouchableOpacity>
             <BarcodeScanner onScan={handleScan} onClose={() => setScannerVisible(false)} />
           </View>
         </View>
@@ -331,9 +413,10 @@ const styles = StyleSheet.create({
   card: { backgroundColor: "#fff", borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: "#e2e8f0" },
   sectionLabel: { fontSize: 11, fontWeight: "800", color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 14 },
   gridRow: { flexDirection: "row", gap: 12 },
-  fieldContainer: { marginBottom: 14 },
+  fieldContainer: { marginBottom: 14, position: 'relative' },
   fieldLabel: { fontSize: 11, fontWeight: "700", color: "#64748b", marginBottom: 6, marginLeft: 2 },
   inputContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#f8fafc", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 12, paddingHorizontal: 12, height: 48 },
+  activeInputContainer: { borderColor: THEME_BLUE, backgroundColor: "#fff" },
   input: { flex: 1, fontSize: 15, color: "#1e293b", fontWeight: "600" },
   pricePrefix: { fontSize: 15, fontWeight: "700", color: THEME_BLUE, marginRight: 4 },
   disabledField: { backgroundColor: "#f1f5f9", borderColor: "#e2e8f0" },
@@ -368,4 +451,64 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.8)", justifyContent: "center", alignItems: "center" },
   scannerContainer: { width: SCREEN_WIDTH * 0.85, height: SCREEN_HEIGHT * 0.5, borderRadius: 24, overflow: "hidden", backgroundColor: '#000' },
   closeBtn: { position: "absolute", top: 12, right: 12, zIndex: 10 },
+  
+  /* ENHANCED PICKER DROPDOWN STYLES */
+  pickerDropdown: { 
+    position: 'absolute',
+    top: 68,
+    left: 0,
+    right: 0,
+    backgroundColor: "#fff", 
+    borderRadius: 14, 
+    borderWidth: 1.5, 
+    borderColor: THEME_BLUE, 
+    elevation: 8, 
+    shadowColor: '#1e3a8a', 
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 0.15, 
+    shadowRadius: 10,
+    zIndex: 999
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    backgroundColor: '#f8fafc',
+    borderTopLeftRadius: 13,
+    borderTopRightRadius: 13,
+  },
+  pickerHeaderText: { fontSize: 12, fontWeight: '800', color: '#64748b', textTransform: 'uppercase' },
+  pickerCloseText: { fontSize: 12, fontWeight: '800', color: THEME_BLUE },
+  pickerItem: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    padding: 14, 
+    borderBottomWidth: 1, 
+    borderBottomColor: "#f1f5f9", 
+    gap: 12 
+  },
+  pickerItemIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  pickerItemText: { fontSize: 14, color: "#334155", fontWeight: "600" },
+  createItem: { backgroundColor: "#eff6ff", borderBottomWidth: 0 },
+  createIconBg: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: THEME_BLUE,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  createLabelText: { fontSize: 10, fontWeight: '800', color: THEME_BLUE, textTransform: 'uppercase' },
+  createValueText: { fontSize: 15, color: "#1e3a8a", fontWeight: "700" },
+  emptySearch: { padding: 20, alignItems: 'center' },
+  emptySearchText: { fontSize: 13, color: '#94a3b8', fontWeight: '600' }
 });
