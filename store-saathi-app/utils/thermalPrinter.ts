@@ -247,10 +247,7 @@ export const printBill = async (bill: any): Promise<void> => {
       `Total:        Rs.${totalAmount}\n\r`,
       { bold: true }
     );
-    await BluetoothEscposPrinter.printText(
-      `Paid:         Rs.${paidAmount}\n\r`,
-      {}
-    );
+   
 
     if (remaining > 0) {
       await BluetoothEscposPrinter.printText(
@@ -264,12 +261,7 @@ export const printBill = async (bill: any): Promise<void> => {
       BluetoothEscposPrinter.ALIGN.CENTER
     );
     await BluetoothEscposPrinter.printText("\n\r", {});
-    await BluetoothEscposPrinter.printText(
-      bill.paymentStatus === "PAID"
-        ? "*** PAID IN FULL ***\n\r"
-        : "*** PARTIAL PAYMENT ***\n\r",
-      { bold: true }
-    );
+   
 
     if (upiId) {
       const upiLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(

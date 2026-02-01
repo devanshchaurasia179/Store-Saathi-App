@@ -333,12 +333,15 @@ export default function BillingPage() {
   }, [customers, customerSearch]);
 
   const filteredProducts = useMemo(() => {
-    if (!productSearch) return products.slice(0, 40);
+    // FIXED: Removed .slice(0, 40) to show the full inventory.
+    // The ProductSearchOverlay component is now optimized with FlatList performance props.
+    if (!productSearch) return products; 
     const q = productSearch.toLowerCase();
     return products.filter(
       (p) =>
         p.name?.toLowerCase().includes(q) ||
-        p.barcode?.includes(productSearch)
+        p.barcode?.includes(productSearch) ||
+        p.category?.toLowerCase().includes(q)
     );
   }, [products, productSearch]);
 
@@ -646,11 +649,11 @@ export default function BillingPage() {
         onChange={setProductSearch}
         onClose={() => setProductOpen(false)}
         items={filteredProducts}
-        onAddMultiple={(products) => {
-          products.forEach((p) => {
+        onAddMultiple={(selectedProducts) => {
+          selectedProducts.forEach((p) => {
             const product = productsMap[p.productId];
             const variant = p.variantId
-              ? product.variants.find((v: any) => v._id === p.variantId)
+              ? product.variants.find((v: any) => (v._id || v.id) === p.variantId)
               : null;
             addItemByProduct(product, variant);
           });

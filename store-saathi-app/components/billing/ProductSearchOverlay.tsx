@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, memo } from "react";
 import {
   Modal,
   View,
@@ -17,7 +17,86 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const ITEM_WIDTH = (SCREEN_WIDTH - 44) / 2;
-const THEME_BLUE = "#1e3a8a"; // Your primary brand color
+const THEME_BLUE = "#1e3a8a";
+
+// --- Sub-component for individual product tiles to prevent massive re-renders ---
+const ProductTile = memo(({ 
+  product, 
+  selectedIds, 
+  onToggle 
+}: { 
+  product: any, 
+  selectedIds: Set<string>, 
+  onToggle: (key: string) => void 
+}) => {
+  const id = product._id || product.id;
+  const hasVariants = Array.isArray(product.variants) && product.variants.length > 0;
+
+  return (
+    <View style={styles.tile}>
+      <View style={styles.tileHeader}>
+        <View style={styles.catBadgeContainer}>
+          <Text style={styles.categoryBadge} numberOfLines={1}>
+            {product.category || "General"}
+          </Text>
+        </View>
+        <MaterialCommunityIcons name="cube-outline" size={14} color="#cbd5e1" />
+      </View>
+
+      <Text style={styles.tileName} numberOfLines={2}>{product.name}</Text>
+
+      {hasVariants ? (
+        <View style={styles.variantVerticalList}>
+          {product.variants.map((variant: any) => {
+            const vid = variant._id || variant.id;
+            const key = `${id}:${vid}`;
+            const isSelected = selectedIds.has(key);
+            return (
+              <TouchableOpacity
+                key={vid}
+                style={[styles.variantVerticalPill, isSelected && styles.variantPillSelected]}
+                onPress={() => onToggle(key)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.variantPillLeft}>
+                  <Text style={[styles.variantName, isSelected && styles.selectedText]} numberOfLines={1}>
+                    {variant.name}
+                  </Text>
+                  <Text style={[styles.variantPrice, isSelected && styles.selectedText]}>
+                    ₹{variant.price?.sellingPrice?.toLocaleString()}
+                  </Text>
+                </View>
+                <Ionicons 
+                  name={isSelected ? "checkmark-circle" : "add-circle-outline"} 
+                  size={20} 
+                  color={isSelected ? "#fff" : "#94a3b8"} 
+                />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={[styles.simplePriceRow, selectedIds.has(id) && styles.simplePriceRowSelected]}
+          onPress={() => onToggle(id)}
+          activeOpacity={0.7}
+        >
+          <View>
+            <Text style={styles.priceLabel}>Price</Text>
+            <Text style={[styles.price, selectedIds.has(id) && styles.selectedText]}>
+              ₹{(product.price?.sellingPrice ?? 0).toLocaleString()}
+            </Text>
+          </View>
+          <Ionicons 
+            name={selectedIds.has(id) ? "checkmark-circle" : "add-circle"} 
+            size={26} 
+            color={selectedIds.has(id) ? "#fff" : THEME_BLUE} 
+          />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+});
 
 interface ProductSearchOverlayProps {
   visible: boolean;
@@ -65,7 +144,7 @@ export default function ProductSearchOverlay({
           item.variants?.some((v: any) => v.name?.toLowerCase().includes(q))
       );
     }
-    return result.sort((a, b) => a.name.localeCompare(b.name));
+    return result.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   }, [items, activeCategory, value]);
 
   const toggleSelect = useCallback((key: string) => {
@@ -90,7 +169,14 @@ export default function ProductSearchOverlay({
       } else {
         const variant = product.variants?.find((v: any) => (v._id || v.id) === variantId);
         if (variant) {
-          selected.push({ ...variant, productId: product._id || product.id, variantId: variant._id || variant.id, name: `${product.name} (${variant.name})`, category: product.category, quantity: 1 });
+          selected.push({ 
+            ...variant, 
+            productId: product._id || product.id, 
+            variantId: variant._id || variant.id, 
+            name: `${product.name} (${variant.name})`, 
+            category: product.category, 
+            quantity: 1 
+          });
         }
       }
     });
@@ -100,65 +186,22 @@ export default function ProductSearchOverlay({
     onClose();
   }, [selectedIds, items, onAddMultiple, onAdd, onClose]);
 
-  const renderProductTile = ({ item: product }: { item: any }) => {
-    const id = product._id || product.id;
-    const hasVariants = Array.isArray(product.variants) && product.variants.length > 0;
-
-    return (
-      <View style={styles.tile}>
-        <View style={styles.tileHeader}>
-          <View style={styles.catBadgeContainer}>
-            <Text style={styles.categoryBadge} numberOfLines={1}>{product.category || "General"}</Text>
-          </View>
-          <MaterialCommunityIcons name="cube-outline" size={14} color="#cbd5e1" />
-        </View>
-
-        <Text style={styles.tileName} numberOfLines={2}>{product.name}</Text>
-
-        {hasVariants ? (
-          <View style={styles.variantVerticalList}>
-            {product.variants.map((variant: any) => {
-              const vid = variant._id || variant.id;
-              const key = `${id}:${vid}`;
-              const isSelected = selectedIds.has(key);
-              return (
-                <TouchableOpacity
-                  key={vid}
-                  style={[styles.variantVerticalPill, isSelected && styles.variantPillSelected]}
-                  onPress={() => toggleSelect(key)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.variantPillLeft}>
-                    <Text style={[styles.variantName, isSelected && styles.selectedText]} numberOfLines={1}>{variant.name}</Text>
-                    <Text style={[styles.variantPrice, isSelected && styles.selectedText]}>₹{variant.price?.sellingPrice?.toLocaleString()}</Text>
-                  </View>
-                  <Ionicons name={isSelected ? "checkmark-circle" : "add-circle-outline"} size={20} color={isSelected ? "#fff" : "#94a3b8"} />
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={[styles.simplePriceRow, selectedIds.has(id) && styles.simplePriceRowSelected]}
-            onPress={() => toggleSelect(id)}
-            activeOpacity={0.7}
-          >
-            <View>
-              <Text style={styles.priceLabel}>Price</Text>
-              <Text style={[styles.price, selectedIds.has(id) && styles.selectedText]}>₹{(product.price?.sellingPrice ?? 0).toLocaleString()}</Text>
-            </View>
-            <Ionicons name={selectedIds.has(id) ? "checkmark-circle" : "add-circle"} size={26} color={selectedIds.has(id) ? "#fff" : THEME_BLUE} />
-          </TouchableOpacity>
-        )}
-      </View>
-    );
-  };
+  const renderItem = useCallback(({ item }: { item: any }) => (
+    <ProductTile 
+      product={item} 
+      selectedIds={selectedIds} 
+      onToggle={toggleSelect} 
+    />
+  ), [selectedIds, toggleSelect]);
 
   if (!visible) return null;
 
   return (
     <Modal transparent animationType="slide" visible={visible} onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === "ios" ? "padding" : "height"} 
+        style={styles.modalOverlay}
+      >
         <View style={[styles.sheet, { paddingTop: insets.top || 10, paddingBottom: insets.bottom || 20 }]}>
           
           <View style={styles.headerTopNav}>
@@ -174,7 +217,7 @@ export default function ProductSearchOverlay({
               <Ionicons name="search" size={20} color="#94a3b8" />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search by name, category..."
+                placeholder="Search products..."
                 placeholderTextColor="#94a3b8"
                 value={value}
                 onChangeText={onChange}
@@ -206,36 +249,46 @@ export default function ProductSearchOverlay({
 
           <FlatList
             data={filteredAndSortedItems}
-            keyExtractor={(item) => (item._id || item.id || Math.random()).toString()}
+            keyExtractor={(item) => (item._id || item.id).toString()}
+            renderItem={renderItem}
             numColumns={2}
             columnWrapperStyle={styles.gridRowLayout}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            
+            // --- Performance Props ---
+            removeClippedSubviews={Platform.OS === 'android'} 
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            initialNumToRender={8}
+            
             ListHeaderComponent={extraTopOption ? <View style={{ marginBottom: 16 }}>{extraTopOption}</View> : null}
             ListEmptyComponent={
               <View style={styles.emptyState}>
                 <View style={styles.emptyIconCircle}>
-                    <Ionicons name="cube-outline" size={40} color="#cbd5e1" />
+                  <Ionicons name="cube-outline" size={40} color="#cbd5e1" />
                 </View>
                 <Text style={styles.emptyText}>No Products Found</Text>
                 <Text style={styles.emptySubText}>Adjust your filters or search query</Text>
               </View>
             }
-            renderItem={renderProductTile}
           />
 
           {selectedIds.size > 0 && (
-            <View style={[styles.confirmContainer, { bottom: insets.bottom + 10 }]}>
-              <TouchableOpacity activeOpacity={0.9} style={styles.confirmButton} onPress={handleConfirm}>
-                <View style={styles.confirmLeft}>
-                  <View style={styles.countBadge}><Text style={styles.countText}>{selectedIds.size}</Text></View>
-                  <Text style={styles.confirmText}>Add to Bill</Text>
-                </View>
-                <Ionicons name="arrow-forward-circle" size={32} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          )}
+  <View style={[styles.confirmContainer, { bottom: insets.bottom + 10 }]}>
+    <TouchableOpacity activeOpacity={0.9} style={styles.confirmButton} onPress={handleConfirm}>
+      {/* Changed <div> to <View> */}
+      <View style={styles.confirmLeft}> 
+        <View style={styles.countBadge}>
+          <Text style={styles.countText}>{selectedIds.size}</Text>
+        </View>
+        <Text style={styles.confirmText}>Add to Bill</Text>
+      </View>
+      <Ionicons name="arrow-forward-circle" size={32} color="#fff" />
+    </TouchableOpacity>
+  </View>
+)}
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -325,7 +378,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 16,
-    paddingBottom: 200,
+    paddingBottom: 120,
   },
   gridRowLayout: {
     justifyContent: "space-between",
@@ -434,6 +487,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 20,
     right: 20,
+    zIndex: 99,
   },
   confirmButton: {
     backgroundColor: "#0f172a",
@@ -451,7 +505,6 @@ const styles = StyleSheet.create({
   confirmLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 15,
   },
   countBadge: {
     backgroundColor: THEME_BLUE,
@@ -460,6 +513,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
+    marginRight: 15,
   },
   countText: {
     color: "#ffffff",
