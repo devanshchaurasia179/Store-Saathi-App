@@ -106,6 +106,7 @@ export async function getDashboard(req, res) {
       ownerName: shop.ownerName,
       shopName: shop.shopName,
       upiId: shop.upiId,
+      mobileNumber:shop.mobileNumber,
 
       gstNumber: shop.gstNumber, // 🧾 GST
       address: shop.location,   // 📍 Address
