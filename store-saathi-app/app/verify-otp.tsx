@@ -116,7 +116,7 @@ export default function VerifyOtpPage() {
             </View>
 
             <View style={styles.infoRow}>
-              <Text style={styles.label}>{text.otpSentTo || "OTP SENT TO"}: Store Saathi Executive</Text>
+              <Text style={styles.label}>{text.otpSentTo || "OTP SENT TO"}: Store Saarthi Executive</Text>
               <TouchableOpacity onPress={() => router.push("/login")}>
                 <Text style={styles.changeNumberText}>Edit Number</Text>
               </TouchableOpacity>

@@ -56,7 +56,7 @@ export default function WelcomeScreen() {
           <View style={styles.textContainer}>
             <Text style={styles.title}>
               <Text style={styles.storeText}>Store </Text>
-              <Text style={styles.saathiText}>Saathi</Text>
+              <Text style={styles.saathiText}>Saarthi</Text>
             </Text>
             <Text style={styles.subtitle}>
               Your Store’s One-Stop Solution for Billing, Inventory & Analytics

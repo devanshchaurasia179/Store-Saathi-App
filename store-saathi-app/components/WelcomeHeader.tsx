@@ -16,7 +16,7 @@ export default function WelcomeHeader() {
       {/* Brand Name */}
       <Text style={styles.brandContainer}>
         <Text style={styles.storeText}>Store </Text>
-        <Text style={styles.saathiText}>Saathi</Text>
+        <Text style={styles.saathiText}>Saarthi</Text>
       </Text>
     </View>
   );

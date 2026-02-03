@@ -224,7 +224,7 @@ export default function ProfileForm() {
 
           {/* ================= SECRET KEY SECTION ================= */}
           <View style={styles.sectionCard}>
-            <Text style={styles.sectionHeader}>Store Saathi Secret Key</Text>
+            <Text style={styles.sectionHeader}>Store Saarthi Secret Key</Text>
 
             <View style={styles.secretBox}>
               <Ionicons name="key-outline" size={22} color="#1e3a8a" />
