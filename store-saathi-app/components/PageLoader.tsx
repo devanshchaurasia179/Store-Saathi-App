@@ -12,7 +12,7 @@ export default function PageLoader() {
 
       <Text style={styles.brand}>
         <Text style={styles.brandGray}>Store</Text>
-        <Text style={styles.brandBlue}>Saathi</Text>
+        <Text style={styles.brandBlue}>Saarthi</Text>
       </Text>
 
       <Text style={styles.subText}>working for you…</Text>

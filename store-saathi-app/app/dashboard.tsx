@@ -11,6 +11,7 @@ import {
   Dimensions,
   Linking,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -23,7 +24,8 @@ import { getDashboard } from "../constants/dashboard.api";
 // 🛠 PRINTER UTILS
 import { 
   getConnectedThermalPrinter, 
-  isThermalPrinterSaved 
+  isThermalPrinterSaved,
+  reconnectSavedPrinter 
 } from "../utils/printerManager";
 import { BluetoothEscposPrinter } from "@vardrz/react-native-bluetooth-escpos-printer";
 
@@ -42,14 +44,18 @@ import PageLoader from "@/components/PageLoader";
 
 const { width } = Dimensions.get("window");
 
+/**
+ * DashboardPage component
+ * Highly optimized for inventory and billing management with integrated printer controls.
+ */
 export default function DashboardPage() {
   const [dashboard, setDashboard] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
   // Printer Status States
-  const [printerStatus, setPrinterStatus] =
-    useState<"connected" | "offline" | "none">("none");
+  const [connectingPrinter, setConnectingPrinter] = useState(false);
+  const [printerStatus, setPrinterStatus] = useState<"connected" | "offline" | "none">("none");
   const [printerName, setPrinterName] = useState("");
 
   const router = useRouter();
@@ -63,10 +69,12 @@ export default function DashboardPage() {
     const hasSaved = await isThermalPrinterSaved();
     if (!hasSaved) {
       setPrinterStatus("none");
+      setPrinterName("");
       return;
     }
 
     try {
+      // Attempt a silent check to see if the printer is actually reachable
       await BluetoothEscposPrinter.printerAlign(
         BluetoothEscposPrinter.ALIGN.LEFT
       );
@@ -75,6 +83,49 @@ export default function DashboardPage() {
       setPrinterName(printer?.name || "Thermal Printer");
     } catch (e) {
       setPrinterStatus("offline");
+      // Even if offline, we might want to show the last saved name if available
+      const printer = await getConnectedThermalPrinter();
+      setPrinterName(printer?.name || "Saved Printer");
+    }
+  };
+
+  /**
+   * Manual connection trigger from the dashboard button
+   */
+  const handleConnectPrinterFromDashboard = async () => {
+    if (connectingPrinter) return;
+
+    setConnectingPrinter(true);
+    try {
+      const success = await reconnectSavedPrinter();
+
+      if (!success) {
+        setPrinterStatus("offline");
+        Alert.alert(
+          "Printer Offline",
+          "Please turn on your printer, ensure Bluetooth is active, and try again."
+        );
+        return;
+      }
+
+      // Verify the hardware connection is responsive
+      await BluetoothEscposPrinter.printerAlign(
+        BluetoothEscposPrinter.ALIGN.LEFT
+      );
+
+      const printer = await getConnectedThermalPrinter();
+      setPrinterStatus("connected");
+      setPrinterName(printer?.name || "Thermal Printer");
+      
+      // Optional feedback
+      if (Platform.OS === 'android') {
+        // Simple toast or alert can go here
+      }
+    } catch (e) {
+      setPrinterStatus("offline");
+      Alert.alert("Connection Failed", "Unable to communicate with the printer.");
+    } finally {
+      setConnectingPrinter(false);
     }
   };
 
@@ -178,8 +229,10 @@ export default function DashboardPage() {
           <QuickActions />
         </View>
 
-        {/* 4. Primary Actions */}
+        {/* 4. Primary Actions (Billing & Printer) */}
         <View style={styles.actionButtonsContainer}>
+          
+          {/* CREATE BILL BUTTON */}
           <TouchableOpacity
             style={styles.createBillButton}
             onPress={() => router.push("/billing")}
@@ -199,63 +252,93 @@ export default function DashboardPage() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.testPrinterButton}
-            onPress={() => router.push("/PrintTest")}
-            activeOpacity={0.8}
-          >
-            <View style={styles.buttonInner}>
-              <View style={styles.iconCirclePurple}>
-                <Feather name="printer" size={22} color="#4f46e5" />
+          {/* DYNAMIC PRINTER CONTROL CARD */}
+          <View style={styles.printerCardMain}>
+            <View style={styles.printerCardTop}>
+              <View style={[
+                styles.iconCirclePurple, 
+                printerStatus === "connected" && styles.iconCircleGreen
+              ]}>
+                <Feather 
+                  name="printer" 
+                  size={22} 
+                  color={printerStatus === "connected" ? "#16a34a" : "#4f46e5"} 
+                />
               </View>
+              
               <View style={styles.textContainer}>
                 <View style={styles.titleRow}>
-                  <Text style={styles.testPrinterText}>{t.testPrinter}</Text>
+                  <Text style={styles.testPrinterText}>
+                    {printerStatus === "none" ? "No Printer Setup" : (printerName || "Thermal Printer")}
+                  </Text>
+                  
                   <View style={[
                     styles.statusBadge,
-                    { backgroundColor: printerStatus === "connected" ? "#dcfce7" : "#f1f5f9" }
+                    { backgroundColor: printerStatus === "connected" ? "#dcfce7" : printerStatus === "offline" ? "#fee2e2" : "#f1f5f9" }
                   ]}>
                     <View style={[
                       styles.statusDot,
-                      { backgroundColor: printerStatus === "connected" ? "#22c55e" : "#94a3b8" }
+                      { backgroundColor: printerStatus === "connected" ? "#22c55e" : printerStatus === "offline" ? "#ef4444" : "#94a3b8" }
                     ]} />
                     <Text style={[
                       styles.statusBadgeText,
-                      { color: printerStatus === "connected" ? "#166534" : "#64748b" }
+                      { color: printerStatus === "connected" ? "#166534" : printerStatus === "offline" ? "#991b1b" : "#64748b" }
                     ]}>
-                      {printerStatus === "connected" ? "Online" : "None"}
+                      {printerStatus === "connected" ? "Online" : printerStatus === "offline" ? "Offline" : "None"}
                     </Text>
                   </View>
                 </View>
-                <Text style={[styles.buttonSubtitle, { color: "#64748b" }]}>
-                  {printerStatus === "connected" ? printerName : "Setup your bluetooth printer"}
+                
+                <Text style={[styles.buttonSubtitle, { color: "#64748b" }]} numberOfLines={1}>
+                  {printerStatus === "connected" 
+                    ? "Ready to print receipts" 
+                    : printerStatus === "offline" 
+                    ? "Saved printer not reachable" 
+                    : "Configure a printer to start"}
                 </Text>
               </View>
-              <MaterialCommunityIcons
-                name={printerStatus === "connected" ? "bluetooth-connect" : "bluetooth-off"}
-                size={22}
-                color={printerStatus === "connected" ? "#22c55e" : "#cbd5e1"}
-              />
             </View>
-          </TouchableOpacity>
-        </View>
 
-        {/* 5. Alerts - Low Stock */}
-        <View style={styles.sectionSpacing}>
-          <View style={styles.sectionHeader}>
-             <Text style={styles.sectionTitle}>Inventory Alerts</Text>
-             <View style={styles.titleUnderline} />
-          </View>
-          <LowStockList items={dashboard?.lowStock || []} />
-        </View>
+            <View style={styles.printerActionRow}>
+              {/* SETUP BUTTON - Always available to go to setup screen */}
+              <TouchableOpacity 
+                style={styles.printerActionButton} 
+                onPress={() => router.push("/PrintTest")}
+              >
+                <Feather name="settings" size={16} color="#1e3a8a" />
+                <Text style={styles.printerActionText}>Setup</Text>
+              </TouchableOpacity>
 
-        {/* 6. Insights - Most Sold */}
-        <View style={styles.sectionSpacing}>
-          <View style={styles.sectionHeader}>
-             <Text style={styles.sectionTitle}>Top Selling Items</Text>
-             <View style={styles.titleUnderline} />
+              {/* CONNECT BUTTON - Only shown if printer is saved but offline */}
+              {printerStatus === "offline" && (
+                <TouchableOpacity 
+                  style={[styles.printerActionButton, styles.printerActionPrimary]} 
+                  onPress={handleConnectPrinterFromDashboard}
+                  disabled={connectingPrinter}
+                >
+                  {connectingPrinter ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <MaterialCommunityIcons name="bluetooth-connect" size={18} color="#fff" />
+                      <Text style={[styles.printerActionText, { color: "#fff" }]}>Connect</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+
+              {/* TEST PRINT BUTTON - Only shown if connected */}
+              {printerStatus === "connected" && (
+                <TouchableOpacity 
+                  style={[styles.printerActionButton, styles.printerActionSuccess]} 
+                  onPress={() => router.push("/PrintTest")}
+                >
+                  <Feather name="check-circle" size={16} color="#16a34a" />
+                  <Text style={[styles.printerActionText, { color: "#16a34a" }]}>Test Print</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
-          <MostSoldCard items={dashboard?.mostSold || []} />
         </View>
 
         {/* 7. Recent Bills */}
@@ -266,7 +349,25 @@ export default function DashboardPage() {
           </View>
           <RecentBills bills={dashboard?.recentBills || []} />
         </View>
+        {/* 5. Alerts - Low Stock */}
+        
 
+        {/* 6. Insights - Most Sold */}
+        <View style={styles.sectionSpacing}>
+          <View style={styles.sectionHeader}>
+             <Text style={styles.sectionTitle}>Top Selling Items</Text>
+             <View style={styles.titleUnderline} />
+          </View>
+          <MostSoldCard items={dashboard?.mostSold || []} />
+        </View>
+
+        <View style={styles.sectionSpacing}>
+          <View style={styles.sectionHeader}>
+             <Text style={styles.sectionTitle}>Inventory Alerts</Text>
+             <View style={styles.titleUnderline} />
+          </View>
+          <LowStockList items={dashboard?.lowStock || []} />
+        </View>
         <View style={styles.bottomSpacer} />
       </ScrollView>
     </View>
@@ -444,10 +545,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  testPrinterButton: {
+  // 🛠 NEW PRINTER CARD STYLES
+  printerCardMain: {
     backgroundColor: "#fff",
-    paddingVertical: 20,
     borderRadius: 24,
+    padding: 16,
     borderWidth: 1,
     borderColor: "#e2e8f0",
     elevation: 2,
@@ -455,6 +557,42 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 5,
+  },
+  printerCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  printerActionRow: {
+    flexDirection: "row",
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+    gap: 12,
+  },
+  printerActionButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    gap: 8,
+  },
+  printerActionPrimary: {
+    backgroundColor: "#1e3a8a",
+    borderColor: "#1e3a8a",
+  },
+  printerActionSuccess: {
+    backgroundColor: "#f0fdf4",
+    borderColor: "#bbf7d0",
+  },
+  printerActionText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1e3a8a",
   },
   iconCirclePurple: {
     width: 54,
@@ -464,11 +602,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  iconCircleGreen: {
+    backgroundColor: "#f0fdf4",
+  },
   testPrinterText: { 
     color: "#1e293b", 
     fontSize: 17, 
-    fontWeight: "700" 
+    fontWeight: "700",
+    maxWidth: width * 0.4
   },
 
-  bottomSpacer: { height: 100 },
+  bottomSpacer: { height: 50 },
 });

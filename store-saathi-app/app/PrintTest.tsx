@@ -183,7 +183,8 @@ const handleReconnectFromHeader = async () => {
       Alert.alert(
         t.successTitle,
         t.readyMsg,
-        [{ text: t.testPrint, onPress: printTestBill }]
+        [{text: "OK"},
+        { text: t.testPrint, onPress: printTestBill }]
       );
     }
   } finally {

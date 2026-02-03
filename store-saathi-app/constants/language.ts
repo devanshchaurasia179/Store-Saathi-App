@@ -671,38 +671,38 @@ export const LANGUAGE_TEXT_LEDGER_MODAL: any = {
 export const LANGUAGE_TEXT_DEBTOR_ROW: any = {
   en: {
     viewLedger: "View full ledger",
-    whatsappMsg: (name: string, amount: string, shopName: string) =>
-      `Dear ${name},\n\nThis is a gentle reminder from *${shopName}* that an amount of ₹${amount} is currently pending in your account.\n\nWe request you to kindly clear the balance at your convenience. Please feel free to contact us if you have any questions.\n\nThank you for your continued support.\n\nWarm regards,\n${shopName}\n Powered by Store Saathi`,
+    whatsappMsg: (name: string, amount: number, shopName: string) =>
+      `Dear ${name},\n\nThis is a gentle reminder from *${shopName}* that an amount of ₹${amount.toFixed(2)} is currently pending in your account.\n\nWe request you to kindly clear the balance at your convenience. Please feel free to contact us if you have any questions.\n\nThank you for your continued support.\n\nWarm regards,\n${shopName}\n Powered by Store Saathi`,
   },
 
   hi: {
     viewLedger: "पूरा खाता देखें",
-    whatsappMsg: (name: string, amount: string, shopName: string) =>
-      `प्रिय ${name},\n\n*${shopName}* की ओर से यह एक विनम्र स्मरण है कि आपके खाते में ₹${amount} की राशि बकाया है।\n\nकृपया सुविधा अनुसार भुगतान करने की कृपा करें। किसी भी जानकारी के लिए आप हमसे संपर्क कर सकते हैं।\n\nआपके सहयोग के लिए धन्यवाद।\n\nसादर,\n${shopName}\n Powered by Store Saathi`,
+    whatsappMsg: (name: string, amount: number, shopName: string) =>
+      `प्रिय ${name},\n\n*${shopName}* की ओर से यह एक विनम्र स्मरण है कि आपके खाते में ₹${amount.toFixed(2)} की राशि बकाया है।\n\nकृपया सुविधा अनुसार भुगतान करने की कृपा करें। किसी भी जानकारी के लिए आप हमसे संपर्क कर सकते हैं।\n\nआपके सहयोग के लिए धन्यवाद।\n\nसादर,\n${shopName}\n Powered by Store Saathi`,
   },
 
   pa: {
     viewLedger: "ਪੂਰਾ ਖਾਤਾ ਵੇਖੋ",
-    whatsappMsg: (name: string, amount: string, shopName: string) =>
-      `ਸਤਿਕਾਰਯੋਗ ${name},\n\n*${shopName}* ਵੱਲੋਂ ਇਹ ਇੱਕ ਨਮ੍ਰ ਯਾਦ ਦਿਵਾਉਣਾ ਹੈ ਕਿ ਤੁਹਾਡੇ ਖਾਤੇ ਵਿੱਚ ₹${amount} ਦੀ ਰਕਮ ਬਕਾਇਆ ਹੈ।\n\nਕਿਰਪਾ ਕਰਕੇ ਆਪਣੀ ਸੁਵਿਧਾ ਅਨੁਸਾਰ ਭੁਗਤਾਨ ਕਰਨ ਦੀ ਮਿਹਰਬਾਨੀ ਕਰੋ। ਕਿਸੇ ਵੀ ਸਵਾਲ ਲਈ ਸਾਡੇ ਨਾਲ ਸੰਪਰਕ ਕਰੋ।\n\nਤੁਹਾਡੇ ਸਹਿਯੋਗ ਲਈ ਧੰਨਵਾਦ।\n\nਸਾਦਰ,\n${shopName}\n Powered by Store Saathi`,
+    whatsappMsg: (name: string, amount: number, shopName: string) =>
+      `ਸਤਿਕਾਰਯੋਗ ${name},\n\n*${shopName}* ਵੱਲੋਂ ਇਹ ਇੱਕ ਨਮ੍ਰ ਯਾਦ ਦਿਵਾਉਣਾ ਹੈ ਕਿ ਤੁਹਾਡੇ ਖਾਤੇ ਵਿੱਚ ₹${amount.toFixed(2)} ਦੀ ਰਕਮ ਬਕਾਇਆ ਹੈ।\n\nਕਿਰਪਾ ਕਰਕੇ ਆਪਣੀ ਸੁਵਿਧਾ ਅਨੁਸਾਰ ਭੁਗਤਾਨ ਕਰਨ ਦੀ ਮਿਹਰਬਾਨੀ ਕਰੋ। ਕਿਸੇ ਵੀ ਸਵਾਲ ਲਈ ਸਾਡੇ ਨਾਲ ਸੰਪਰਕ ਕਰੋ।\n\nਤੁਹਾਡੇ ਸਹਿਯੋਗ ਲਈ ਧੰਨਵਾਦ।\n\nਸਾਦਰ,\n${shopName}\n Powered by Store Saathi`,
   },
 
   gu: {
     viewLedger: "આખું ખાતું જુઓ",
-    whatsappMsg: (name: string, amount: string, shopName: string) =>
-      `માનનીય ${name},\n\n*${shopName}* તરફથી આ એક વિનમ્ર યાદ અપાવવું છે કે તમારા ખાતામાં ₹${amount} ની રકમ બાકી છે.\n\nકૃપા કરીને તમારી સુવિધા મુજબ ચુકવણી કરવા વિનંતી. કોઈપણ પ્રશ્ન માટે અમારો સંપર્ક કરો.\n\nતમારા સહયોગ માટે આભાર.\n\nસાદર,\n${shopName}\n Powered by Store Saathi`,
+    whatsappMsg: (name: string, amount: number, shopName: string) =>
+      `માનનીય ${name},\n\n*${shopName}* તરફથી આ એક વિનમ્ર યાદ અપાવવું છે કે તમારા ખાતામાં ₹${amount.toFixed(2)} ની રકમ બાકી છે.\n\nકૃપા કરીને તમારી સુવિધા મુજબ ચુકવણી કરવા વિનંતી. કોઈપણ પ્રશ્ન માટે અમારો સંપર્ક કરો.\n\nતમારા સહયોગ માટે આભાર.\n\nસાદર,\n${shopName}\n Powered by Store Saathi`,
   },
 
   mr: {
     viewLedger: "पूर्ण खाते पहा",
-    whatsappMsg: (name: string, amount: string, shopName: string) =>
-      `आदरणीय ${name},\n\n*${shopName}* कडून ही एक नम्र आठवण आहे की आपल्या खात्यावर ₹${amount} इतकी रक्कम थकित आहे.\n\nकृपया आपल्या सोयीप्रमाणे भरणा करण्याची विनंती. काही शंका असल्यास आमच्याशी संपर्क साधा.\n\nआपल्या सहकार्याबद्दल धन्यवाद.\n\nआपला विश्वासू,\n${shopName}\n Powered by Store Saathi`,
+    whatsappMsg: (name: string, amount: number, shopName: string) =>
+      `आदरणीय ${name},\n\n*${shopName}* कडून ही एक नम्र आठवण आहे की आपल्या खात्यावर ₹${amount.toFixed(2)} इतकी रक्कम थकित आहे.\n\nकृपया आपल्या सोयीप्रमाणे भरणा करण्याची विनंती. काही शंका असल्यास आमच्याशी संपर्क साधा.\n\nआपल्या सहकार्याबद्दल धन्यवाद.\n\nआपला विश्वासू,\n${shopName}\n Powered by Store Saathi`,
   },
 
   te: {
     viewLedger: "పూర్తి లెడ్జర్ చూడండి",
-    whatsappMsg: (name: string, amount: string, shopName: string) =>
-      `గౌరవనీయులైన ${name},\n\n*${shopName}* నుండి ఇది ఒక వినయపూర్వక గుర్తు. మీ ఖాతాలో ₹${amount} మొత్తము ఇంకా బాకీగా ఉంది.\n\nదయచేసి మీ సౌకర్యానుసారం చెల్లించగలరు. ఏవైనా సందేహాలు ఉంటే మమ్మల్ని సంప్రదించండి.\n\nమీ సహకారానికి ధన్యవాదాలు.\n\nఆదరాభిమానాలతో,\n${shopName}\n Powered by Store Saathi`,
+    whatsappMsg: (name: string, amount: number, shopName: string) =>
+      `గౌరవనీయులైన ${name},\n\n*${shopName}* నుండి ఇది ఒక వినయపూర్వక గుర్తు. మీ ఖాతాలో ₹${amount.toFixed(2)} మొత్తము ఇంకా బాకీగా ఉంది.\n\nదయచేసి మీ సౌకర్యానుసారం చెల్లించగలరు. ఏవైనా సందేహాలు ఉంటే మమ్మల్ని సంప్రదించండి.\n\nమీ సహకారానికి ధన్యవాదాలు.\n\nఆదరాభిమానాలతో,\n${shopName}\n Powered by Store Saathi`,
   },
 };
 
