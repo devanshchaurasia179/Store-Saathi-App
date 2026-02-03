@@ -138,7 +138,7 @@ const checkout = async (
       discount,
       taxPercentage,
       paidAmount,
-      paymentMode: paidAmount === 0 ? "NONE" : mode,
+      paymentMode: paidAmount === 0 ? "OTHERS" : mode,
       customerId,
     };
 

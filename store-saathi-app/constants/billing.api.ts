@@ -10,7 +10,7 @@ type CreateBillPayload = {
   discount: number;
   taxPercentage: number;
   paidAmount: number;
-  paymentMode: "CASH" | "UPI";
+  paymentMode: "CASH" | "UPI" |"OTHERS";
   customerId?: string | null;
 };
 

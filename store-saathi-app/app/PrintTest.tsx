@@ -25,6 +25,7 @@ import {
   getConnectedThermalPrinter,
   safeDisconnectPrinter,
   clearSavedPrinter,
+  reconnectSavedPrinter 
 } from "../utils/printerManager";
 
 import { connectPrinter, printTestBill } from "../utils/thermalPrinter";
@@ -159,7 +160,36 @@ function PrinterSetupContent() {
       setScanning(false);
     }
   };
+const handleReconnectFromHeader = async () => {
+  if (scanning) return;
 
+  setScanning(true);
+  try {
+    const success = await reconnectSavedPrinter();
+
+    if (!success) {
+      setStatus("offline");
+      Alert.alert(t.failTitle, t.savedOfflineMsg);
+      return;
+    }
+
+    const isReachable = await testRealConnection();
+    const printer = await getConnectedThermalPrinter();
+
+    setStatus(isReachable ? "connected" : "offline");
+    setLocalConnectedPrinter(printer);
+
+    if (isReachable) {
+      Alert.alert(
+        t.successTitle,
+        t.readyMsg,
+        [{ text: t.testPrint, onPress: printTestBill }]
+      );
+    }
+  } finally {
+    setScanning(false);
+  }
+};
   const renderDevice = ({ item }: { item: any }) => {
     const isSavedPrinter = connectedPrinter?.address === item.address;
     const isActuallyConnected = status === "connected" && isSavedPrinter;
@@ -256,11 +286,13 @@ function PrinterSetupContent() {
           </TouchableOpacity>
         </View>
 
-        {connectedPrinter && (
-          <TouchableOpacity 
-            style={styles.printerChip} 
-            onLongPress={handleDisconnect}
-          >
+       {connectedPrinter && (
+  <TouchableOpacity 
+    style={styles.printerChip}
+    onPress={ handleReconnectFromHeader }   // 👈 ADD THIS
+    onLongPress={handleDisconnect}        // 👈 KEEP THIS
+  >
+
             <Feather 
               name={status === "connected" ? "check-circle" : "alert-circle"} 
               size={16} 

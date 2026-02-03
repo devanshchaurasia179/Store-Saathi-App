@@ -21,7 +21,10 @@ const loadSavedPrinter = async (): Promise<void> => {
     const saved = await AsyncStorage.getItem(STORAGE_KEY);
     if (saved) {
       cachedPrinter = JSON.parse(saved);
-      console.log("Loaded saved printer:", cachedPrinter.name || cachedPrinter.address);
+      console.log(
+        "Loaded saved printer:",
+        cachedPrinter.name || cachedPrinter.address
+      );
     }
   } catch (error) {
     console.warn("Failed to load saved printer:", error);
@@ -42,7 +45,10 @@ export const safeDisconnectPrinter = async (): Promise<void> => {
     await BluetoothManager.disconnect(cachedPrinter.address); // Always pass address!
     console.log("Successfully disconnected from:", cachedPrinter.address);
   } catch (error: any) {
-    console.warn("Disconnect failed (ignored):", error.message || error);
+    console.warn(
+      "Disconnect failed (ignored):",
+      error.message || error
+    );
     // Do NOT throw or crash — disconnect failing is normal when printer is off
   }
 };
@@ -56,7 +62,10 @@ export const scanThermalPrinters = async (): Promise<
   try {
     const isEnabled = await BluetoothManager.isBluetoothEnabled();
     if (!isEnabled) {
-      Alert.alert("Bluetooth Disabled", "Please turn on Bluetooth to scan for printers.");
+      Alert.alert(
+        "Bluetooth Disabled",
+        "Please turn on Bluetooth to scan for printers."
+      );
       return [];
     }
 
@@ -64,8 +73,14 @@ export const scanThermalPrinters = async (): Promise<
     const parsed = JSON.parse(result);
 
     const devices = [
-      ...(parsed.paired || []).map((d: any) => ({ ...d, type: "Paired" as const })),
-      ...(parsed.found || []).map((d: any) => ({ ...d, type: "Nearby" as const })),
+      ...(parsed.paired || []).map((d: any) => ({
+        ...d,
+        type: "Paired" as const,
+      })),
+      ...(parsed.found || []).map((d: any) => ({
+        ...d,
+        type: "Nearby" as const,
+      })),
     ];
 
     if (devices.length === 0) {
@@ -78,7 +93,10 @@ export const scanThermalPrinters = async (): Promise<
     return devices;
   } catch (error: any) {
     console.error("Scan failed:", error);
-    Alert.alert("Scan Error", error?.message || "Unable to scan for printers. Try again.");
+    Alert.alert(
+      "Scan Error",
+      error?.message || "Unable to scan for printers. Try again."
+    );
     return [];
   }
 };
@@ -86,10 +104,16 @@ export const scanThermalPrinters = async (): Promise<
 /**
  * Save printer after successful connection
  */
-export const setConnectedPrinter = async (address: string, name?: string): Promise<void> => {
+export const setConnectedPrinter = async (
+  address: string,
+  name?: string
+): Promise<void> => {
   cachedPrinter = { address, name: name || "Thermal Printer" };
   try {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(cachedPrinter));
+    await AsyncStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(cachedPrinter)
+    );
     console.log("Printer saved:", cachedPrinter.name || address);
   } catch (error) {
     console.warn("Failed to save printer:", error);
@@ -119,8 +143,45 @@ export const clearSavedPrinter = async (): Promise<void> => {
   cachedPrinter = null;
   try {
     await AsyncStorage.removeItem(STORAGE_KEY);
-    Alert.alert("Printer Reset", "Saved printer cleared. You can scan and connect a new one.");
+    Alert.alert(
+      "Printer Reset",
+      "Saved printer cleared. You can scan and connect a new one."
+    );
   } catch (error) {
     console.warn("Failed to clear printer:", error);
+  }
+};
+
+/**
+ * 🔁 Reconnect saved printer WITHOUT scanning
+ * Used when user taps printer chip in header
+ */
+export const reconnectSavedPrinter = async (): Promise<boolean> => {
+  await loadSavedPrinter();
+
+  if (!cachedPrinter?.address) {
+    console.log("No saved printer to reconnect");
+    return false;
+  }
+
+  try {
+    const isEnabled = await BluetoothManager.isBluetoothEnabled();
+    if (!isEnabled) {
+      Alert.alert(
+        "Bluetooth Disabled",
+        "Please turn on Bluetooth to connect printer."
+      );
+      return false;
+    }
+
+    await BluetoothManager.connect(cachedPrinter.address);
+    console.log("Reconnected to printer:", cachedPrinter.address);
+    return true;
+  } catch (error: any) {
+    console.warn(
+      "Reconnect failed:",
+      error.message || error
+    );
+    return false;
   }
 };
