@@ -7,7 +7,11 @@ import {
   Dimensions,
   Vibration,
 } from "react-native";
-import { CameraView, useCameraPermissions, BarcodeScanningResult } from "expo-camera";
+import {
+  CameraView,
+  useCameraPermissions,
+  BarcodeScanningResult,
+} from "expo-camera";
 import { Ionicons } from "@expo/vector-icons";
 import { useAudioPlayer } from "expo-audio"; // New audio library (expo-av is deprecated)
 
@@ -24,12 +28,14 @@ const SCAN_BOX_LEFT = (screenWidth - SCAN_BOX_SIZE.width) / 2;
 const SCAN_BOX_TOP = 200;
 
 // Import a short beep sound file (place it in your assets folder)
-const beepSource = require("../../assets/images/beep.mp3"); // Download a short barcode beep sound and add it here
+const beepSource = require("../../assets/images/beep.mp3");
 
 export default function BarcodeScanner({ onScan, onClose }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const scannedRef = useRef<string | null>(null);
-  const [active, setActive] = useState(true);
+
+  // 🔴 CHANGED: start inactive (scan only on hold)
+  const [active, setActive] = useState(false);
 
   // Create a reusable audio player for the beep sound
   const beepPlayer = useAudioPlayer(beepSource);
@@ -59,41 +65,38 @@ export default function BarcodeScanner({ onScan, onClose }: Props) {
 
   /* ---------------- FEEDBACK: Vibration + Beep ---------------- */
   const triggerSuccessFeedback = () => {
-    // Vibration
     Vibration.vibrate(100);
-
-    // Beep sound – seek to start and play (safe even if already at start)
     beepPlayer.seekTo(0);
     beepPlayer.play();
   };
 
   /* ---------------- HANDLE SCAN ---------------- */
-const handleBarcodeScanned = (result: BarcodeScanningResult) => {
-  const { data } = result;
+  const handleBarcodeScanned = (result: BarcodeScanningResult) => {
+    const { data } = result;
 
-  // 🚨 HARD LOCK — FIRST LINE
-  if (scannedRef.current !== null) return;
+    // 🚨 HARD LOCK — FIRST LINE
+    if (scannedRef.current !== null) return;
 
-  if (!data || !active) return;
+    // 🔴 HOLD CHECK
+    if (!data || !active) return;
 
-  // Only accept if barcode is fully inside the green scan box
-  if (!isBarcodeInScanBox(result)) return;
+    // Only accept if barcode is fully inside the green scan box
+    if (!isBarcodeInScanBox(result)) return;
 
-  // 🔒 Lock immediately
-  scannedRef.current = data;
-  setActive(false);
+    // 🔒 Lock immediately
+    scannedRef.current = data;
+    setActive(false);
 
-  // Feedback
-  triggerSuccessFeedback();
+    // Feedback
+    triggerSuccessFeedback();
 
-  onScan(data);
+    onScan(data);
 
-  setTimeout(() => {
-    scannedRef.current = null;
-    setActive(true);
-  }, 1000);
-};
-
+    // 🔁 Unlock after short delay (user must re-hold)
+    setTimeout(() => {
+      scannedRef.current = null;
+    }, 1000);
+  };
 
   if (!permission?.granted) {
     return (
@@ -101,7 +104,10 @@ const handleBarcodeScanned = (result: BarcodeScanningResult) => {
         <Text style={styles.permissionText}>
           Camera permission is required
         </Text>
-        <TouchableOpacity onPress={requestPermission} style={styles.permissionBtn}>
+        <TouchableOpacity
+          onPress={requestPermission}
+          style={styles.permissionBtn}
+        >
           <Text style={styles.permissionBtnText}>Grant Permission</Text>
         </TouchableOpacity>
       </View>
@@ -131,13 +137,11 @@ const handleBarcodeScanned = (result: BarcodeScanningResult) => {
 
       {/* DARK OVERLAY + SCAN BOX WITH CORNERS */}
       <View style={styles.overlayContainer}>
-        {/* Top mask */}
         <View style={styles.maskRow} />
-        {/* Middle row with cutout */}
+
         <View style={styles.middleRow}>
           <View style={styles.maskSide} />
           <View style={styles.scanWindow}>
-            {/* Corner lines */}
             <View style={[styles.corner, styles.topLeft]} />
             <View style={[styles.corner, styles.topRight]} />
             <View style={[styles.corner, styles.bottomLeft]} />
@@ -145,7 +149,7 @@ const handleBarcodeScanned = (result: BarcodeScanningResult) => {
           </View>
           <View style={styles.maskSide} />
         </View>
-        {/* Bottom mask */}
+
         <View style={styles.maskRow} />
       </View>
 
@@ -156,6 +160,23 @@ const handleBarcodeScanned = (result: BarcodeScanningResult) => {
             <Ionicons name="close" size={26} color="#fff" />
           </TouchableOpacity>
         )}
+      </View>
+
+      {/* 🔴 HOLD TO SCAN BUTTON */}
+      <View style={styles.holdButtonWrapper}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPressIn={() => setActive(true)}   // 👆 start scan
+          onPressOut={() => setActive(false)} // ✋ stop scan
+          style={[
+            styles.holdButton,
+            active && styles.holdButtonActive,
+          ]}
+        >
+          <Text style={styles.holdButtonText}>
+            {active ? "Scanning" : "Scan"}
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -247,6 +268,31 @@ const styles = StyleSheet.create({
   },
   permissionBtnText: {
     color: "#fff",
+    fontWeight: "700",
+  },
+
+  /* 🔴 HOLD BUTTON STYLES */
+  holdButtonWrapper: {
+    position: "absolute",
+    bottom:50,
+    left:0 ,
+    right: 0,
+    alignItems: "center",
+  },
+  holdButton: {
+    width: 120,
+    height: 54,
+    borderRadius: 100,
+    backgroundColor: "#2563eb",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  holdButtonActive: {
+    backgroundColor: "#16a34a",
+  },
+  holdButtonText: {
+    color: "#fff",
+    fontSize: 16,
     fontWeight: "700",
   },
 });
