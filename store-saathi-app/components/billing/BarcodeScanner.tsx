@@ -95,7 +95,7 @@ export default function BarcodeScanner({ onScan, onClose }: Props) {
     // 🔁 Unlock after short delay (user must re-hold)
     setTimeout(() => {
       scannedRef.current = null;
-    }, 1000);
+    },);
   };
 
   if (!permission?.granted) {
@@ -194,14 +194,14 @@ const styles = StyleSheet.create({
   },
   maskRow: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(0,0,0,0.8)",
   },
   middleRow: {
     flexDirection: "row",
   },
   maskSide: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(0,0,0,0.8)",
   },
   scanWindow: {
     width: SCAN_BOX_SIZE.width,
@@ -274,16 +274,17 @@ const styles = StyleSheet.create({
   /* 🔴 HOLD BUTTON STYLES */
   holdButtonWrapper: {
     position: "absolute",
-    bottom:50,
-    left:0 ,
-    right: 0,
+    bottom:35,
+    left:0,
+    right: 280,
     alignItems: "center",
+    zIndex:50,
   },
   holdButton: {
-    width: 120,
+    width: 100,
     height: 54,
-    borderRadius: 100,
-    backgroundColor: "#2563eb",
+    borderRadius: 10,
+    backgroundColor: "#1e3a8a",
     justifyContent: "center",
     alignItems: "center",
   },
