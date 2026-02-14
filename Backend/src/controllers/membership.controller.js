@@ -214,7 +214,7 @@ export async function getAllMemberships(req, res) {
     const shopId = req.user._id;
 
     const memberships = await Membership.find({ shopId })
-      .populate("customerId", "name phone")
+      .populate("customerId", "name mobileNumber")
       .sort({ expiryDate: -1 });
 
     res.status(200).json({
