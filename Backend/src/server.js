@@ -11,6 +11,7 @@ import productRoutes from "./routes/product.routes.js";
 import billRoutes from "./routes/bill.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
+import MembershipRoutes from "./routes/membership.routes.js";
 
 
 dotenv.config();
@@ -38,6 +39,7 @@ app.use("/api/customers", customerRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/bills", billRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/memberships", MembershipRoutes);
 // ...
 app.use("/api/analytics", analyticsRoutes);
 app.get("/api/health", (req, res) => {
