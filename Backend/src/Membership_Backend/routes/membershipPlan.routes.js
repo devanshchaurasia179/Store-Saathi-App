@@ -11,7 +11,7 @@ import { protectRoute } from "../middleware/auth.middleware.js";
 const router = express.Router();
 
 //get all Plans
-router.get("/", getAllPlans);
+router.get("/",protectRoute, getAllPlans);
 
 // Create a new membership tier (e.g., "Silver", 500, 3, "MONTH")
 router.post("/", protectRoute, createPlan); 
