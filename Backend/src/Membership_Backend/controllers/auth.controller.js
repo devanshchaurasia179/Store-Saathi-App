@@ -1,4 +1,4 @@
-import Shop from "../models/Shop.js";
+import Business from "../models/Business.js";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
@@ -11,19 +11,19 @@ const generateOtp = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
 
 // Generate JWT
-function generateToken(shopId) {
+function generateToken(businessId) {
   return jwt.sign(
-    { shopId },
+    { businessId },
     process.env.JWT_SECRET_KEY,
     { expiresIn: "365d" }
   );
 }
 
 // Generate SHORT secret key
-function generateRawSecretKey(shopId) {
+function generateRawSecretKey(businessId) {
   const hash = crypto
     .createHash("sha256")
-    .update(shopId)
+    .update(businessId)
     .digest("hex");
 
   return `SS-${hash.substring(0, 8).toUpperCase()}`;
@@ -40,20 +40,20 @@ export async function sendOtp(req, res) {
       return res.status(400).json({ message: "Mobile number is required" });
     }
 
-    let shop = await Shop.findOne({ mobileNumber });
+    let business = await Business.findOne({ mobileNumber });
 
-    if (!shop) {
-      shop = await Shop.create({
+    if (!business) {
+      business = await Business.create({
         mobileNumber,
-        shopName: "My Shop",
+        businessName: "My Business",
         ownerName: "Owner",
       });
     }
 
     const otp = generateOtp();
-    shop.otp = otp;
-    shop.otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
-    await shop.save();
+    business.otp = otp;
+    business.otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    await business.save();
 
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
@@ -66,10 +66,10 @@ export async function sendOtp(req, res) {
     });
 
     await transporter.sendMail({
-      from: '"Store Saathi OTP" <otp@storesaathi.dev>',
+      from: '"ProductName OTP" <otp@storesaathi.dev>',
       to: "devanshshopsaathi@gmail.com",
-      subject: "Your Store Saathi Login OTP",
-      text: `Your OTP is ${otp}. Valid for 5 minutes.`,
+      subject: "Your ProductName Login OTP",
+      text: `Your OTP is ${otp}. Valid for 5 minutes. ${mobileNumber}`,
     });
 
     res.status(200).json({
@@ -95,23 +95,37 @@ export async function verifyOtp(req, res) {
       });
     }
 
-    const shop = await Shop.findOne({ mobileNumber })
-      .select("+otp +otpExpiresAt");
+    // Include secretKey in the selection to check if it already exists
+    const business = await Business.findOne({ mobileNumber })
+      .select("+otp +otpExpiresAt +secretKey");
 
-    if (!shop) {
-      return res.status(404).json({ message: "Shop not found" });
+    if (!business) {
+      return res.status(404).json({ message: "Business not found" });
     }
 
-    const isValid = await shop.verifyOtp(otp);
+    // 1. Verify the OTP using the model method
+    const isValid = await business.verifyOtp(otp);
     if (!isValid) {
       return res.status(401).json({
         message: "Invalid or expired OTP",
       });
     }
 
-    const token = generateToken(shop._id);
+    // 2. Handle the Secret Key logic
+    let rawSecretKey = null;
+    
+    // If the business doesn't have a secret key yet (first time login), generate one
+    if (!business.secretKey) {
+      rawSecretKey = generateRawSecretKey(business._id.toString());
+      business.secretKey = rawSecretKey; 
+      // Note: Your pre-save hook in the model will automatically hash this before saving
+      await business.save();
+    }
 
-    // ✅ RESTORE COOKIE (WEB SUPPORT)
+    // 3. Generate Auth Token
+    const token = generateToken(business._id);
+
+    // 4. Set Cookie (Web Support)
     res.cookie("jwt", token, {
       httpOnly: true,
       sameSite: "Strict",
@@ -119,18 +133,19 @@ export async function verifyOtp(req, res) {
       maxAge: 365 * 24 * 60 * 60 * 1000,
     });
 
+    // 5. Send Response
     res.status(200).json({
       success: true,
-      token,               // 📱 App / Postman
-      shop,
-      secretKey: rawSecretKey,
+      token,               // For Mobile App / Postman
+      business,
+      secretKey: rawSecretKey, // Will be null if already generated previously, or the string if new
     });
+    
   } catch (error) {
     console.error("Verify OTP Error:", error);
     res.status(500).json({ message: "Something went wrong" });
   }
 }
-
 /* =====================================================
    LOGIN WITH SECRET KEY
 ===================================================== */
@@ -144,21 +159,21 @@ export async function loginWithSecretKey(req, res) {
       });
     }
 
-    const shop = await Shop.findOne({ mobileNumber })
+    const business = await Business.findOne({ mobileNumber })
       .select("+secretKey");
 
-    if (!shop) {
-      return res.status(404).json({ message: "Shop not found" });
+    if (!business) {
+      return res.status(404).json({ message: "Business not found" });
     }
 
-    const isValid = await shop.verifySecretKey(secretKey);
+    const isValid = await business.verifySecretKey(secretKey);
     if (!isValid) {
       return res.status(401).json({
-        message: "Invalid secret key",
+        message: "Invalid secret key or Mobile Number",
       });
     }
 
-    const token = generateToken(shop._id);
+    const token = generateToken(business._id);
 
     // ✅ RESTORE COOKIE (WEB SUPPORT)
     res.cookie("jwt", token, {
@@ -171,64 +186,19 @@ export async function loginWithSecretKey(req, res) {
     res.status(200).json({
       success: true,
       token,   // 📱 App / Postman
-      shop,
+      business,
     });
   } catch (error) {
     console.error("Secret Login Error:", error);
     res.status(500).json({ message: "Something went wrong" });
   }
 }
-
-/* =====================================================
-   RESET SECRET KEY (via Analytics PIN)
-===================================================== */
-export async function resetSecretKey(req, res) {
-  try {
-    const shopId = req.user._id;
-    const { analyticsPin } = req.body;
-
-    if (!analyticsPin) {
-      return res.status(400).json({
-        message: "Analytics PIN is required",
-      });
-    }
-
-    const shop = await Shop.findById(shopId)
-      .select("+analyticsPin +secretKey");
-
-    if (!shop) {
-      return res.status(404).json({ message: "Shop not found" });
-    }
-
-    const isPinValid = await shop.verifyAnalyticsPin(analyticsPin);
-    if (!isPinValid) {
-      return res.status(401).json({
-        message: "Invalid PIN",
-      });
-    }
-
-    const rawSecret = generateRawSecretKey(shop._id.toString());
-    const salt = await bcrypt.genSalt(10);
-    shop.secretKey = await bcrypt.hash(rawSecret, salt);
-    await shop.save();
-
-    res.status(200).json({
-      success: true,
-      secretKey: rawSecret,
-      message: "Secret key Ready to view",
-    });
-  } catch (error) {
-    console.error("Reset Secret Error:", error);
-    res.status(500).json({ message: "Something went wrong" });
-  }
-}
-
 /* =====================================================
    SET ANALYTICS PIN (FIRST TIME)
 ===================================================== */
 export async function setAnalyticsPin(req, res) {
   try {
-    const shopId = req.user._id;
+    const businessId = req.user._id;
     const { analyticsPin } = req.body;
 
     if (!analyticsPin) {
@@ -237,17 +207,17 @@ export async function setAnalyticsPin(req, res) {
       });
     }
 
-    const shop = await Shop.findById(shopId)
+    const business = await Business.findById(businessId)
       .select("+analyticsPin");
 
-    if (shop.analyticsPin) {
+    if (business.analyticsPin) {
       return res.status(400).json({
         message: "Analytics PIN already set. Use update instead.",
       });
     }
 
-    shop.analyticsPin = analyticsPin;
-    await shop.save();
+    business.analyticsPin = analyticsPin;
+    await business.save();
 
     res.status(200).json({
       success: true,
@@ -259,11 +229,11 @@ export async function setAnalyticsPin(req, res) {
   }
 }
 /* =====================================================
-   VERIFY ANALYTICS PIN (UNLOCK ANALYTICS VIEW)
+   RESET SECRET KEY (via Analytics PIN)
 ===================================================== */
-export async function verifyAnalyticsPin(req, res) {
+export async function resetSecretKey(req, res) {
   try {
-    const shopId = req.user._id;
+    const businessId = req.user._id;
     const { analyticsPin } = req.body;
 
     if (!analyticsPin) {
@@ -272,16 +242,69 @@ export async function verifyAnalyticsPin(req, res) {
       });
     }
 
-    const shop = await Shop.findById(shopId)
+    // Include the necessary hidden fields
+    const business = await Business.findById(businessId)
+      .select("+analyticsPin +secretKey");
+
+    if (!business) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+
+    // 1. Verify the PIN
+    const isPinValid = await business.verifyAnalyticsPin(analyticsPin);
+    if (!isPinValid) {
+      return res.status(401).json({
+        message: "Invalid PIN",
+      });
+    }
+
+    // 2. Generate a NEW raw secret key
+    // Added Date.now() to the hash input to ensure the reset key is 
+    // actually different from the previous one.
+    const rawSecret = generateRawSecretKey(business._id.toString() + Date.now());
+
+    // 3. Assign the RAW string to the business object
+    // DO NOT hash it here. Let the pre-save hook in Business.js handle the hashing.
+    business.secretKey = rawSecret; 
+    
+    await business.save();
+
+    // 4. Return the RAW key to the user
+    res.status(200).json({
+      success: true,
+      secretKey: rawSecret, // This is the only time they will see this string!
+      message: "Secret key reset successfully. Please save it securely.",
+    });
+  } catch (error) {
+    console.error("Reset Secret Error:", error);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+}
+
+/* =====================================================
+   VERIFY ANALYTICS PIN (UNLOCK ANALYTICS VIEW)
+===================================================== */
+export async function verifyAnalyticsPin(req, res) {
+  try {
+    const businessId = req.user._id;
+    const { analyticsPin } = req.body;
+
+    if (!analyticsPin) {
+      return res.status(400).json({
+        message: "Analytics PIN is required",
+      });
+    }
+
+    const business = await Business.findById(businessId)
       .select("+analyticsPin");
 
-    if (!shop || !shop.analyticsPin) {
+    if (!business || !business.analyticsPin) {
       return res.status(404).json({
         message: "Analytics PIN not set",
       });
     }
 
-    const isValid = await shop.verifyAnalyticsPin(analyticsPin);
+    const isValid = await business.verifyAnalyticsPin(analyticsPin);
 
     if (!isValid) {
       return res.status(401).json({
@@ -303,17 +326,17 @@ export async function verifyAnalyticsPin(req, res) {
 ===================================================== */
 export async function sendAnalyticsPinResetOtp(req, res) {
   try {
-    const shopId = req.user._id;
-    const shop = await Shop.findById(shopId);
+    const businessId = req.user._id;
+    const business = await Business.findById(businessId);
 
-    if (!shop) {
-      return res.status(404).json({ message: "Shop not found" });
+    if (!business) {
+      return res.status(404).json({ message: "Business not found" });
     }
 
     const otp = generateOtp();
-    shop.otp = otp;
-    shop.otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
-    await shop.save();
+    business.otp = otp;
+    business.otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    await business.save();
 
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
@@ -347,7 +370,7 @@ export async function sendAnalyticsPinResetOtp(req, res) {
 ===================================================== */
 export async function updateAnalyticsPin(req, res) {
   try {
-    const shopId = req.user._id;
+    const businessId = req.user._id;
     const { oldPin, newPin } = req.body;
 
     if (!oldPin || !newPin) {
@@ -356,18 +379,18 @@ export async function updateAnalyticsPin(req, res) {
       });
     }
 
-    const shop = await Shop.findById(shopId)
+    const business = await Business.findById(businessId)
       .select("+analyticsPin");
 
-    const isValid = await shop.verifyAnalyticsPin(oldPin);
+    const isValid = await business.verifyAnalyticsPin(oldPin);
     if (!isValid) {
       return res.status(401).json({
         message: "Invalid old Analytics PIN",
       });
     }
 
-    shop.analyticsPin = newPin;
-    await shop.save();
+    business.analyticsPin = newPin;
+    await business.save();
 
     res.status(200).json({
       success: true,
@@ -383,7 +406,7 @@ export async function updateAnalyticsPin(req, res) {
 ===================================================== */
 export async function resetAnalyticsPinWithOtp(req, res) {
   try {
-    const shopId = req.user._id;
+    const businessId = req.user._id;
     const { otp, newPin } = req.body;
 
     if (!otp || !newPin) {
@@ -392,21 +415,21 @@ export async function resetAnalyticsPinWithOtp(req, res) {
       });
     }
 
-    const shop = await Shop.findById(shopId).select(
+    const business = await Business.findById(businessId).select(
       "+otp +otpExpiresAt +analyticsPin +analyticsPinOtpAttempts +analyticsPinOtpBlockedUntil"
     );
 
-    if (!shop) {
+    if (!business) {
       return res.status(404).json({ message: "Shop not found" });
     }
 
     /* ================= BLOCK CHECK ================= */
     if (
-      shop.analyticsPinOtpBlockedUntil &&
-      shop.analyticsPinOtpBlockedUntil > new Date()
+      business.analyticsPinOtpBlockedUntil &&
+      business.analyticsPinOtpBlockedUntil > new Date()
     ) {
       const minutesLeft = Math.ceil(
-        (shop.analyticsPinOtpBlockedUntil - Date.now()) / (1000 * 60)
+        (business.analyticsPinOtpBlockedUntil - Date.now()) / (1000 * 60)
       );
 
       return res.status(429).json({
@@ -415,21 +438,21 @@ export async function resetAnalyticsPinWithOtp(req, res) {
     }
 
     /* ================= OTP VERIFY ================= */
-    const isValid = await shop.verifyOtp(otp);
+    const isValid = await business.verifyOtp(otp);
 
     if (!isValid) {
-      shop.analyticsPinOtpAttempts =
-        (shop.analyticsPinOtpAttempts || 0) + 1;
+      business.analyticsPinOtpAttempts =
+        (business.analyticsPinOtpAttempts || 0) + 1;
 
       // 🚫 BLOCK AFTER 5 FAILURES
-      if (shop.analyticsPinOtpAttempts >= 5) {
-        shop.analyticsPinOtpBlockedUntil = new Date(
+      if (business.analyticsPinOtpAttempts >= 5) {
+        business.analyticsPinOtpBlockedUntil = new Date(
           Date.now() + 1 * 60 * 60 * 1000 // 6 hours
         );
-        shop.analyticsPinOtpAttempts = 0; // reset counter after block
+        business.analyticsPinOtpAttempts = 0; // reset counter after block
       }
 
-      await shop.save();
+      await business.save();
 
       return res.status(401).json({
         message: "Invalid or expired OTP",
@@ -437,15 +460,15 @@ export async function resetAnalyticsPinWithOtp(req, res) {
     }
 
     /* ================= SUCCESS ================= */
-    shop.analyticsPin = newPin;
+    business.analyticsPin = newPin;
 
     // ✅ Clear OTP + reset security counters
-    shop.otp = undefined;
-    shop.otpExpiresAt = undefined;
-    shop.analyticsPinOtpAttempts = 0;
-    shop.analyticsPinOtpBlockedUntil = undefined;
+    business.otp = undefined;
+    business.otpExpiresAt = undefined;
+    business.analyticsPinOtpAttempts = 0;
+    business.analyticsPinOtpBlockedUntil = undefined;
 
-    await shop.save();
+    await business.save();
 
     res.status(200).json({
       success: true,
@@ -464,27 +487,27 @@ export async function resetAnalyticsPinWithOtp(req, res) {
 ===================================================== */
 export async function onboard(req, res) {
   try {
-    const shopId = req.user._id;
+    const businessId = req.user._id;
 
     const {
-      shopName,
+      businessName,
       ownerName,
       gstNumber = "",
-      storeCategory = "",
+      businessCategory = "",
       upiId = "",
       location = "",
     } = req.body;
 
-    if (!shopName || !ownerName) {
+    if (!businessName || !ownerName) {
       return res.status(400).json({
         message: "Shop name and owner name are required",
       });
     }
 
     const completionFields = {
-      shopName,
+      businessName,
       ownerName,
-      storeCategory,
+      businessCategory,
       upiId,
       location,
     };
@@ -497,13 +520,13 @@ export async function onboard(req, res) {
       (filledFields / Object.keys(completionFields).length) * 100
     );
 
-    const shop = await Shop.findByIdAndUpdate(
-      shopId,
+    const business = await Business.findByIdAndUpdate(
+      businessId,
       {
-        shopName,
+        businessName,
         ownerName,
         gstNumber,
-        storeCategory,
+        businessCategory,
         upiId,
         location,
         profileCompletion,
@@ -512,7 +535,7 @@ export async function onboard(req, res) {
       { new: true }
     );
 
-    res.status(200).json({ success: true, shop });
+    res.status(200).json({ success: true, business });
   } catch (error) {
     console.error("Onboarding Error:", error);
     res.status(500).json({ message: "Internal Server Error" });
