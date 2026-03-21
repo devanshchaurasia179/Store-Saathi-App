@@ -95,13 +95,15 @@ export async function verifyOtp(req, res) {
       });
     }
 
+    // Include secretKey in the selection to check if it already exists
     const shop = await Shop.findOne({ mobileNumber })
-      .select("+otp +otpExpiresAt");
+      .select("+otp +otpExpiresAt +secretKey");
 
     if (!shop) {
-      return res.status(404).json({ message: "Shop not found" });
+      return res.status(404).json({ message: "shop not found" });
     }
 
+    // 1. Verify the OTP using the model method
     const isValid = await shop.verifyOtp(otp);
     if (!isValid) {
       return res.status(401).json({
@@ -109,9 +111,21 @@ export async function verifyOtp(req, res) {
       });
     }
 
+    // 2. Handle the Secret Key logic
+    let rawSecretKey = null;
+    
+    // If the shop doesn't have a secret key yet (first time login), generate one
+    if (!shop.secretKey) {
+      rawSecretKey = generateRawSecretKey(shop._id.toString());
+      shop.secretKey = rawSecretKey; 
+      // Note: Your pre-save hook in the model will automatically hash this before saving
+      await shop.save();
+    }
+
+    // 3. Generate Auth Token
     const token = generateToken(shop._id);
 
-    // ✅ RESTORE COOKIE (WEB SUPPORT)
+    // 4. Set Cookie (Web Support)
     res.cookie("jwt", token, {
       httpOnly: true,
       sameSite: "Strict",
@@ -119,12 +133,14 @@ export async function verifyOtp(req, res) {
       maxAge: 365 * 24 * 60 * 60 * 1000,
     });
 
+    // 5. Send Response
     res.status(200).json({
       success: true,
-      token,               // 📱 App / Postman
+      token,               // For Mobile App / Postman
       shop,
-      secretKey: rawSecretKey,
+      secretKey: rawSecretKey, // Will be null if already generated previously, or the string if new
     });
+    
   } catch (error) {
     console.error("Verify OTP Error:", error);
     res.status(500).json({ message: "Something went wrong" });
