@@ -316,3 +316,108 @@ export async function getBillById(req, res) {
     });
   }
 }
+/* --------------------------------------------------
+   DELETE BILL (AUTO-EXPIRE: 5 MIN, SPECIFIC SHOP ONLY)
+-------------------------------------------------- */
+
+const RESTRICTED_SHOP_ID = "695f967abb8a17fee63fdd39";
+const AUTO_DELETE_MS = 5 * 60 * 1000; // 5 minutes
+
+export async function deleteBill(req, res) {
+  try {
+    const shopId = req.user._id;
+    const { billId } = req.params;
+
+    // ✅ Only allow this specific shop to use auto-delete
+    if (shopId.toString() !== RESTRICTED_SHOP_ID) {
+      return res.status(403).json({
+        message: "Auto-delete is not enabled for your shop",
+      });
+    }
+
+    const bill = await Bill.findOne({ _id: billId, shopId });
+
+    if (!bill) {
+      return res.status(404).json({ message: "Bill not found" });
+    }
+
+    // ✅ Check if 5 minutes have passed
+    const ageMs = Date.now() - new Date(bill.createdAt).getTime();
+    if (ageMs > AUTO_DELETE_MS) {
+      return res.status(403).json({
+        message: "Bill can no longer be deleted. The 5-minute window has passed.",
+      });
+    }
+
+    // ✅ Reverse stock adjustments before deleting
+    for (const item of bill.items) {
+      const product = await Product.findOne({
+        _id: item.productId,
+        shopId,
+        isActive: true,
+      });
+
+      if (!product || product.isTrackable === false) continue;
+
+      if (item.variantId) {
+        const variant = product.variants.id(item.variantId);
+        if (variant) {
+          variant.quantity += item.quantity; // restore stock
+        }
+      } else {
+        product.quantity += item.quantity; // restore stock
+      }
+
+      await product.save();
+    }
+
+    // ✅ Reverse ledger & customer balance if linked to a customer
+    if (bill.customerId) {
+      const difference = bill.totalAmount - bill.paidAmount;
+
+      if (difference > 0) {
+        await LedgerEntry.create({
+          shopId,
+          customerId: bill.customerId,
+          type: "CREDIT",
+          amount: difference,
+          billId: bill._id,
+          note: "Bill deleted - due reversed",
+        });
+
+        await Customer.findByIdAndUpdate(bill.customerId, {
+          $inc: { totalPending: -difference },
+        });
+      }
+
+      if (difference < 0) {
+        const advance = Math.abs(difference);
+
+        await LedgerEntry.create({
+          shopId,
+          customerId: bill.customerId,
+          type: "DEBIT",
+          amount: advance,
+          billId: bill._id,
+          note: "Bill deleted - advance reversed",
+        });
+
+        await Customer.findByIdAndUpdate(bill.customerId, {
+          $inc: { totalPending: advance },
+        });
+      }
+    }
+
+    await bill.deleteOne();
+
+    return res.status(200).json({
+      success: true,
+      message: "Bill deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete Bill Error:", error.message);
+    return res.status(500).json({
+      message: "Failed to delete bill",
+    });
+  }
+}

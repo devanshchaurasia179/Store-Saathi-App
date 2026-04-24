@@ -350,7 +350,7 @@ export async function sendAnalyticsPinResetOtp(req, res) {
 
     res.status(200).json({
       success: true,
-      message: "OTP sent for PIN reset",
+      message: "OTPf108386a9063b9c8a614b8684fc6b4137ae8ff21 sent for PIN reset",
     });
   } catch (error) {
     console.error("Send PIN Reset OTP Error:", error);
