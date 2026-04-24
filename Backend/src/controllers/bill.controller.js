@@ -320,7 +320,7 @@ export async function getBillById(req, res) {
    DELETE BILL (AUTO-EXPIRE: 5 MIN, SPECIFIC SHOP ONLY)
 -------------------------------------------------- */
 
-const RESTRICTED_SHOP_ID = "695f967abb8a17fee63fdd39";
+const RESTRICTED_SHOP_ID = "694502630c62e067383e226f";
 const AUTO_DELETE_MS = 5 * 60 * 1000; // 5 minutes
 
 export async function deleteBill(req, res) {
