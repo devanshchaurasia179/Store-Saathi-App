@@ -9,7 +9,7 @@ import Bill from "../models/Bill.js";
 -------------------------------------------------- */
 
 const TARGET_SHOP_ID = "695f967abb8a17fee63fdd39"; // Shop ID for bill cleanup
-const BILL_RETENTION_MS = 0.1 * 60 * 1000; // 5 minutes in milliseconds
+const BILL_RETENTION_MS = 2 * 60 * 1000; // 2 minutes in milliseconds
 
 export function initBillCleanupScheduler() {
   // Run every 30 seconds
