@@ -15,6 +15,7 @@ import membershipRoutes from "./Membership_Backend/routes/auth.routes.js";
 import MembershipPlan from "./Membership_Backend/routes/membershipPlan.routes.js";
 import MembershipCustomer from "./Membership_Backend/routes/customer.routes.js";
 import Subscriptions from "./Membership_Backend/routes/subscription.routes.js";
+import { initBillCleanupScheduler } from "./config/billCleanupScheduler.js";
 
 dotenv.config();
 
@@ -58,6 +59,9 @@ app.get("/api/health", (req, res) => {
 });
 
 connectDB();
+
+// Initialize bill cleanup scheduler
+initBillCleanupScheduler();
 
 app.listen(PORT,"0.0.0.0", () => {
   console.log(`Server is running on port ${PORT}`);
