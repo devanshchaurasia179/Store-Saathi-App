@@ -6,21 +6,20 @@ import {
   TouchableOpacity,
   Modal,
   ActivityIndicator,
-  ScrollView,
-  Dimensions,
 } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatRupee } from "../../utils/formatCurrency";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-
 type BillSuccessSheetProps = {
   visible: boolean;
   onClose: () => void;
   billId: string | null;
-  items: any[];         // Added: current bill items
-  totalAmount: number;  // Added: final bill total
+  itemCount: number;
+  subtotal: number;
+  discount: number;
+  tax: number;
+  totalAmount: number;
   isPrinterConnected: boolean;
   checkingPrinter: boolean;
   onPrint: () => void;
@@ -30,8 +29,6 @@ type BillSuccessSheetProps = {
     print: string;
     setupPrint: string;
     nextCustomer: string;
-    itemsBought: string;
-    total: string;
   };
 };
 
@@ -39,7 +36,10 @@ export default function BillSuccessSheet({
   visible,
   onClose,
   billId,
-  items,
+  itemCount,
+  subtotal,
+  discount,
+  tax,
   totalAmount,
   isPrinterConnected,
   checkingPrinter,
@@ -51,71 +51,106 @@ export default function BillSuccessSheet({
 
   if (!billId) return null;
 
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-          <View style={styles.dragIndicator} />
+  const hasDiscount = discount > 0;
+  const hasTax = tax > 0;
 
-          {/* SUCCESS STATUS */}
-          <View style={styles.topSection}>
-            <View style={styles.successIconCircle}>
-              <Ionicons name="checkmark" size={40} color="#fff" />
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      {/* ── Backdrop — tap to dismiss ── */}
+      <View style={styles.overlay}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
+
+        <View style={styles.card}>
+
+          {/* ── Close button ── */}
+          <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close" size={17} color="#94a3b8" />
+          </TouchableOpacity>
+
+          {/* ── SUCCESS HEADER ── */}
+          <View style={styles.header}>
+            <View style={styles.successRing}>
+              <View style={styles.successCircle}>
+                <Ionicons name="checkmark" size={30} color="#fff" />
+              </View>
             </View>
             <Text style={styles.successTitle}>{labels.paymentReceived}</Text>
+            <Text style={styles.billSuccess}>Bill Created, Successfully</Text>
           </View>
 
-          {/* MINI BILL COMPONENT */}
-          <View style={styles.miniBill}>
-            <View style={styles.billHeader}>
-              <Text style={styles.billLabel}>{labels.itemsBought}</Text>
-              <Text style={styles.itemCount}>{items.length} Items</Text>
+          {/* ── SUMMARY CARD ── */}
+          <View style={styles.summaryCard}>
+
+            <View style={styles.row}>
+              <View style={styles.rowLeft}>
+                <View style={styles.iconBox}>
+                  <Feather name="shopping-bag" size={14} color="#6366f1" />
+                </View>
+                <Text style={styles.rowLabel}>Items</Text>
+              </View>
+              <Text style={styles.rowValue}>{itemCount} {itemCount === 1 ? "item" : "items"}</Text>
             </View>
 
-            <ScrollView 
-              style={styles.itemsList} 
-              showsVerticalScrollIndicator={false}
-              nestedScrollEnabled={true}
-            >
-              {items.map((item, index) => (
-                <View key={`${item.productId}-${item.variantId ?? 'no-variant'}-${index}`}>
-                  <View style={styles.itemMain}>
-                    <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                    <Text style={styles.itemDetails}>
-                      {item.quantity} {item.unit || 'unit'} × {formatRupee(item.price)}
-                    </Text>
-                  </View>
-                  <Text style={styles.itemTotal}>
-                    {formatRupee(item.price * item.quantity)}
-                  </Text>
+            <View style={styles.row}>
+              <View style={styles.rowLeft}>
+                <View style={styles.iconBox}>
+                  <Feather name="file-text" size={14} color="#6366f1" />
                 </View>
-              ))}
-            </ScrollView>
+                <Text style={styles.rowLabel}>Subtotal</Text>
+              </View>
+              <Text style={styles.rowValue}>{formatRupee(subtotal)}</Text>
+            </View>
 
-            <View style={styles.billFooter}>
-              <Text style={styles.totalLabel}>{labels.total}</Text>
+            {hasDiscount && (
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={[styles.iconBox, styles.iconBoxGreen]}>
+                    <Feather name="tag" size={14} color="#10b981" />
+                  </View>
+                  <Text style={[styles.rowLabel, styles.discountLabel]}>Discount</Text>
+                </View>
+                <Text style={styles.discountValue}>− {formatRupee(discount)}</Text>
+              </View>
+            )}
+
+            {hasTax && (
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={[styles.iconBox, styles.iconBoxAmber]}>
+                    <Feather name="percent" size={14} color="#f59e0b" />
+                  </View>
+                  <Text style={styles.rowLabel}>Tax</Text>
+                </View>
+                <Text style={styles.rowValue}>{formatRupee(tax)}</Text>
+              </View>
+            )}
+
+            <View style={styles.divider} />
+
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Amount Paid</Text>
               <Text style={styles.totalValue}>{formatRupee(totalAmount)}</Text>
             </View>
+
           </View>
 
-          {/* ACTION BUTTONS */}
-          <View style={styles.actionContainer}>
+          {/* ── ACTION BUTTONS ── */}
+          <View style={styles.actions}>
+
             <TouchableOpacity
-              style={[
-                styles.printBtn,
-                !isPrinterConnected && styles.setupBtn
-              ]}
+              style={[styles.printBtn, !isPrinterConnected && styles.setupBtn]}
               onPress={onPrint}
               disabled={checkingPrinter}
+              activeOpacity={0.85}
             >
               {checkingPrinter ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
-                  <Feather 
-                    name={isPrinterConnected ? "printer" : "bluetooth"} 
-                    size={20} 
-                    color="#fff" 
+                  <Feather
+                    name={isPrinterConnected ? "printer" : "bluetooth"}
+                    size={18}
+                    color="#fff"
                   />
                   <Text style={styles.printBtnText}>
                     {isPrinterConnected ? labels.print : labels.setupPrint}
@@ -124,10 +159,15 @@ export default function BillSuccessSheet({
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.nextBtn} onPress={onNextCustomer}>
+            <TouchableOpacity
+              style={styles.nextBtn}
+              onPress={onNextCustomer}
+              activeOpacity={0.85}
+            >
               <Text style={styles.nextBtnText}>{labels.nextCustomer}</Text>
-              <Ionicons name="arrow-forward" size={18} color="#2563eb" />
+              <Ionicons name="arrow-forward" size={17} color="#6366f1" />
             </TouchableOpacity>
+
           </View>
         </View>
       </View>
@@ -136,163 +176,185 @@ export default function BillSuccessSheet({
 }
 
 const styles = StyleSheet.create({
+  /* ── Backdrop ── */
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.85)",
-    justifyContent: "flex-end",
+    backgroundColor: "rgba(2, 6, 23, 0.75)",
+    alignItems: "center",        // ← center horizontally
+    justifyContent: "center",    // ← center vertically (was flex-end)
+    paddingHorizontal: 20,
   },
-  sheet: {
+
+  /* ── Main card (was bottom sheet) ── */
+  card: {
+    width: "100%",
     backgroundColor: "#fff",
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    maxHeight: SCREEN_HEIGHT * 0.8,
-    paddingHorizontal: 24,
+    borderRadius: 28,            // fully rounded — all 4 corners
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.2,
+    shadowRadius: 30,
+    elevation: 18,
   },
-  dragIndicator: {
-    width: 40,
-    height: 4,
-    backgroundColor: "#e2e8f0",
-    borderRadius: 2,
-    alignSelf: "center",
-    marginTop: 12,
-  },
-  topSection: {
+
+  /* ── Close × ── */
+  closeBtn: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#f1f5f9",
     alignItems: "center",
-    marginVertical: 20,
+    justifyContent: "center",
+    zIndex: 10,
   },
-  successIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+
+  /* ── Header ── */
+  header: {
+    alignItems: "center",
+    paddingBottom: 20,
+  },
+  successRing: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: "#d1fae5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  successCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: "#10b981",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
-    elevation: 4,
     shadowColor: "#10b981",
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
   successTitle: {
     fontSize: 20,
     fontWeight: "800",
-    color: "#1e293b",
+    color: "#0f172a",
+    letterSpacing: -0.3,
   },
-  miniBill: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  billHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-    paddingBottom: 10,
-  },
-  billLabel: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#64748b",
-    textTransform: "uppercase",
+  billSuccess: {
+    fontSize: 18,
+    color: "#090d13",
+    fontWeight: "600",
+    marginTop: 1,
     letterSpacing: 0.5,
   },
-  itemCount: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#2563eb",
-    backgroundColor: "#eff6ff",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
+
+  /* ── Summary card ── */
+  summaryCard: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    gap: 12,
+    marginBottom: 20,
   },
-  itemsList: {
-    maxHeight: SCREEN_HEIGHT * 0.22,
-  },
-  itemRow: {
+  row: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
   },
-  itemMain: {
-    flex: 1,
-    marginRight: 12,
+  rowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
-  itemName: {
+  iconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "#ede9fe",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconBoxGreen: { backgroundColor: "#d1fae5" },
+  iconBoxAmber: { backgroundColor: "#fef3c7" },
+  rowLabel: {
     fontSize: 14,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  discountLabel: { color: "#10b981" },
+  rowValue: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1e293b",
+  },
+  discountValue: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#10b981",
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#e2e8f0",
+    marginVertical: 2,
+  },
+  totalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  totalLabel: {
+    fontSize: 15,
     fontWeight: "700",
     color: "#334155",
   },
-  itemDetails: {
-    fontSize: 12,
-    color: "#94a3b8",
-    marginTop: 2,
-  },
-  itemTotal: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#1e293b",
-  },
-  billFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 10,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#e2e8f0",
-    borderStyle: "dashed",
-  },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#475569",
-  },
   totalValue: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "900",
-    color: "#2563eb",
+    color: "#6366f1",
+    letterSpacing: -0.5,
   },
-  actionContainer: {
-    marginTop: 24,
-    gap: 12,
+
+  /* ── Actions ── */
+  actions: {
+    gap: 10,
   },
   printBtn: {
-    backgroundColor: "#0f172a",
-    height: 56,
-    borderRadius: 16,
+    backgroundColor: "#112049",
+    height: 54,
+    borderRadius: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
+    gap: 9,
   },
-  setupBtn: {
-    backgroundColor: "#f59e0b",
-  },
+  setupBtn: { backgroundColor: "#f59e0b" },
   printBtnText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "800",
   },
   nextBtn: {
-    height: 56,
-    borderRadius: 16,
+    height: 54,
+    borderRadius: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    backgroundColor: "#eff6ff",
+    gap: 7,
+    backgroundColor: "#eef2ff",
     borderWidth: 1,
-    borderColor: "#dbeafe",
+    borderColor: "#c7d2fe",
   },
   nextBtnText: {
-    color: "#2563eb",
-    fontSize: 16,
+    color: "#6366f1",
+    fontSize: 15,
     fontWeight: "800",
   },
 });

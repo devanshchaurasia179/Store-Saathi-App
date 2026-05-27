@@ -11,10 +11,6 @@ import productRoutes from "./routes/product.routes.js";
 import billRoutes from "./routes/bill.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
-import membershipRoutes from "./Membership_Backend/routes/auth.routes.js";
-import MembershipPlan from "./Membership_Backend/routes/membershipPlan.routes.js";
-import MembershipCustomer from "./Membership_Backend/routes/customer.routes.js";
-import Subscriptions from "./Membership_Backend/routes/subscription.routes.js";
 import { initBillCleanupScheduler } from "./config/billCleanupScheduler.js";
 
 dotenv.config();
@@ -44,12 +40,6 @@ app.use("/api/bills", billRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 // ...
 app.use("/api/analytics", analyticsRoutes);
-
-//Membership
-app.use("/api/membership/auth", membershipRoutes);
-app.use("/api/membership/plans", MembershipPlan);
-app.use("/api/membership/customer", MembershipCustomer);
-app.use("/api/membership/subscription", Subscriptions);
 
 
 

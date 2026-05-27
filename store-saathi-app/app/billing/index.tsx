@@ -1,31 +1,26 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Modal,
-  TextInput,
-  StatusBar,
-  Alert,
-  ActivityIndicator,
-  Pressable,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 /* COMPONENTS */
 import BillSuccessSheet from "../../components/billing/BillSuccessSheet";
-import BarcodeScanner from "../../components/billing/BarcodeScanner";
 import BillItemsList from "../../components/billing/BillItemsList";
 import BillSummary from "../../components/billing/BillSummary";
 import QuickAddProductModal from "../../components/inventory/QuickAddProductModal";
 import AddCustomerModal from "../../components/ledger/AddCustomerModal";
 import AddProductModal from "../../components/inventory/AddProductModal";
 import ProductSearchOverlay from "../../components/billing/ProductSearchOverlay";
+import BillingHeader from "../../components/billing/BillingHeader";
+import BillingTabBar, { BillTab } from "../../components/billing/BillingTabBar";
+import CustomerSelector from "../../components/billing/CustomerSelector";
+import ProductsGrid from "../../components/billing/ProductsGrid";
+import BarcodeScannerModal from "../../components/billing/BarcodeScannerModal";
+import BillConfirmationModal from "../../components/billing/BillConfirmationModal";
+import SearchOverlay from "../../components/billing/SearchOverlay";
+
 /* HOOKS & API */
 import { useBilling } from "../../hooks/useBilling";
 import { getProducts } from "../../constants/inventory.api";
@@ -33,27 +28,17 @@ import { getLedgerCustomers } from "../../constants/ledger.api";
 import { getBillById } from "../../constants/bills.api";
 import { printBill } from "../../utils/thermalPrinter";
 import { isThermalPrinterSaved } from "../../utils/printerManager";
-import { BluetoothEscposPrinter } from "@vardrz/react-native-bluetooth-escpos-printer";
-import { formatRupee } from "../../utils/formatCurrency";
+
 /* LANGUAGE */
 import { LANGUAGE_TEXT_BILLING } from "../../constants/language_billing";
 import { LANGUAGE_TEXT_VIEW_BILL } from "../../constants/language_viewBill";
 import { useLanguage } from "../../providers/LanguageProvider";
-
-interface BillTab {
-  id: string;
-  items: any[];
-  customerId: string;
-  customerName: string;
-  displayName?: string;
-}
 
 export default function BillingPage() {
   const { language } = useLanguage();
   const t = LANGUAGE_TEXT_BILLING[language] || LANGUAGE_TEXT_BILLING.en;
   const tv = LANGUAGE_TEXT_VIEW_BILL[language] || LANGUAGE_TEXT_VIEW_BILL.en;
   const isFocused = useIsFocused();
-  const insets = useSafeAreaInsets();
 
   /* ---------------- PARALLEL BILLING STATE ---------------- */
   const [tabs, setTabs] = useState<BillTab[]>([
@@ -62,13 +47,16 @@ export default function BillingPage() {
   const [activeTabId, setActiveTabId] = useState("tab-1");
   const [lastCreatedBillId, setLastCreatedBillId] = useState<string | null>(null);
 
-  // Payment Confirmation Modal State
-  const [isPaymentModalVisible, setIsPaymentModalVisible] = useState(false);
+  // Combined Bill Confirmation & Payment Modal State
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState<"CASH" | "UPI" | "OTHERS" | "NONE" | null>(null);
 
   // Snapshot states to show in the Mini-Bill Modal after reset
-  const [checkoutSnapshot, setCheckoutSnapshot] = useState<{ items: any[], total: number }>({
+  const [checkoutSnapshot, setCheckoutSnapshot] = useState<{ items: any[], subTotal: number, discount: number, tax: number, total: number }>({
     items: [],
+    subTotal: 0,
+    discount: 0,
+    tax: 0,
     total: 0
   });
 
@@ -251,6 +239,12 @@ export default function BillingPage() {
 
   const [isPrinterConnected, setIsPrinterConnected] = useState(false);
   const [checkingPrinter, setCheckingPrinter] = useState(false);
+  
+  // New state for barcode scanner modal
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  
+  // New state for bill confirmation modal
+  const [showBillConfirmation, setShowBillConfirmation] = useState(false);
 
   const checkPrinterStatus = useCallback(async () => {
     setCheckingPrinter(true);
@@ -260,7 +254,6 @@ export default function BillingPage() {
         setIsPrinterConnected(false);
         return;
       }
-      await BluetoothEscposPrinter.printerAlign(BluetoothEscposPrinter.ALIGN.LEFT);
       setIsPrinterConnected(true);
     } catch {
       setIsPrinterConnected(false);
@@ -269,16 +262,25 @@ export default function BillingPage() {
     }
   }, []);
 
-  const onConfirmPayment = async (mode: string) => {
+  const onConfirmPayment = async () => {
+    if (!selectedPaymentMode) {
+      Alert.alert("Error", "Please select a payment mode");
+      return;
+    }
+    
     setIsProcessingCheckout(true);
     try {
+      const taxAmount = (subTotal * taxPercentage) / 100;
       setCheckoutSnapshot({
         items: [...items],
+        subTotal: subTotal,
+        discount: discount,
+        tax: taxAmount,
         total: totalAmount
       });
       
       // We pass the mode to the checkout hook/api
-      const res = await checkout(activeTab.customerId || null, mode);
+      const res = await checkout(activeTab.customerId || null, selectedPaymentMode);
       
       if (res?.bill?._id) {
         setLastCreatedBillId(res.bill._id);
@@ -288,7 +290,8 @@ export default function BillingPage() {
             tab.id === activeTabId ? { ...tab, items: [] } : tab
           )
         );
-        setIsPaymentModalVisible(false);
+        setShowBillConfirmation(false);
+        setSelectedPaymentMode(null);
         await checkPrinterStatus();
       }
     } catch (err: any) {
@@ -300,7 +303,13 @@ export default function BillingPage() {
 
   const handleCheckout = () => {
     if (!items.length) return;
-    setIsPaymentModalVisible(true);
+    setShowBillConfirmation(true);
+    setSelectedPaymentMode(null);
+  };
+  
+  const handleCloseBillConfirmation = () => {
+    setShowBillConfirmation(false);
+    setSelectedPaymentMode(null);
   };
 
   const handlePrintPress = () => {
@@ -350,145 +359,58 @@ export default function BillingPage() {
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       {/* HEADER */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color="#1e293b" />
-        </TouchableOpacity>
-        <View>
-          <Text style={styles.title}>{t.title}</Text>
-          <Text style={styles.subtitle}>{t.terminalActive}</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.searchBtn}
-          onPress={() => setProductOpen(true)}
-        >
-          <Ionicons name="search" size={14} color="#2563eb" style={{ marginRight: 4 }} />
-          <Text style={styles.searchBtnText}>{t.searchProduct}</Text>
-        </TouchableOpacity>
-      </View>
+      <BillingHeader
+        title={t.title}
+        subtitle={t.terminalActive}
+        onScanPress={() => setShowBarcodeScanner(true)}
+      />
 
       {/* TABS BAR */}
-      <View style={styles.tabBar}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {tabs.map((tab, index) => {
-            const isActive = activeTabId === tab.id;
-            const isEditing = editingTabId === tab.id;
+      <BillingTabBar
+        tabs={tabs}
+        activeTabId={activeTabId}
+        editingTabId={editingTabId}
+        editTabNameValue={editTabNameValue}
+        onTabSelect={setActiveTabId}
+        onAddTab={addNewTab}
+        onCloseTab={closeTab}
+        onStartEditingTabName={startEditingTabName}
+        onSaveTabName={saveTabName}
+        onCancelEditTabName={cancelEditTabName}
+        onEditTabNameChange={setEditTabNameValue}
+      />
 
-            return (
-              <View
-                key={tab.id}
-                style={[
-                  styles.tabWrapper,
-                  isActive && styles.activeTabWrapper,
-                ]}
-              >
-                {isEditing ? (
-                  <View style={styles.editContainer}>
-                    <TextInput
-                      style={styles.editInput}
-                      value={editTabNameValue}
-                      onChangeText={setEditTabNameValue}
-                      autoFocus
-                      selectTextOnFocus
-                      onBlur={saveTabName}
-                      onSubmitEditing={saveTabName}
-                      returnKeyType="done"
-                      maxLength={24}
-                    />
-                    <TouchableOpacity onPress={cancelEditTabName} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                      <Ionicons name="close" size={18} color="#64748b" />
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.tabContent}
-                    onPress={() => setActiveTabId(tab.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.tabText,
-                        isActive && styles.activeTabText,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {tab.displayName || tab.customerName || `Bill ${index + 1}`}
-                    </Text>
+      {/* CUSTOMER SELECTION */}
+      <CustomerSelector
+        customerName={selectedCustomerName}
+        customerLabel={t.customer}
+        onPress={() => setCustomerOpen(true)}
+      />
 
-                    {isActive && (
-                      <TouchableOpacity
-                        onPress={() => startEditingTabName(tab)}
-                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                        style={styles.pencilButton}
-                      >
-                        <Feather name="edit-2" size={14} color={isActive ? "#ffffff" : "#64748b"} />
-                      </TouchableOpacity>
-                    )}
-                  </TouchableOpacity>
-                )}
+      {/* PRODUCTS GRID */}
+      <ProductsGrid
+        products={products}
+        onProductPress={addProductToBill}
+        onSearchPress={() => setProductOpen(true)}
+        onAddProductPress={() => setAddProductModalVisible(true)}
+      />
 
-                {tabs.length > 1 && !isEditing && (
-                  <TouchableOpacity
-                    onPress={() => closeTab(tab.id)}
-                    style={styles.closeTabIcon}
-                  >
-                    <Ionicons
-                      name="close-circle"
-                      size={16}
-                      color={isActive ? "#fff" : "#cbd5e1"}
-                    />
-                  </TouchableOpacity>
-                )}
-              </View>
-            );
-          })}
-
-          <TouchableOpacity onPress={addNewTab} style={styles.addTabBtn}>
-            <Ionicons name="add" size={20} color="#2563eb" />
-          </TouchableOpacity>
-        </ScrollView>
-      </View>
-
-      {/* SCANNER */}
-      <View style={styles.scannerContainer}>
-        {isFocused ? (
-          <BarcodeScanner onScan={handleScan} style={StyleSheet.absoluteFillObject} />
-        ) : (
-          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#000" }]} />
-        )}
-        <View style={styles.overlay}>
-          <View style={styles.maskTop} />
-          <View style={styles.maskRow}>
-            <View style={styles.maskSide} />
-            <View style={styles.scanFrame} />
-            <View style={styles.maskSide} />
-          </View>
-          <View style={[styles.maskTop, { flex: 1 }]} />
-        </View>
-      </View>
-
-      {/* BODY */}
+      {/* BODY - SELECTED ITEMS */}
       <View style={styles.body}>
-        <TouchableOpacity
-          style={styles.customerBox}
-          onPress={() => setCustomerOpen(true)}
-        >
-          <View style={styles.customerIconWrap}>
-            <Ionicons name="person" size={16} color="#475569" />
-          </View>
-          <View>
-            <Text style={styles.customerLabel}>{t.customer}</Text>
-            <Text style={styles.customerText}>{selectedCustomerName}</Text>
-          </View>
-          <Ionicons name="chevron-down" size={16} color="#94a3b8" style={{ marginLeft: "auto" }} />
-        </TouchableOpacity>
+        <View style={styles.selectedItemsHeader}>
+          <Text style={styles.selectedItemsTitle}>
+             Seleted Items({items.length})
+          </Text>
+        </View>
 
         <View style={{ flex: 1 }}>
           {items.length === 0 ? (
             <View style={styles.empty}>
               <View style={styles.emptyIconBg}>
-                <Ionicons name="barcode-outline" size={40} color="#cbd5e1" />
+                <Ionicons name="cart-outline" size={40} color="#cbd5e1" />
               </View>
-              <Text style={styles.emptyText}>{t.scannerReady}</Text>
+              <Text style={styles.emptyText}>No items selected</Text>
+              <Text style={styles.emptySubText}>Tap on products above to add them</Text>
             </View>
           ) : (
             <BillItemsList items={items} setItems={setItems} />
@@ -511,78 +433,38 @@ export default function BillingPage() {
         </View>
       </View>
 
-      {/* PAYMENT MODE CONFIRMATION MODAL */}
-      <Modal 
-        visible={isPaymentModalVisible} 
-        transparent 
-        animationType="fade"
-      >
-        <View style={styles.confirmOverlay}>
-          <View style={styles.confirmBox}>
-            <View style={styles.confirmHeader}>
-              <Text style={styles.confirmTitle}>Confirm Payment</Text>
-              <TouchableOpacity onPress={() => setIsPaymentModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#64748b" />
-              </TouchableOpacity>
-            </View>
+      {/* BARCODE SCANNER MODAL */}
+      <BarcodeScannerModal
+        visible={showBarcodeScanner}
+        isFocused={isFocused}
+        onClose={() => setShowBarcodeScanner(false)}
+        onScan={handleScan}
+      />
 
-            <View style={styles.confirmAmountBox}>
-              <Text style={styles.confirmAmountLabel}>Total Amount to Collect</Text>
-              <Text style={styles.confirmAmountValue}>{formatRupee(totalAmount)}</Text>
-            </View>
-
-            <Text style={styles.paymentMethodLabel}>Select Payment Mode</Text>
-            
-            <View style={styles.paymentOptionsRow}>
-              <TouchableOpacity 
-                style={styles.paymentMethodBtn} 
-                onPress={() => onConfirmPayment("CASH")}
-                disabled={isProcessingCheckout}
-              >
-                <View style={[styles.paymentIconCircle, { backgroundColor: '#f0fdf4' }]}>
-                  <MaterialCommunityIcons name="cash" size={24} color="#16a34a" />
-                </View>
-                <Text style={styles.paymentMethodText}>CASH</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.paymentMethodBtn}
-                onPress={() => onConfirmPayment("UPI")}
-                disabled={isProcessingCheckout}
-              >
-                <View style={[styles.paymentIconCircle, { backgroundColor: '#eff6ff' }]}>
-                  <MaterialCommunityIcons name="qrcode-scan" size={22} color="#2563eb" />
-                </View>
-                <Text style={styles.paymentMethodText}>UPI</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.paymentMethodBtn}
-                onPress={() => onConfirmPayment("OTHERS")}
-                disabled={isProcessingCheckout}
-              >
-                <View style={[styles.paymentIconCircle, { backgroundColor: '#f8fafc' }]}>
-                  <MaterialCommunityIcons name="dots-horizontal" size={24} color="#64748b" />
-                </View>
-                <Text style={styles.paymentMethodText}>OTHERS</Text>
-              </TouchableOpacity>
-            </View>
-
-            {isProcessingCheckout && (
-              <View style={styles.processingOverlay}>
-                <ActivityIndicator size="large" color="#2563eb" />
-                <Text style={styles.processingText}>Processing Bill...</Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </Modal>
+      {/* COMBINED BILL CONFIRMATION & PAYMENT MODAL */}
+      <BillConfirmationModal
+        visible={showBillConfirmation}
+        items={items}
+        customerName={selectedCustomerName}
+        subTotal={subTotal}
+        discount={discount}
+        taxPercentage={taxPercentage}
+        totalAmount={totalAmount}
+        selectedPaymentMode={selectedPaymentMode}
+        isProcessing={isProcessingCheckout}
+        onClose={handleCloseBillConfirmation}
+        onPaymentModeSelect={setSelectedPaymentMode}
+        onConfirm={onConfirmPayment}
+      />
 
       {/* ENHANCED SUCCESS SHEET (Mini-Bill) */}
       <BillSuccessSheet
         visible={!!lastCreatedBillId}
         billId={lastCreatedBillId}
-        items={checkoutSnapshot.items}
+        itemCount={checkoutSnapshot.items.length}
+        subtotal={checkoutSnapshot.subTotal}
+        discount={checkoutSnapshot.discount}
+        tax={checkoutSnapshot.tax}
         totalAmount={checkoutSnapshot.total}
         onClose={() => setLastCreatedBillId(null)}
         isPrinterConnected={isPrinterConnected}
@@ -711,67 +593,6 @@ export default function BillingPage() {
   );
 }
 
-/* ================= SEARCH OVERLAY ================= */
-function SearchOverlay({
-  visible,
-  title,
-  value,
-  onChange,
-  onClose,
-  items,
-  onSelect,
-  renderItem,
-  walkInOption,
-  walkInLabel,
-  extraTopOption,
-}: any) {
-  if (!visible) return null;
-
-  return (
-    <Modal transparent animationType="fade">
-      <View style={styles.overlayModal}>
-        <View style={styles.sheet}>
-          <View style={styles.searchHeader}>
-            <Ionicons name="search" size={18} color="#94a3b8" />
-            <TextInput
-              autoFocus
-              placeholder={title}
-              placeholderTextColor="#94a3b8"
-              value={value}
-              onChangeText={onChange}
-              style={styles.input}
-            />
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={20} color="#64748b" />
-            </TouchableOpacity>
-          </View>
-          <ScrollView keyboardShouldPersistTaps="handled">
-            {extraTopOption}
-            {walkInOption && (
-              <TouchableOpacity
-                onPress={() => onSelect({ _id: "", name: "Walk-in" })}
-                style={styles.walkIn}
-              >
-                <Ionicons name="people-outline" size={18} color="#2563eb" style={{ marginRight: 10 }} />
-                <Text style={styles.walkInText}>{walkInLabel}</Text>
-              </TouchableOpacity>
-            )}
-            {items.map((item: any) => (
-              <TouchableOpacity
-                key={item._id || item.id || Math.random()}
-                onPress={() => onSelect(item)}
-                style={styles.listItem}
-              >
-                {renderItem(item)}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 /* ================= STYLES ================= */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
@@ -801,6 +622,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   searchBtnText: { fontSize: 11, fontWeight: "700", color: "#2563eb" },
+  
+  scannerToggleBtn: {
+    marginLeft: "auto",
+    backgroundColor: "#eff6ff",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
 
   tabBar: { paddingVertical: 10, paddingHorizontal: 16, borderBottomWidth: 1, borderColor: "#f1f5f9",zIndex:100},
 
@@ -887,6 +718,7 @@ const styles = StyleSheet.create({
     padding: 14,
     marginHorizontal: 16,
     marginTop: 16,
+    marginBottom: 12,
     backgroundColor: "#f8fafc",
     borderRadius: 16,
     borderWidth: 1,
@@ -899,11 +731,134 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
+    marginRight: 12,
   },
   customerLabel: { fontSize: 9, fontWeight: "700", color: "#94a3b8" },
   customerText: { fontSize: 13, fontWeight: "700", color: "#1e293b" },
 
-  empty: { flex: 1, alignItems: "center", justifyContent: "center" },
+  productsSection: {
+    maxHeight: '35%',
+    backgroundColor: '#f8fafc',
+    borderBottomWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  productsSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderColor: '#f1f5f9',
+  },
+  productsSectionTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  searchProductBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 4,
+  },
+  searchProductBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2563eb',
+  },
+  productsGrid: {
+    flex: 1,
+  },
+  productsGridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 12,
+    gap: 10,
+  },
+  productCard: {
+    width: '31%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    position: 'relative',
+    minHeight: 100,
+  },
+  productCardContent: {
+    flex: 1,
+  },
+  productName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 6,
+    minHeight: 32,
+  },
+  productPrice: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#2563eb',
+    marginBottom: 4,
+  },
+  productStock: {
+    fontSize: 9,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  addIconBadge: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyProducts: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyProductsText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#94a3b8',
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  addProductBtn: {
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  addProductBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  selectedItemsHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderColor: '#f1f5f9',
+  },
+  selectedItemsTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
+    textAlign: 'center',
+  },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 20 },
   emptyIconBg: {
     width: 70,
     height: 70,
@@ -912,9 +867,340 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  emptyText: { fontSize: 14, fontWeight: "700", color: "#94a3b8" },
+  emptyText: { fontSize: 14, fontWeight: "700", color: "#94a3b8", marginTop: 12 },
+  emptySubText: { fontSize: 12, color: "#cbd5e1", marginTop: 4 },
 
   summary: { borderTopWidth: 1, borderColor: "#f1f5f9", padding: 16 },
+
+  // Modal Overlay
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.7)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  confirmHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderColor: "#f1f5f9",
+  },
+  confirmTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0f172a",
+  },
+
+  // Barcode Scanner Modal
+  scannerModal: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  scannerModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+  },
+  scannerModalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  scannerInstructions: {
+    position: 'absolute',
+    bottom: 60,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  scannerInstructionsText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+
+  // Combined Bill Confirmation & Payment Modal
+  combinedBillBox: {
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    borderRadius: 28,
+    maxHeight: '88%',
+    width: '92%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.25,
+    shadowRadius: 30,
+    elevation: 15,
+  },
+  billConfirmItems: {
+    maxHeight: 500,
+  },
+  billConfirmScrollContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 20,
+  },
+  
+  // Customer Info Card
+  customerInfoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  customerIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  customerInfoText: {
+    flex: 1,
+  },
+  billConfirmLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#94a3b8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  billConfirmValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  
+  // Items Section
+  itemsSection: {
+    marginBottom: 20,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 8,
+  },
+  billConfirmItemsTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  billConfirmItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+  },
+  billConfirmItemLeft: {
+    flex: 1,
+    marginRight: 12,
+  },
+  billConfirmItemName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 6,
+    lineHeight: 18,
+  },
+  billConfirmItemQty: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  billConfirmItemTotal: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#2563eb',
+  },
+  
+  // Bill Summary Card
+  billSummaryCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  billConfirmSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  billConfirmSummaryLabel: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  billConfirmSummaryValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  totalDivider: {
+    height: 1,
+    backgroundColor: '#cbd5e1',
+    marginVertical: 12,
+  },
+  billConfirmTotal: {
+    marginTop: 4,
+    marginBottom: 0,
+  },
+  billConfirmTotalLabel: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  billConfirmTotalValue: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#2563eb',
+  },
+  
+  // Payment Mode Selection Section
+  paymentModeSection: {
+    marginBottom: 8,
+  },
+  paymentModeTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  paymentModesGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  paymentModeCard: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    position: 'relative',
+    minHeight: 130,
+    justifyContent: 'center',
+  },
+  paymentModeCardSelected: {
+    borderColor: '#2563eb',
+    backgroundColor: '#eff6ff',
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  paymentModeIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  paymentModeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  paymentModeTextSelected: {
+    color: '#2563eb',
+    fontWeight: '800',
+  },
+  selectedBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+  },
+  
+  // Action Buttons
+  billConfirmActions: {
+    flexDirection: 'row',
+    padding: 24,
+    gap: 14,
+    borderTopWidth: 1,
+    borderColor: '#f1f5f9',
+    backgroundColor: '#fafbfc',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+  },
+  billConfirmEditBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#fff',
+    gap: 8,
+  },
+  billConfirmEditText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  billConfirmPrintBtn: {
+    flex: 1.8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 14,
+    backgroundColor: '#2563eb',
+    gap: 8,
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  billConfirmPrintBtnDisabled: {
+    backgroundColor: '#cbd5e1',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  billConfirmPrintText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  confirmSubtitle: {
+    fontSize: 12,
+    color: '#94a3b8',
+    fontWeight: '600',
+    marginTop: 2,
+  },
 
   overlayModal: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.6)", paddingTop: 60 },
   sheet: { backgroundColor: "#fff", marginHorizontal: 16, borderRadius: 24, maxHeight: "80%" },
@@ -959,104 +1245,4 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   addNewText: { fontSize: 14, fontWeight: "700", color: "#2563eb", marginLeft: 12 },
-
-  // Confirmation Modal Styles
-  confirmOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  confirmBox: {
-    backgroundColor: "#fff",
-    width: "100%",
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  confirmHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  confirmTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#0f172a",
-  },
-  confirmAmountBox: {
-    backgroundColor: "#f8fafc",
-    padding: 20,
-    borderRadius: 16,
-    alignItems: "center",
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: "#f1f5f9",
-  },
-  confirmAmountLabel: {
-    fontSize: 12,
-    color: "#64748B",
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  confirmAmountValue: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: "#0f172a",
-  },
-  paymentMethodLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#64748b",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  paymentOptionsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  paymentMethodBtn: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderWidth: 1.5,
-    borderColor: "#f1f5f9",
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  paymentIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
-  paymentMethodText: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#1e293b",
-  },
-  processingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,255,255,0.8)",
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 10,
-  },
-  processingText: {
-    marginTop: 12,
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#2563eb",
-  }
 });
