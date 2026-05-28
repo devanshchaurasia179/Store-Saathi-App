@@ -143,8 +143,6 @@ export default function RecentBills({ bills = [] }: any) {
 
   const groupedBills = useMemo(() => groupBillsByDate(bills), [bills]);
 
-  if (!bills.length) return null;
-
   const getRelativeDate = (dateStr: string) => {
     const today = new Date().toDateString();
     const yesterday = new Date(Date.now() - 86400000).toDateString();
@@ -152,6 +150,42 @@ export default function RecentBills({ bills = [] }: any) {
     if (dateStr === yesterday) return t.yesterday;
     return formatDate(dateStr);
   };
+
+  /* ── EMPTY STATE ── */
+  if (!bills.length) {
+    return (
+      <View style={styles.cardContainer}>
+        {/* Header */}
+        <View style={styles.headerRow}>
+          <View style={styles.titleGroup}>
+            <View style={styles.headerIconWrap}>
+              <MaterialCommunityIcons name="history" size={16} color="#1e4de4" />
+            </View>
+            <Text style={styles.headerText}>{t.recentBills}</Text>
+          </View>
+        </View>
+
+        {/* Empty illustration */}
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyIconOuter}>
+            <View style={styles.emptyIconInner}>
+              <MaterialCommunityIcons
+                name="file-document-outline"
+                size={28}
+                color="#1e4de4"
+              />
+            </View>
+          </View>
+          <Text style={styles.emptyTitle}>
+            {t.emptyTitle ?? "No bills yet"}
+          </Text>
+          <Text style={styles.emptySubtitle}>
+            {t.emptySubtitle ?? "Bills you create will appear here"}
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   /* Running index across all groups for staggered animation */
   let globalIndex = 0;
@@ -166,7 +200,6 @@ export default function RecentBills({ bills = [] }: any) {
               <MaterialCommunityIcons name="history" size={16} color="#1e4de4" />
             </View>
             <Text style={styles.headerText}>{t.recentBills}</Text>
-            
           </View>
 
           <TouchableOpacity
@@ -382,5 +415,45 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: "#f2f4f9",
     marginLeft: 50,
+  },
+
+  /* Empty state */
+  emptyContainer: {
+    alignItems: "center",
+    paddingVertical: 28,
+    paddingBottom: 20,
+    gap: 8,
+  },
+  emptyIconOuter: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    backgroundColor: "#f4f6fb",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: "#e8ecf7",
+  },
+  emptyIconInner: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: "#eef1fd",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1a2340",
+    letterSpacing: 0.1,
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    color: "#7a8aaa",
+    fontWeight: "500",
+    textAlign: "center",
+    lineHeight: 18,
   },
 });
