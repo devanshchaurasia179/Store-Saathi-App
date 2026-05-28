@@ -56,6 +56,8 @@ export default function ProfileForm() {
   /* 🔐 SECRET KEY STATES */
   const [secretKey, setSecretKey] = useState<string | null>(null);
   const [showPinModal, setShowPinModal] = useState(false);
+  const [pinMode, setPinMode] = useState<"set" | "verify" | "forgot">("verify");
+  const [hasPin, setHasPin] = useState<boolean | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -82,6 +84,7 @@ export default function ProfileForm() {
         setStoreCategory(shop.storeCategory ?? "");
         setUpiId(shop.upiId ?? "");
         setLocation(shop.location ?? "");
+        setHasPin(shop.hasSecretKeyPin ?? false);
       } catch {
         showToast(t.failedLoad, "error");
       } finally {
@@ -91,6 +94,18 @@ export default function ProfileForm() {
     loadProfile();
     return () => { mounted = false; };
   }, [language]);
+
+  /* 🔐 UNLOCK SECRET KEY HANDLER */
+  const handleUnlockSecretKey = () => {
+    if (hasPin === null) return;
+    
+    if (!hasPin) {
+      setPinMode("set");
+    } else {
+      setPinMode("verify");
+    }
+    setShowPinModal(true);
+  };
 
   /* 🔐 REGENERATE HANDLER */
   const handleRegenerateSecretKey = async (pin: string) => {
@@ -236,7 +251,7 @@ export default function ProfileForm() {
             <View style={{ flexDirection: "row" }}>
               <TouchableOpacity
                 style={[styles.secretBtn, { backgroundColor: "#fee2e2" }]}
-                onPress={() => setShowPinModal(true)}
+                onPress={handleUnlockSecretKey}
               >
                 <Ionicons name="refresh-outline" size={18} color="#b91c1c" />
                 <Text style={[styles.secretBtnText, { color: "#b91c1c" }]}>Unlock Secret Key</Text>
@@ -259,11 +274,14 @@ export default function ProfileForm() {
       {/* MODALS */}
       <AnalyticsPinModal
         visible={showPinModal}
-        mode="verify"
+        mode={pinMode}
         onClose={() => setShowPinModal(false)}
         onSuccess={(pin?: string) => {
           setShowPinModal(false);
-          if (pin) handleRegenerateSecretKey(pin);
+          if (pin) {
+            handleRegenerateSecretKey(pin);
+            setHasPin(true);
+          }
         }}
       />
 

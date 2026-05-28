@@ -1,5 +1,11 @@
-import React, { useMemo, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import React, { useMemo, useState, useRef, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+} from "react-native";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
@@ -14,61 +20,153 @@ import { useLanguage } from "../../providers/LanguageProvider";
 /* 📦 COMPONENTS */
 import ViewBillModal from "../bills/ViewBillModal";
 
+/* ─── Animated Bill Row ──────────────────────────────────────────────── */
+function BillRow({
+  bill,
+  index,
+  isLast,
+  onPress,
+  t,
+}: {
+  bill: any;
+  index: number;
+  isLast: boolean;
+  onPress: () => void;
+  t: any;
+}) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(16)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        delay: index * 60,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 300,
+        delay: index * 60,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  const itemCount = bill.items?.length ?? 0;
+
+  return (
+    <Animated.View
+      style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}
+    >
+      <TouchableOpacity
+        style={styles.billItem}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        {/* Left accent + icon */}
+        <View style={styles.billIconWrap}>
+          <MaterialCommunityIcons name="file-document" size={18} color="#1e4de4" />
+        </View>
+
+        {/* Info */}
+        <View style={styles.billInfo}>
+          <Text style={styles.billNumber}>
+            {t.bill} #{bill.dailyBillNumber}
+          </Text>
+
+          <View style={styles.metaRow}>
+            <View style={styles.metaPill}>
+              <Ionicons name="time-outline" size={11} color="#7a8aaa" />
+              <Text style={styles.metaText}>
+                {new Date(bill.createdAt).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </Text>
+            </View>
+
+            {itemCount > 0 && (
+              <View style={styles.metaPill}>
+                <Ionicons name="cube-outline" size={11} color="#7a8aaa" />
+                <Text style={styles.metaText}>
+                  {itemCount} {itemCount === 1 ? "item" : "items"}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Amount + chevron */}
+        <View style={styles.amountGroup}>
+          <Text style={styles.totalAmount}>{formatRupee(bill.totalAmount)}</Text>
+          <Ionicons name="chevron-forward" size={14} color="#c0c8de" />
+        </View>
+      </TouchableOpacity>
+
+      {!isLast && <View style={styles.divider} />}
+    </Animated.View>
+  );
+}
+
+/* ─── Date Section Header ────────────────────────────────────────────── */
+function DateHeader({ label }: { label: string }) {
+  return (
+    <View style={styles.dateSeparatorContainer}>
+      <View style={styles.separatorLine} />
+      <View style={styles.dateBadge}>
+        <Text style={styles.dateText}>{label}</Text>
+      </View>
+      <View style={styles.separatorLine} />
+    </View>
+  );
+}
+
+/* ─── Main Component ─────────────────────────────────────────────────── */
 export default function RecentBills({ bills = [] }: any) {
   const router = useRouter();
   const { language } = useLanguage();
   const [activeBillId, setActiveBillId] = useState<string | null>(null);
 
-  // Pick the correct translation set
   const t = LANGUAGE_TEXT_RECENT_BILLS[language] || LANGUAGE_TEXT_RECENT_BILLS.en;
 
   const groupBillsByDate = (billsList: any[] = []) => {
     const groups: Record<string, any[]> = {};
-
     billsList.forEach((bill) => {
       const dateKey = new Date(bill.createdAt).toDateString();
       if (!groups[dateKey]) groups[dateKey] = [];
       groups[dateKey].push(bill);
     });
-
     return groups;
   };
 
-  const groupedBills = useMemo(
-    () => groupBillsByDate(bills),
-    [bills]
-  );
+  const groupedBills = useMemo(() => groupBillsByDate(bills), [bills]);
 
-  // Logic: Do not render if there are no bills
   if (!bills.length) return null;
 
-  /**
-   * Helper to show "Today" or "Yesterday" instead of full date 
-   * if it matches current time
-   */
   const getRelativeDate = (dateStr: string) => {
     const today = new Date().toDateString();
     const yesterday = new Date(Date.now() - 86400000).toDateString();
-
     if (dateStr === today) return t.today;
     if (dateStr === yesterday) return t.yesterday;
     return formatDate(dateStr);
   };
 
+  /* Running index across all groups for staggered animation */
+  let globalIndex = 0;
+
   return (
     <>
       <View style={styles.cardContainer}>
-        {/* HEADER */}
+        {/* ── HEADER ── */}
         <View style={styles.headerRow}>
           <View style={styles.titleGroup}>
-            <MaterialCommunityIcons
-              name="history"
-              size={20}
-              color="#1e4de4"
-            />
-            <Text style={styles.headerText}>
-              {t.recentBills}
-            </Text>
+            <View style={styles.headerIconWrap}>
+              <MaterialCommunityIcons name="history" size={16} color="#1e4de4" />
+            </View>
+            <Text style={styles.headerText}>{t.recentBills}</Text>
+            
           </View>
 
           <TouchableOpacity
@@ -76,63 +174,35 @@ export default function RecentBills({ bills = [] }: any) {
             onPress={() => router.push("/history")}
             activeOpacity={0.6}
           >
-            <Text style={styles.seeMoreText}>
-              {t.seeMore}
-            </Text>
-            <Ionicons name="arrow-forward" size={14} color="#1e4de4" />
+            <Text style={styles.seeMoreText}>{t.seeMore}</Text>
+            <View style={styles.arrowChip}>
+              <Ionicons name="arrow-forward" size={12} color="#1e4de4" />
+            </View>
           </TouchableOpacity>
         </View>
 
-        {/* GROUPED BILLS */}
+        {/* ── GROUPED BILLS ── */}
         {Object.entries(groupedBills).map(([date, dayBills]) => (
-          <View key={date}>
-            {/* DATE BADGE */}
-            <View style={styles.dateSeparatorContainer}>
-              <View style={styles.dateBadge}>
-                <Text style={styles.dateText}>
-                  {getRelativeDate(date)}
-                </Text>
-              </View>
-            </View>
+          <View key={date} style={styles.group}>
+            <DateHeader label={getRelativeDate(date)} />
 
-            {/* BILL LIST */}
-            {dayBills.map((bill: any, index: number) => (
-              <TouchableOpacity
-                key={bill._id}
-                style={styles.billItem}
-                onPress={() => setActiveBillId(bill._id)}
-                activeOpacity={0.6}
-              >
-                <View style={styles.billInfo}>
-                  <Text style={styles.billNumber}>
-                    {t.bill} #{bill.dailyBillNumber}
-                  </Text>
-
-                  <View style={styles.timeGroup}>
-                    <Ionicons name="time-outline" size={12} color="#999" />
-                    <Text style={styles.timeText}>
-                      {new Date(bill.createdAt).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={styles.totalAmount}>
-                  {formatRupee(bill.totalAmount)}
-                </Text>
-
-                {index < dayBills.length - 1 && (
-                  <View style={styles.divider} />
-                )}
-              </TouchableOpacity>
-            ))}
+            {dayBills.map((bill: any, index: number) => {
+              const rowIndex = globalIndex++;
+              return (
+                <BillRow
+                  key={bill._id}
+                  bill={bill}
+                  index={rowIndex}
+                  isLast={index === dayBills.length - 1}
+                  onPress={() => setActiveBillId(bill._id)}
+                  t={t}
+                />
+              );
+            })}
           </View>
         ))}
       </View>
 
-      {/* VIEW BILL MODAL */}
       {activeBillId && (
         <ViewBillModal
           billId={activeBillId}
@@ -143,96 +213,174 @@ export default function RecentBills({ bills = [] }: any) {
   );
 }
 
+/* ─── Styles ─────────────────────────────────────────────────────────── */
 const styles = StyleSheet.create({
+  /* Card */
   cardContainer: {
     marginTop: 15,
     backgroundColor: "#fff",
     marginHorizontal: 12,
-    padding: 16,
-    borderRadius: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+    borderRadius: 20,
+    elevation: 3,
+    shadowColor: "#1e4de4",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
   },
+
+  /* Header */
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 14,
   },
   titleGroup: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
+  headerIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "#eef1fd",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headerText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
-    color: "#333",
+    color: "#1a2340",
+    letterSpacing: 0.1,
+  },
+  countBadge: {
+    backgroundColor: "#1e4de4",
+    borderRadius: 20,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    minWidth: 22,
+    alignItems: "center",
+  },
+  countBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#fff",
   },
   seeMoreGroup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 6,
   },
   seeMoreText: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#1e4de4",
     fontWeight: "600",
   },
-  dateSeparatorContainer: {
+  arrowChip: {
+    width: 22,
+    height: 22,
+    borderRadius: 8,
+    backgroundColor: "#eef1fd",
     alignItems: "center",
-    marginBottom: 12,
+    justifyContent: "center",
+  },
+
+  /* Groups */
+  group: {
+    marginBottom: 4,
+  },
+
+  /* Date separator */
+  dateSeparatorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 12,
+    gap: 8,
+  },
+  separatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#eef0f6",
   },
   dateBadge: {
-    backgroundColor: "#f1f3f5",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    backgroundColor: "#f4f6fb",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#e8ecf7",
   },
   dateText: {
-    fontSize: 12,
-    color: "#666",
+    fontSize: 11,
+    color: "#7a8aaa",
     fontWeight: "600",
+    letterSpacing: 0.3,
   },
+
+  /* Bill row */
   billItem: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 14,
-    position: "relative",
+    paddingVertical: 11,
+    gap: 12,
+  },
+  billIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#eef1fd",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
   billInfo: {
     flex: 1,
+    gap: 4,
   },
   billNumber: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#444",
-    marginBottom: 2,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1a2340",
+    letterSpacing: 0.1,
   },
-  timeGroup: {
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  metaPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  metaText: {
+    fontSize: 11,
+    color: "#7a8aaa",
+    fontWeight: "500",
+  },
+
+  /* Amount */
+  amountGroup: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-  },
-  timeText: {
-    fontSize: 12,
-    color: "#999",
+    flexShrink: 0,
   },
   totalAmount: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "800",
-    color: "#333",
+    color: "#1a2340",
+    letterSpacing: -0.3,
   },
+
+  /* Divider */
   divider: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     height: 1,
-    backgroundColor: "#f1f3f5",
+    backgroundColor: "#f2f4f9",
+    marginLeft: 50,
   },
 });
