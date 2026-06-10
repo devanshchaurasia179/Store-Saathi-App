@@ -2,6 +2,7 @@ import express from "express";
 import { protectRoute } from "../middleware/auth.middleware.js";
 import {
   createProduct,
+  bulkCreateProducts,
   getProducts,
   getProductById,
   updateProduct,
@@ -13,6 +14,9 @@ const router = express.Router();
 
 // CREATE PRODUCT
 router.post("/", protectRoute, createProduct);
+
+// BULK CREATE PRODUCTS
+router.post("/bulk", protectRoute, bulkCreateProducts);
 
 // GET ALL PRODUCTS
 router.get("/", protectRoute, getProducts);

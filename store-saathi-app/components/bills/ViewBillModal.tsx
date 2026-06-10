@@ -22,7 +22,7 @@ import { getBillById } from "../../constants/bills.api";
 import { formatRupee } from "../../utils/formatCurrency";
 import { formatDate } from "../../utils/formatDate";
 import { shareBillPdf } from "../../utils/billPdf";
-import { printBill } from "../../utils/thermalPrinter";
+import { printBillAuto } from "../../utils/thermalPrinter";
 
 /* 🛠 PRINTER MANAGEMENT UTILS */
 import { 
@@ -75,7 +75,7 @@ export default function ViewBillModal({ billId, onClose }: any) {
    */
   const handlePrintPress = async () => {
     if (isPrinterConnected) {
-      printBill(bill);
+      printBillAuto(bill);
     } else {
       // Close modal and redirect to setup
       onClose();

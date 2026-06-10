@@ -26,7 +26,7 @@ import { useBilling } from "../../hooks/useBilling";
 import { getProducts } from "../../constants/inventory.api";
 import { getLedgerCustomers } from "../../constants/ledger.api";
 import { getBillById } from "../../constants/bills.api";
-import { printBill } from "../../utils/thermalPrinter";
+import { printBillAuto } from "../../utils/thermalPrinter";
 import { isThermalPrinterSaved } from "../../utils/printerManager";
 
 /* LANGUAGE */
@@ -317,7 +317,7 @@ export default function BillingPage() {
     if (isPrinterConnected) {
       getBillById(lastCreatedBillId)
         .then((res) => {
-          if (res.data?.bill) printBill(res.data.bill);
+          if (res.data?.bill) printBillAuto(res.data.bill);
         })
         .catch(() => Alert.alert("Error", "Could not load bill for printing"));
     } else {

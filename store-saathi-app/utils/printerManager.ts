@@ -3,6 +3,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BluetoothManager } from "@vardrz/react-native-bluetooth-escpos-printer";
 
 const STORAGE_KEY = "@selected_thermal_printer";
+const PAPER_SIZE_KEY = "@printer_paper_size";
+
+export type PaperSize = "58" | "80";
 
 type PrinterInfo = {
   address: string;
@@ -184,4 +187,29 @@ export const reconnectSavedPrinter = async (): Promise<boolean> => {
     );
     return false;
   }
+};
+
+/**
+ * Save paper size preference (58mm or 80mm)
+ */
+export const setPaperSize = async (size: PaperSize): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(PAPER_SIZE_KEY, size);
+    console.log("Paper size saved:", size);
+  } catch (error) {
+    console.warn("Failed to save paper size:", error);
+  }
+};
+
+/**
+ * Get saved paper size preference (defaults to 58mm)
+ */
+export const getPaperSize = async (): Promise<PaperSize> => {
+  try {
+    const saved = await AsyncStorage.getItem(PAPER_SIZE_KEY);
+    if (saved === "58" || saved === "80") return saved;
+  } catch (error) {
+    console.warn("Failed to load paper size:", error);
+  }
+  return "58"; // default fallback
 };

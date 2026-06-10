@@ -46,6 +46,115 @@ function validateVariants(variants = []) {
 }
 
 /**
+ * BULK CREATE PRODUCTS
+ * Accepts: { products: [ { name, barcode, price, ... }, ... ] }
+ * Returns a summary of inserted, skipped (duplicate barcodes), and failed items.
+ */
+export async function bulkCreateProducts(req, res) {
+  try {
+    const shopId = req.user._id;
+    const { products } = req.body;
+
+    if (!Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({
+        message: "Request body must contain a non-empty 'products' array",
+      });
+    }
+
+    const inserted = [];
+    const skipped = [];   // duplicate barcodes
+    const failed = [];    // validation / other errors
+
+    for (let i = 0; i < products.length; i++) {
+      const item = products[i];
+
+      const {
+        name,
+        barcode,
+        category,
+        size,
+        price,
+        quantity,
+        expiryDate,
+        isBarcodeListed = true,
+        isTrackable = true,
+        unit = "unit",
+        variants = [],
+      } = item;
+
+      // --- validation ---
+      if (
+        !name ||
+        !price ||
+        typeof price.sellingPrice !== "number" ||
+        price.sellingPrice < 0
+      ) {
+        failed.push({ index: i, barcode, reason: "Name and valid sellingPrice are required" });
+        continue;
+      }
+
+      if (!barcode || typeof barcode !== "string" || barcode.trim() === "") {
+        failed.push({ index: i, reason: "Barcode is required" });
+        continue;
+      }
+
+      if (!ALLOWED_UNITS.includes(unit)) {
+        failed.push({ index: i, barcode, reason: `Invalid unit '${unit}'` });
+        continue;
+      }
+
+      const variantError = validateVariants(variants);
+      if (variantError) {
+        failed.push({ index: i, barcode, reason: variantError });
+        continue;
+      }
+
+      // --- insert ---
+      try {
+        const product = await Product.create({
+          shopId,
+          name,
+          barcode: barcode.trim(),
+          isBarcodeListed: Boolean(isBarcodeListed),
+          isTrackable: Boolean(isTrackable),
+          category,
+          size,
+          unit,
+          price,
+          quantity,
+          variants,
+          expiryDate,
+          isFromMaster: false,
+        });
+        inserted.push(product);
+      } catch (err) {
+        if (err.code === 11000) {
+          skipped.push({ index: i, barcode: barcode.trim(), reason: "Duplicate barcode" });
+        } else {
+          failed.push({ index: i, barcode, reason: err.message });
+        }
+      }
+    }
+
+    return res.status(207).json({
+      success: true,
+      summary: {
+        total: products.length,
+        inserted: inserted.length,
+        skipped: skipped.length,
+        failed: failed.length,
+      },
+      inserted,
+      skipped,
+      failed,
+    });
+  } catch (error) {
+    console.error("Bulk Create Products Error:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+/**
  * CREATE PRODUCT (MANUAL / QUICK ADD)
  */
 export async function createProduct(req, res) {

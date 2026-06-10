@@ -22,7 +22,7 @@ import { getDashboard } from "../../constants/dashboard.api";
 /* ================= UTILS ================= */
 import { formatRupee } from "../../utils/formatCurrency";
 import { shareBillPdf } from "../../utils/billPdf";
-import { printBill } from "../../utils/thermalPrinter";
+import { printBillAuto } from "../../utils/thermalPrinter";
 import { 
   getConnectedThermalPrinter, 
   isThermalPrinterSaved 
@@ -119,7 +119,7 @@ export default function BillDetailScreen() {
   const handlePrint = async () => {
     if (isPrinterConnected) {
       try {
-        await printBill(bill);
+        await printBillAuto(bill);
       } catch (e) {
         console.error(e);
         Alert.alert("Error", t.errorPrint);

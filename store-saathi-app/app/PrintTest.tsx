@@ -25,7 +25,10 @@ import {
   getConnectedThermalPrinter,
   safeDisconnectPrinter,
   clearSavedPrinter,
-  reconnectSavedPrinter 
+  reconnectSavedPrinter,
+  setPaperSize,
+  getPaperSize,
+  PaperSize,
 } from "../utils/printerManager";
 
 import { connectPrinter, printTestBill } from "../utils/thermalPrinter";
@@ -53,6 +56,7 @@ function PrinterSetupContent() {
     address: string;
     name?: string;
   } | null>(null);
+  const [paperSize, setPaperSizeState] = useState<PaperSize>("58");
 
   const testRealConnection = async (): Promise<boolean> => {
     try {
@@ -92,6 +96,10 @@ function PrinterSetupContent() {
     const initialize = async () => {
       await requestBluetoothPermission();
       await checkSavedPrinterStatus();
+      
+      // Load saved paper size
+      const saved = await getPaperSize();
+      setPaperSizeState(saved);
     };
     initialize();
 
@@ -151,7 +159,7 @@ function PrinterSetupContent() {
         `${device.name || "Printer"} ${t.connectedMsg}\n\n${isReachable ? t.readyMsg : t.savedOfflineMsg}`,
         [
           { text: "OK" },
-          ...(isReachable ? [{ text: t.testPrint, onPress: printTestBill }] : []),
+          ...(isReachable ? [{ text: t.testPrint, onPress: () => printTestBill(paperSize) }] : []),
         ]
       );
     } catch (error) {
@@ -184,7 +192,7 @@ const handleReconnectFromHeader = async () => {
         t.successTitle,
         t.readyMsg,
         [{text: "OK"},
-        { text: t.testPrint, onPress: printTestBill }]
+        { text: t.testPrint, onPress: () => printTestBill(paperSize) }]
       );
     }
   } finally {
@@ -308,6 +316,53 @@ const handleReconnectFromHeader = async () => {
       </View>
 
       <View style={styles.content}>
+        {/* Paper Size Selector */}
+        <View style={styles.paperSizeSection}>
+          <Text style={styles.sectionTitle}>PAPER SIZE</Text>
+          <View style={styles.paperSizeRow}>
+            <TouchableOpacity
+              style={[
+                styles.paperSizeBtn,
+                paperSize === "58" && styles.paperSizeBtnActive,
+              ]}
+              onPress={() => {
+                setPaperSizeState("58");
+                setPaperSize("58");
+                Alert.alert("Paper Size Changed", "Now using 58mm paper");
+              }}
+            >
+              <Text
+                style={[
+                  styles.paperSizeBtnText,
+                  paperSize === "58" && styles.paperSizeBtnTextActive,
+                ]}
+              >
+                58 mm
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.paperSizeBtn,
+                paperSize === "80" && styles.paperSizeBtnActive,
+              ]}
+              onPress={() => {
+                setPaperSizeState("80");
+                setPaperSize("80");
+                Alert.alert("Paper Size Changed", "Now using 80mm paper");
+              }}
+            >
+              <Text
+                style={[
+                  styles.paperSizeBtnText,
+                  paperSize === "80" && styles.paperSizeBtnTextActive,
+                ]}
+              >
+                80 mm
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{t.availableDevices}</Text>
           {scanning && <ActivityIndicator size="small" color="#1e3a8a" />}
@@ -353,7 +408,10 @@ const handleReconnectFromHeader = async () => {
         </TouchableOpacity>
 
         {status === "connected" && (
-          <TouchableOpacity style={styles.secondaryButton} onPress={printTestBill}>
+          <TouchableOpacity 
+            style={styles.secondaryButton} 
+            onPress={() => printTestBill(paperSize)}
+          >
             <Feather name="file-text" size={20} color="#fff" />
             <Text style={styles.buttonText}>{t.testPrint}</Text>
           </TouchableOpacity>
@@ -402,6 +460,38 @@ const styles = StyleSheet.create({
   },
   printerChipText: { color: "#fff", fontWeight: "800", fontSize: 13 },
   content: { flex: 1, paddingHorizontal: 24 },
+  paperSizeSection: { marginTop: 30, marginBottom: 24 },
+  paperSizeRow: { 
+    flexDirection: "row", 
+    gap: 12, 
+    marginTop: 12,
+  },
+  paperSizeBtn: {
+    flex: 1,
+    backgroundColor: "#fff",
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#e2e8f0",
+    elevation: 2,
+    shadowColor: "#1e3a8a",
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+  },
+  paperSizeBtnActive: {
+    backgroundColor: "#1e3a8a",
+    borderColor: "#1e3a8a",
+  },
+  paperSizeBtnText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#64748b",
+  },
+  paperSizeBtnTextActive: {
+    color: "#fff",
+  },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 30, marginBottom: 16 },
   sectionTitle: { fontSize: 12, fontWeight: "900", color: "#94a3b8", textTransform: 'uppercase', letterSpacing: 1 },
   list: { paddingTop: 8 },
