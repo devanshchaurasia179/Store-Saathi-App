@@ -1,4 +1,5 @@
 import Bill from "../models/Bill.js";
+import Shop from "../models/Shop.js";
 
 /* --------------------------------------------------
    TIMEZONE CONSTANT
@@ -366,5 +367,219 @@ export async function getYearlyAnalytics(req, res) {
     });
   } catch {
     res.status(500).json({ success: false });
+  }
+}
+
+
+/* --------------------------------------------------
+   REPORT GENERATION
+   Periods: last_month | last_quarter | last_6_months | last_year
+   Format: daily rows, grouped by month with cumulative totals
+-------------------------------------------------- */
+
+function getReportDateRange(period) {
+  // Work in IST
+  const nowUTC = new Date();
+  const nowIST = new Date(nowUTC.getTime() + IST_OFFSET_MINUTES * 60 * 1000);
+
+  let startIST, endIST;
+
+  if (period === "last_month") {
+    // Previous calendar month
+    const y = nowIST.getMonth() === 0 ? nowIST.getFullYear() - 1 : nowIST.getFullYear();
+    const m = nowIST.getMonth() === 0 ? 11 : nowIST.getMonth() - 1;
+    startIST = new Date(y, m, 1, 0, 0, 0, 0);
+    endIST   = new Date(y, m + 1, 0, 23, 59, 59, 999);
+  } else if (period === "last_quarter") {
+    // Previous 3 full calendar months
+    const end = new Date(nowIST.getFullYear(), nowIST.getMonth(), 0, 23, 59, 59, 999);
+    const start = new Date(end.getFullYear(), end.getMonth() - 2, 1, 0, 0, 0, 0);
+    startIST = start;
+    endIST   = end;
+  } else if (period === "last_6_months") {
+    const end = new Date(nowIST.getFullYear(), nowIST.getMonth(), 0, 23, 59, 59, 999);
+    const start = new Date(end.getFullYear(), end.getMonth() - 5, 1, 0, 0, 0, 0);
+    startIST = start;
+    endIST   = end;
+  } else if (period === "last_year") {
+    // Previous calendar year
+    const y = nowIST.getFullYear() - 1;
+    startIST = new Date(y, 0, 1, 0, 0, 0, 0);
+    endIST   = new Date(y, 11, 31, 23, 59, 59, 999);
+  } else {
+    // Default: last_month
+    const y = nowIST.getMonth() === 0 ? nowIST.getFullYear() - 1 : nowIST.getFullYear();
+    const m = nowIST.getMonth() === 0 ? 11 : nowIST.getMonth() - 1;
+    startIST = new Date(y, m, 1, 0, 0, 0, 0);
+    endIST   = new Date(y, m + 1, 0, 23, 59, 59, 999);
+  }
+
+  return {
+    start: new Date(startIST.getTime() - IST_OFFSET_MINUTES * 60 * 1000),
+    end:   new Date(endIST.getTime()   - IST_OFFSET_MINUTES * 60 * 1000),
+    startIST,
+    endIST,
+  };
+}
+
+export async function getAnalyticsReport(req, res) {
+  try {
+    const shopId = getShopId(req, res);
+    if (!shopId) return;
+
+    const { period = "last_month" } = req.query;
+    const validPeriods = ["last_month", "last_quarter", "last_6_months", "last_year"];
+    if (!validPeriods.includes(period)) {
+      return res.status(400).json({ success: false, message: "Invalid period" });
+    }
+
+    const { start, end, startIST, endIST } = getReportDateRange(period);
+
+    // Fetch shop name for the report header
+    const shop = await Shop.findById(shopId).select("shopName").lean();
+    const shopName = shop?.shopName || "My Store";
+
+    const bills = await Bill.find({
+      shopId,
+      createdAt: { $gte: start, $lte: end },
+    }).lean();
+
+    // ── Build a day-keyed map ──
+    const dayMap = {};
+    for (const bill of bills) {
+      const key = getISTDayKey(bill.createdAt);
+      if (!dayMap[key]) dayMap[key] = [];
+      dayMap[key].push(bill);
+    }
+
+    // ── Build a month-keyed map ──
+    const monthMap = {};
+    for (const bill of bills) {
+      const key = getISTMonthKey(bill.createdAt);
+      if (!monthMap[key]) monthMap[key] = [];
+      monthMap[key].push(bill);
+    }
+
+    // ── Enumerate every calendar day in range ──
+    const rows = []; // { type: "day"|"month_total", date, label, totalSales, collected, debt, billCount, cash, upi, others }
+
+    // Iterate month by month
+    const cursor = new Date(startIST);
+    cursor.setDate(1);
+
+    while (cursor <= endIST) {
+      const monthKey = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
+
+      // Days in this month within range
+      const firstDay = new Date(Math.max(cursor.getTime(), startIST.getTime()));
+      const lastDayOfMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+      const lastDay = new Date(Math.min(lastDayOfMonth.getTime(), endIST.getTime()));
+
+      const dayRows = [];
+
+      const d = new Date(firstDay);
+      while (d <= lastDay) {
+        const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        const dayBills = dayMap[dayKey] || [];
+
+        let totalSales = 0, collected = 0, debt = 0, cash = 0, upi = 0, others = 0;
+        for (const b of dayBills) {
+          const amt = Number(b.totalAmount) || 0;
+          const paid = Number(b.paidAmount) || 0;
+          totalSales += amt;
+          collected += paid;
+          if (amt - paid > 0) debt += (amt - paid);
+          if (b.paymentMode === "CASH") cash += paid;
+          else if (b.paymentMode === "UPI") upi += paid;
+          else others += paid;
+        }
+
+        dayRows.push({
+          type: "day",
+          date: dayKey,
+          label: new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+          totalSales,
+          collected,
+          debt,
+          billCount: dayBills.length,
+          cash,
+          upi,
+          others,
+        });
+
+        d.setDate(d.getDate() + 1);
+      }
+
+      rows.push(...dayRows);
+
+      // Month cumulative total row
+      const monthBills = monthMap[monthKey] || [];
+      let mSales = 0, mCollected = 0, mDebt = 0, mBills = 0, mCash = 0, mUpi = 0, mOthers = 0;
+      for (const b of monthBills) {
+        const amt = Number(b.totalAmount) || 0;
+        const paid = Number(b.paidAmount) || 0;
+        mSales += amt;
+        mCollected += paid;
+        if (amt - paid > 0) mDebt += (amt - paid);
+        mBills++;
+        if (b.paymentMode === "CASH") mCash += paid;
+        else if (b.paymentMode === "UPI") mUpi += paid;
+        else mOthers += paid;
+      }
+
+      const monthLabel = new Date(cursor.getFullYear(), cursor.getMonth(), 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+
+      rows.push({
+        type: "month_total",
+        date: monthKey,
+        label: `TOTAL — ${monthLabel}`,
+        totalSales: mSales,
+        collected: mCollected,
+        debt: mDebt,
+        billCount: mBills,
+        cash: mCash,
+        upi: mUpi,
+        others: mOthers,
+      });
+
+      // Move to next month
+      cursor.setMonth(cursor.getMonth() + 1);
+      cursor.setDate(1);
+    }
+
+    // Overall grand total
+    let gSales = 0, gCollected = 0, gDebt = 0, gBills = 0, gCash = 0, gUpi = 0, gOthers = 0;
+    for (const b of bills) {
+      const amt = Number(b.totalAmount) || 0;
+      const paid = Number(b.paidAmount) || 0;
+      gSales += amt;
+      gCollected += paid;
+      if (amt - paid > 0) gDebt += (amt - paid);
+      gBills++;
+      if (b.paymentMode === "CASH") gCash += paid;
+      else if (b.paymentMode === "UPI") gUpi += paid;
+      else gOthers += paid;
+    }
+
+    res.json({
+      success: true,
+      shopName,
+      period,
+      from: startIST.toISOString().split("T")[0],
+      to: endIST.toISOString().split("T")[0],
+      grandTotal: {
+        totalSales: gSales,
+        collected: gCollected,
+        debt: gDebt,
+        billCount: gBills,
+        cash: gCash,
+        upi: gUpi,
+        others: gOthers,
+      },
+      rows,
+    });
+  } catch (err) {
+    console.error("Report Error:", err);
+    res.status(500).json({ success: false, message: "Failed to generate report" });
   }
 }

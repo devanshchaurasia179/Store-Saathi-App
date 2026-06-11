@@ -25,3 +25,11 @@ export const getYearlyAnalytics = (date?: string) => {
     params: { date },
   });
 };
+
+export type ReportPeriod = "last_month" | "last_quarter" | "last_6_months" | "last_year";
+
+export const getAnalyticsReport = (period: ReportPeriod) => {
+  return api.get("/analytics/report", {
+    params: { period },
+  });
+};

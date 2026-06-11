@@ -15,6 +15,7 @@ import PageLoader from "@/components/PageLoader";
 import { useAnalytics } from "../hooks/useAnalytics";
 import { formatRupee } from "../utils/formatCurrency";
 import ViewBillModal from "../components/bills/ViewBillModal";
+import DownloadReportModal from "../components/analytics/DownloadReportModal";
 
 /* 🔒 PIN COMPONENTS & API */
 import AnalyticsPinModal from "../components/AnalyticsPinModal";
@@ -44,6 +45,9 @@ export default function AnalyticsScreen() {
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinMode, setPinMode] = useState<"set" | "verify" | "forgot">("verify");
   const [hasPin, setHasPin] = useState<boolean | null>(null);
+
+  // 📥 Report Download
+  const [showReportModal, setShowReportModal] = useState(false);
 
   // 🔍 Step 3: Detect if PIN exists on load
   useEffect(() => {
@@ -153,9 +157,17 @@ export default function AnalyticsScreen() {
             <Ionicons name="arrow-back" size={24} color="#1E3A8A" />
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.calendarBtn} onPress={() => setShowPicker(true)}>
-            <Ionicons name="calendar-outline" size={22} color="#1E3A8A" />
-          </TouchableOpacity>
+          <View style={styles.navRight}>
+            <TouchableOpacity
+              style={styles.calendarBtn}
+              onPress={() => setShowReportModal(true)}
+            >
+              <Ionicons name="download-outline" size={22} color="#1E3A8A" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.calendarBtn} onPress={() => setShowPicker(true)}>
+              <Ionicons name="calendar-outline" size={22} color="#1E3A8A" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* HEADER WITH TITLE & EYE BUTTON */}
@@ -428,6 +440,12 @@ export default function AnalyticsScreen() {
           onClose={handleCloseBill}
         />
       )}
+
+      {/* 📥 DOWNLOAD REPORT MODAL */}
+      <DownloadReportModal
+        visible={showReportModal}
+        onClose={() => setShowReportModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -436,6 +454,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#F8FAFC" },
   container: { flex: 1, paddingHorizontal: 16 },
   navBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8, marginBottom: 10 },
+  navRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20 },
   errorText: { fontSize: 16, color: "#dc2626", textAlign: "center", marginBottom: 16 },
   retryBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: "#1E3A8A", borderRadius: 8 },

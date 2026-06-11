@@ -84,7 +84,7 @@ export default function ProfileForm() {
         setStoreCategory(shop.storeCategory ?? "");
         setUpiId(shop.upiId ?? "");
         setLocation(shop.location ?? "");
-        setHasPin(shop.hasSecretKeyPin ?? false);
+        setHasPin(shop.hasAnalyticsPin ?? false);
       } catch {
         showToast(t.failedLoad, "error");
       } finally {
