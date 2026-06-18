@@ -2,7 +2,7 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "http://store-saathi-prod.eba-emjfwtyh.ap-south-1.elasticbeanstalk.com/api/$1"
+      "dest": "http://store-saarthi-backend.ap-south-1.elasticbeanstalk.com/api/$1"
     }
   ]
 }
