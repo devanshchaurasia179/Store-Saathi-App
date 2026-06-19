@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Modal,
   View,
@@ -13,22 +13,21 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import {
-  getMonthlyAnalytics,
-  getYearlyAnalytics,
+  getAnalyticsReport,
+  type ReportPeriod,
 } from "../../constants/analytics.api";
+import { getMe } from "../../constants/auth.api";
+import AnalyticsPinModal from "../AnalyticsPinModal";
 
 /* ─────────────────────────────────────────────────
    TYPES
 ───────────────────────────────────────────────── */
-export type ReportPeriod =
-  | "last_month"
-  | "last_quarter"
-  | "last_6_months"
-  | "last_year";
+// ReportPeriod is imported from analytics.api
 
-interface DaySummary {
-  date: string;        // YYYY-MM-DD
-  label: string;       // "11 Jun 2026"
+interface DayRow {
+  type: "day";
+  date: string;
+  label: string;
   totalSales: number;
   collected: number;
   debt: number;
@@ -38,9 +37,22 @@ interface DaySummary {
   others: number;
 }
 
-interface MonthSummary {
-  monthLabel: string;  // "June 2026"
-  days: DaySummary[];
+interface MonthTotalRow {
+  type: "month_total";
+  date: string;
+  label: string;
+  totalSales: number;
+  collected: number;
+  debt: number;
+  billCount: number;
+  cash: number;
+  upi: number;
+  others: number;
+}
+
+type ReportRow = DayRow | MonthTotalRow;
+
+interface GrandTotal {
   totalSales: number;
   collected: number;
   debt: number;
@@ -54,218 +66,37 @@ interface MonthSummary {
    PERIOD OPTIONS
 ───────────────────────────────────────────────── */
 const PERIOD_OPTIONS: { key: ReportPeriod; label: string; sublabel: string; icon: string }[] = [
-  { key: "last_month",    label: "Last Month",    sublabel: "Day-by-day breakdown",    icon: "calendar-outline" },
-  { key: "last_quarter",  label: "Last Quarter",  sublabel: "3 months daily detail",   icon: "stats-chart-outline" },
-  { key: "last_6_months", label: "Last 6 Months", sublabel: "6 months daily detail",   icon: "bar-chart-outline" },
-  { key: "last_year",     label: "Last Year",     sublabel: "Full year daily detail",  icon: "analytics-outline" },
+  { key: "this_month",    label: "This Month",    sublabel: "Current month so far",        icon: "today-outline" },
+  { key: "last_month",    label: "Last Month",    sublabel: "Day-by-day breakdown",         icon: "calendar-outline" },
+  { key: "last_quarter",  label: "Last Quarter",  sublabel: "3 months daily detail",        icon: "stats-chart-outline" },
+  { key: "last_6_months", label: "Last 6 Months", sublabel: "6 months daily detail",        icon: "bar-chart-outline" },
+  { key: "last_year",     label: "Last Year",     sublabel: "Full year daily detail",       icon: "analytics-outline" },
 ];
 
 /* ─────────────────────────────────────────────────
    HELPERS
 ───────────────────────────────────────────────── */
-const IST = 330; // minutes
-
-/** Get IST date-string YYYY-MM-DD from a UTC Date */
-function toISTDateStr(utcDate: Date): string {
-  const d = new Date(utcDate.getTime() + IST * 60 * 1000);
-  return d.toISOString().split("T")[0];
-}
-
-/** Format YYYY-MM-DD → "11 Jun 2026" */
-function fmtDate(iso: string): string {
-  const [y, m, dd] = iso.split("-").map(Number);
-  return new Date(y, m - 1, dd).toLocaleDateString("en-IN", {
-    day: "2-digit", month: "short", year: "numeric",
-  });
-}
-
-/** Format month key YYYY-MM → "June 2026" */
-function fmtMonth(key: string): string {
-  const [y, m] = key.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString("en-IN", {
-    month: "long", year: "numeric",
-  });
-}
-
 /** rupee formatter */
 const r = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /* ─────────────────────────────────────────────────
-   BUILD REPORT DATA FROM EXISTING APIs
-   Strategy:
-   - For last_month  → 1 call to getMonthlyAnalytics for that month
-   - For last_quarter / last_6_months → N monthly calls
-   - For last_year   → 1 call to getYearlyAnalytics
-   Each API already returns bill-level data grouped as weeks/months.
-   We re-aggregate on the frontend using the bills themselves via
-   the monthly endpoint (which gives us week breakdowns) — but
-   since the existing APIs don't give raw day data back, we use
-   getMonthlyAnalytics which gives `weeks`. Instead we'll use
-   getYearlyAnalytics which gives `months` array, then for each
-   month call getMonthlyAnalytics which gives `weeks`.
-   
-   Actually the cleanest approach: call getMonthlyAnalytics for
-   each target month — it returns `weeks` with per-week totals.
-   We show weekly rows per month (not daily, since daily requires
-   the new backend endpoint). The report will be:
-     Week 1 Jun (1–7)  | sales | ...
-     Week 2 Jun (8–14) | ...
-     JUNE TOTAL        | ...
-   This works entirely with the deployed APIs.
+   FETCH REPORT DATA FROM API
 ───────────────────────────────────────────────── */
-
-/** Returns list of YYYY-MM strings for the period */
-function getMonthsForPeriod(period: ReportPeriod): string[] {
-  const now = new Date();
-  const nowIST = new Date(now.getTime() + IST * 60 * 1000);
-  const curYear = nowIST.getFullYear();
-  const curMonth = nowIST.getMonth(); // 0-indexed, this is the CURRENT month
-
-  const months: string[] = [];
-
-  if (period === "last_month") {
-    // just the previous month
-    const d = new Date(curYear, curMonth - 1, 1);
-    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-  } else if (period === "last_quarter") {
-    for (let i = 3; i >= 1; i--) {
-      const d = new Date(curYear, curMonth - i, 1);
-      months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-    }
-  } else if (period === "last_6_months") {
-    for (let i = 6; i >= 1; i--) {
-      const d = new Date(curYear, curMonth - i, 1);
-      months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-    }
-  } else if (period === "last_year") {
-    const prevYear = curYear - 1;
-    for (let m = 0; m < 12; m++) {
-      months.push(`${prevYear}-${String(m + 1).padStart(2, "0")}`);
-    }
-  }
-
-  return months;
-}
-
-interface WeekRow {
-  weekLabel: string;
-  totalSales: number;
-  collected: number;
-  debt: number;
-  billCount: number;
-  cash: number;
-  upi: number;
-  others: number;
-}
-
-interface MonthBlock {
-  monthLabel: string;
-  weeks: WeekRow[];
-  totalSales: number;
-  collected: number;
-  debt: number;
-  billCount: number;
-  cash: number;
-  upi: number;
-  others: number;
-}
-
 async function fetchReportData(period: ReportPeriod): Promise<{
-  months: MonthBlock[];
-  grandTotal: Omit<MonthBlock, "monthLabel" | "weeks">;
+  rows: ReportRow[];
+  grandTotal: GrandTotal;
   from: string;
   to: string;
+  shopName: string;
 }> {
-  const monthKeys = getMonthsForPeriod(period);
-
-  // Fetch all months in parallel
-  const results = await Promise.all(
-    monthKeys.map((key) => getMonthlyAnalytics(key))
-  );
-
-  const months: MonthBlock[] = [];
-  let gSales = 0, gCollected = 0, gDebt = 0, gBills = 0, gCash = 0, gUpi = 0, gOthers = 0;
-
-  for (let i = 0; i < monthKeys.length; i++) {
-    const key = monthKeys[i];
-    const apiData = results[i].data;
-
-    // Build week rows from the `weeks` array returned by getMonthlyAnalytics
-    const weekRows: WeekRow[] = (apiData.weeks || []).map((w: any) => {
-      const weekStart = w.weekStart || "";
-      // Format: "Jun 1 – Jun 7"
-      const wDate = weekStart ? new Date(weekStart + "T00:00:00") : null;
-      const weekLabel = wDate
-        ? `Week of ${wDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`
-        : "Week";
-
-      const wSales = w.totalSales || 0;
-      const wCollected = w.debtVsSales?.totalCollected || 0;
-      const wDebt = w.debtVsSales?.totalDebt || 0;
-      const wBills = (w.products || []).length > 0 || wSales > 0 ? 1 : 0; // approx
-      const wCash = w.paymentModes?.CASH || 0;
-      const wUpi = w.paymentModes?.UPI || 0;
-      const wOthers = w.paymentModes?.OTHERS || 0;
-
-      return {
-        weekLabel,
-        totalSales: wSales,
-        collected: wCollected,
-        debt: wDebt,
-        billCount: wBills,
-        cash: wCash,
-        upi: wUpi,
-        others: wOthers,
-      };
-    });
-
-    const mSales = apiData.totalSales || 0;
-    const mCollected = apiData.debtVsSales?.totalCollected || 0;
-    const mDebt = apiData.debtVsSales?.totalDebt || 0;
-    const mCash = apiData.paymentModes?.CASH || 0;
-    const mUpi = apiData.paymentModes?.UPI || 0;
-    const mOthers = apiData.paymentModes?.OTHERS || 0;
-
-    gSales += mSales;
-    gCollected += mCollected;
-    gDebt += mDebt;
-    gCash += mCash;
-    gUpi += mUpi;
-    gOthers += mOthers;
-
-    months.push({
-      monthLabel: fmtMonth(key),
-      weeks: weekRows,
-      totalSales: mSales,
-      collected: mCollected,
-      debt: mDebt,
-      billCount: weekRows.length,
-      cash: mCash,
-      upi: mUpi,
-      others: mOthers,
-    });
-  }
-
-  const from = monthKeys[0]
-    ? new Date(monthKeys[0] + "-01").toLocaleDateString("en-IN", { month: "short", year: "numeric" })
-    : "";
-  const to = monthKeys[monthKeys.length - 1]
-    ? new Date(monthKeys[monthKeys.length - 1] + "-01").toLocaleDateString("en-IN", { month: "short", year: "numeric" })
-    : "";
-
+  const res = await getAnalyticsReport(period);
+  const data = res.data;
   return {
-    months,
-    grandTotal: {
-      totalSales: gSales,
-      collected: gCollected,
-      debt: gDebt,
-      billCount: 0,
-      cash: gCash,
-      upi: gUpi,
-      others: gOthers,
-    },
-    from,
-    to,
+    rows: data.rows || [],
+    grandTotal: data.grandTotal,
+    from: data.from,
+    to: data.to,
+    shopName: data.shopName || "My Store",
   };
 }
 
@@ -274,10 +105,11 @@ async function fetchReportData(period: ReportPeriod): Promise<{
 ───────────────────────────────────────────────── */
 function buildHTML(
   period: ReportPeriod,
-  months: MonthBlock[],
-  grandTotal: Omit<MonthBlock, "monthLabel" | "weeks">,
+  rows: ReportRow[],
+  grandTotal: GrandTotal,
   from: string,
-  to: string
+  to: string,
+  shopName: string
 ): string {
   const periodLabel = PERIOD_OPTIONS.find((p) => p.key === period)?.label || period;
   const generated = new Date().toLocaleString("en-IN", {
@@ -293,11 +125,13 @@ function buildHTML(
     cash: number,
     upi: number,
     others: number,
+    billCount: number,
     isTotal = false,
     isGrand = false
   ) => `
-    <tr class="${isGrand ? "grand-total" : isTotal ? "month-total" : "week-row"}">
+    <tr class="${isGrand ? "grand-total" : isTotal ? "month-total" : "day-row"}">
       <td class="label-cell">${label}</td>
+      <td>${isGrand || isTotal ? "" : billCount}</td>
       <td>${r(sales)}</td>
       <td class="green">${r(collected)}</td>
       <td class="red">${r(debt)}</td>
@@ -306,19 +140,32 @@ function buildHTML(
       <td>${r(others)}</td>
     </tr>`;
 
-  const monthBlocks = months
-    .map(
-      (m) => `
-      <tr class="month-header">
-        <td colspan="7">📅 ${m.monthLabel}</td>
-      </tr>
-      ${m.weeks.map((w) =>
-        tableRow(w.weekLabel, w.totalSales, w.collected, w.debt, w.cash, w.upi, w.others)
-      ).join("")}
-      ${tableRow(`TOTAL — ${m.monthLabel}`, m.totalSales, m.collected, m.debt, m.cash, m.upi, m.others, true)}
-    `
-    )
-    .join("");
+  // Group rows by month for section headers
+  let tableBody = "";
+  let lastMonth = "";
+
+  for (const row of rows) {
+    if (row.type === "month_total") {
+      tableBody += tableRow(row.label, row.totalSales, row.collected, row.debt, row.cash, row.upi, row.others, row.billCount, true);
+      lastMonth = "";
+    } else {
+      // Skip days with zero sales entirely
+      if (row.billCount === 0 && row.totalSales === 0) continue;
+
+      // day row — add month header if entering a new month
+      const monthKey = row.date.substring(0, 7); // YYYY-MM
+      if (monthKey !== lastMonth) {
+        const [y, m] = monthKey.split("-").map(Number);
+        const monthLabel = new Date(y, m - 1, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+        tableBody += `<tr class="month-header"><td colspan="8">📅 ${monthLabel}</td></tr>`;
+        lastMonth = monthKey;
+      }
+      tableBody += tableRow(row.label, row.totalSales, row.collected, row.debt, row.cash, row.upi, row.others, row.billCount);
+    }
+  }
+
+  // Grand total row
+  tableBody += tableRow("GRAND TOTAL", grandTotal.totalSales, grandTotal.collected, grandTotal.debt, grandTotal.cash, grandTotal.upi, grandTotal.others, grandTotal.billCount, false, true);
 
   return `<!DOCTYPE html>
 <html>
@@ -332,6 +179,7 @@ function buildHTML(
   .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; border-bottom: 2px solid #1E3A8A; padding-bottom: 16px; }
   .brand { font-size: 22px; font-weight: 800; color: #1E3A8A; }
   .brand span { color: #F59E0B; }
+  .shop-name { font-size: 13px; font-weight: 700; color: #334155; margin-top: 4px; }
   .meta { text-align: right; color: #64748B; font-size: 10px; line-height: 1.6; }
   .meta strong { color: #1E293B; font-size: 12px; display: block; margin-bottom: 2px; }
 
@@ -347,11 +195,13 @@ function buildHTML(
   table { width: 100%; border-collapse: collapse; margin-top: 4px; }
   th { background: #1E3A8A; color: #fff; padding: 8px 6px; text-align: right; font-size: 9px; font-weight: 700; letter-spacing: 0.5px; }
   th:first-child { text-align: left; }
+  th:nth-child(2) { text-align: center; }
   td { padding: 6px 6px; border-bottom: 1px solid #F1F5F9; text-align: right; font-size: 10px; }
   td.label-cell { text-align: left; color: #475569; }
+  td:nth-child(2) { text-align: center; color: #94A3B8; }
 
   tr.month-header td { background: #EFF6FF; color: #1E3A8A; font-weight: 800; font-size: 11px; padding: 10px 8px; border-top: 2px solid #BFDBFE; text-align: left; }
-  tr.week-row:hover td { background: #F8FAFC; }
+  tr.day-row:hover td { background: #F8FAFC; }
   tr.month-total td { background: #F1F5F9; font-weight: 700; color: #1E293B; border-top: 1px solid #CBD5E1; border-bottom: 2px solid #CBD5E1; }
   tr.grand-total td { background: #1E3A8A; color: #fff; font-weight: 800; font-size: 11px; padding: 10px 6px; }
   tr.grand-total td.label-cell { color: #fff; }
@@ -374,7 +224,8 @@ function buildHTML(
 <!-- HEADER -->
 <div class="header">
   <div>
-    <div class="brand">Store <span>Saathi</span></div>
+    <div class="brand">Store <span>Saarthi</span></div>
+    <div class="shop-name">${shopName}</div>
     <div style="color:#64748B;font-size:10px;margin-top:4px;">Sales Report — ${periodLabel}</div>
   </div>
   <div class="meta">
@@ -388,7 +239,7 @@ function buildHTML(
   <div class="card card-blue">
     <div class="card-label">Total Sales</div>
     <div class="card-value">${r(grandTotal.totalSales)}</div>
-    <div class="card-sub">${periodLabel}</div>
+    <div class="card-sub">${grandTotal.billCount} bills • ${periodLabel}</div>
   </div>
   <div class="card card-green">
     <div class="card-label">Collected</div>
@@ -418,11 +269,17 @@ function buildHTML(
   </div>
 </div>
 
+<!-- NOTE -->
+<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:9px 14px;margin-bottom:14px;font-size:10px;color:#92400E;display:flex;align-items:center;gap:8px;">
+  ℹ️ <strong>Note:</strong>&nbsp;Only days with at least one sale are listed below. Days with no transactions are excluded.
+</div>
+
 <!-- MAIN TABLE -->
 <table>
   <thead>
     <tr>
-      <th style="width:28%">Period</th>
+      <th style="width:26%">Date</th>
+      <th style="width:5%">Bills</th>
       <th>Total Sales</th>
       <th>Collected</th>
       <th>Pending</th>
@@ -432,13 +289,12 @@ function buildHTML(
     </tr>
   </thead>
   <tbody>
-    ${monthBlocks}
-    ${tableRow("GRAND TOTAL", grandTotal.totalSales, grandTotal.collected, grandTotal.debt, grandTotal.cash, grandTotal.upi, grandTotal.others, false, true)}
+    ${tableBody}
   </tbody>
 </table>
 
 <div class="footer">
-  Store Saathi • Auto-generated sales report • ${generated}
+  Store Saathi • Auto-generated sales report • ${generated} • Only days with sales are shown
 </div>
 
 </body>
@@ -457,15 +313,41 @@ export default function DownloadReportModal({ visible, onClose }: Props) {
   const [selected, setSelected] = useState<ReportPeriod>("last_month");
   const [loading, setLoading] = useState(false);
 
+  // PIN gate
+  const [hasPin, setHasPin] = useState<boolean | null>(null);
+  const [pinVerified, setPinVerified] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pendingDownload, setPendingDownload] = useState(false);
+
+  // Check if PIN exists when modal opens
+  useEffect(() => {
+    if (visible) {
+      setPinVerified(false); // reset on every open
+      getMe()
+        .then((res) => setHasPin(res.data.shop.hasAnalyticsPin))
+        .catch(() => setHasPin(false));
+    }
+  }, [visible]);
+
   const handleDownload = async () => {
+    // If PIN not yet verified, ask for it first
+    if (!pinVerified) {
+      setPendingDownload(true);
+      setShowPinModal(true);
+      return;
+    }
+    await generateAndSharePDF();
+  };
+
+  const generateAndSharePDF = async () => {
     try {
       setLoading(true);
 
-      // 1. Fetch data from existing deployed APIs
-      const { months, grandTotal, from, to } = await fetchReportData(selected);
+      // 1. Fetch data from the report API
+      const { rows, grandTotal, from, to, shopName } = await fetchReportData(selected);
 
       // 2. Build HTML
-      const html = buildHTML(selected, months, grandTotal, from, to);
+      const html = buildHTML(selected, rows, grandTotal, from, to, shopName);
 
       // 3. Convert HTML → PDF (saves to app cache automatically)
       const { uri } = await Print.printToFileAsync({ html, base64: false });
@@ -490,12 +372,13 @@ export default function DownloadReportModal({ visible, onClose }: Props) {
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
+    <>
+      <Modal
+        visible={visible}
+        animationType="slide"
+        transparent
+        onRequestClose={onClose}
+      >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
 
@@ -509,7 +392,7 @@ export default function DownloadReportModal({ visible, onClose }: Props) {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>Download Report</Text>
-              <Text style={styles.titleSub}>PDF • Sales breakdown with monthly totals</Text>
+              <Text style={styles.titleSub}>PDF • Day-by-day breakdown with monthly totals</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Ionicons name="close" size={22} color="#94A3B8" />
@@ -563,21 +446,54 @@ export default function DownloadReportModal({ visible, onClose }: Props) {
                 <ActivityIndicator color="#fff" size="small" />
                 <Text style={styles.downloadBtnText}>Generating PDF…</Text>
               </>
-            ) : (
+            ) : pinVerified ? (
               <>
                 <Ionicons name="document-text-outline" size={18} color="#fff" />
                 <Text style={styles.downloadBtnText}>Download PDF</Text>
               </>
+            ) : (
+              <>
+                <Ionicons name="lock-closed-outline" size={18} color="#fff" />
+                <Text style={styles.downloadBtnText}>Verify PIN to Download</Text>
+              </>
             )}
           </TouchableOpacity>
 
+          {pinVerified && (
+            <View style={styles.pinVerifiedBadge}>
+              <Ionicons name="shield-checkmark" size={13} color="#16A34A" />
+              <Text style={styles.pinVerifiedText}>PIN verified • Access granted</Text>
+            </View>
+          )}
+
           <Text style={styles.footerNote}>
-            Weekly breakdown per month + grand total • Share via WhatsApp, Drive, or save locally
+            Daily breakdown per month + grand total • Only days with sales shown • Share via WhatsApp, Drive, or save locally
           </Text>
 
         </View>
       </View>
     </Modal>
+
+    {/* PIN VERIFICATION MODAL */}
+    <AnalyticsPinModal
+      visible={showPinModal}
+      mode={hasPin === false ? "set" : "verify"}
+      onClose={() => {
+        setShowPinModal(false);
+        setPendingDownload(false);
+      }}
+      onSuccess={() => {
+        setShowPinModal(false);
+        setPinVerified(true);
+        setHasPin(true);
+        if (pendingDownload) {
+          setPendingDownload(false);
+          // slight delay so pin modal fully closes before PDF generates
+          setTimeout(() => generateAndSharePDF(), 300);
+        }
+      }}
+    />
+  </>
   );
 }
 
@@ -704,5 +620,17 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 14,
     lineHeight: 16,
+  },
+  pinVerifiedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    marginTop: 10,
+  },
+  pinVerifiedText: {
+    fontSize: 12,
+    color: "#16A34A",
+    fontWeight: "600",
   },
 });

@@ -384,7 +384,11 @@ function getReportDateRange(period) {
 
   let startIST, endIST;
 
-  if (period === "last_month") {
+  if (period === "this_month") {
+    // Current calendar month from day 1 up to today
+    startIST = new Date(nowIST.getFullYear(), nowIST.getMonth(), 1, 0, 0, 0, 0);
+    endIST   = new Date(nowIST.getFullYear(), nowIST.getMonth(), nowIST.getDate(), 23, 59, 59, 999);
+  } else if (period === "last_month") {
     // Previous calendar month
     const y = nowIST.getMonth() === 0 ? nowIST.getFullYear() - 1 : nowIST.getFullYear();
     const m = nowIST.getMonth() === 0 ? 11 : nowIST.getMonth() - 1;
@@ -428,7 +432,7 @@ export async function getAnalyticsReport(req, res) {
     if (!shopId) return;
 
     const { period = "last_month" } = req.query;
-    const validPeriods = ["last_month", "last_quarter", "last_6_months", "last_year"];
+    const validPeriods = ["this_month", "last_month", "last_quarter", "last_6_months", "last_year"];
     if (!validPeriods.includes(period)) {
       return res.status(400).json({ success: false, message: "Invalid period" });
     }
@@ -494,18 +498,21 @@ export async function getAnalyticsReport(req, res) {
           else others += paid;
         }
 
-        dayRows.push({
-          type: "day",
-          date: dayKey,
-          label: new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
-          totalSales,
-          collected,
-          debt,
-          billCount: dayBills.length,
-          cash,
-          upi,
-          others,
-        });
+        // Only include days that have at least one bill (skip zero-sales days)
+        if (dayBills.length > 0) {
+          dayRows.push({
+            type: "day",
+            date: dayKey,
+            label: new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+            totalSales,
+            collected,
+            debt,
+            billCount: dayBills.length,
+            cash,
+            upi,
+            others,
+          });
+        }
 
         d.setDate(d.getDate() + 1);
       }
