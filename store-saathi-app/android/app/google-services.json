@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "224202221353",
+    "project_id": "storesaarthi-b831b",
+    "storage_bucket": "storesaarthi-b831b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:224202221353:android:e89326698e8fe213fff938",
+        "android_client_info": {
+          "package_name": "com.dc2410.storesaathiapp.dev2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBclTQs-1edi3nR2sBl4CFDNa20QyHmACo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

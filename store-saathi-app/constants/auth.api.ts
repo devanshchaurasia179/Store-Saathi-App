@@ -1,6 +1,12 @@
 import { api } from "./api";
 
-/* ================= OTP AUTH ================= */
+/* ================= FIREBASE PHONE AUTH ================= */
+
+export const firebaseLogin = (firebaseIdToken: string) => {
+  return api.post("/auth/firebase-login", { firebaseIdToken });
+};
+
+/* ================= OTP AUTH (legacy – kept for reference) ================= */
 
 export const sendOtp = (mobileNumber: string) => {
   return api.post("/auth/send-otp", { mobileNumber });

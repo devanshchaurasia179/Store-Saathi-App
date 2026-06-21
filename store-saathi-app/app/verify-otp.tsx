@@ -13,12 +13,12 @@ import {
   Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-// Correct Library Import
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
+import { FirebaseAuthTypes } from "@react-native-firebase/auth";
 import WelcomeHeader from "../components/WelcomeHeader";
-import { verifyOtp } from "../constants/auth.api";
+import { firebaseLogin } from "../constants/auth.api";
 import { useAuth } from "../providers/AuthProvider";
 import { useLanguage } from "../providers/LanguageProvider";
 import { LANGUAGE_TEXT } from "../constants/language";
@@ -45,11 +45,33 @@ export default function VerifyOtpPage() {
       return;
     }
 
+    const confirmation = global.__firebaseConfirmation as FirebaseAuthTypes.ConfirmationResult | undefined;
+
+    if (!confirmation) {
+      Toast.show({
+        type: "error",
+        text1: "Session expired. Please request OTP again.",
+      });
+      router.replace("/login");
+      return;
+    }
+
     try {
       setLoading(true);
-      const res = await verifyOtp(mobileNumber!, otp);
+
+      // Step 1: Confirm OTP with Firebase
+      const userCredential = await confirmation.confirm(otp);
+
+      // Step 2: Get Firebase ID token to send to our backend
+      const firebaseIdToken = await userCredential!.user.getIdToken();
+
+      // Step 3: Exchange Firebase token with our backend for a JWT
+      const res = await firebaseLogin(firebaseIdToken);
 
       if (res?.data?.success) {
+        // Clear the stored confirmation
+        global.__firebaseConfirmation = undefined;
+
         Toast.show({
           type: "success",
           text1: text.loginSuccess,
@@ -62,6 +84,7 @@ export default function VerifyOtpPage() {
       const backendMessage =
         error?.response?.data?.message ||
         error?.response?.data?.error ||
+        error?.message ||
         text.somethingWentWrong;
 
       Toast.show({
