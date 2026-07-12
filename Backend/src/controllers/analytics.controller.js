@@ -1,5 +1,22 @@
 import Bill from "../models/Bill.js";
 import Shop from "../models/Shop.js";
+import { decrypt } from "../utils/encrypt.js";
+
+/* --------------------------------------------------
+   DECRYPT HELPER
+-------------------------------------------------- */
+const ENCRYPTED_FIELDS = ["items", "subTotal", "discount", "taxPercentage", "totalAmount", "paidAmount"];
+
+function decryptBill(doc) {
+  if (!doc) return doc;
+  const obj = { ...doc };
+  for (const field of ENCRYPTED_FIELDS) {
+    if (obj[field] !== undefined && obj[field] !== null) {
+      obj[field] = decrypt(obj[field]);
+    }
+  }
+  return obj;
+}
 
 /* --------------------------------------------------
    TIMEZONE CONSTANT
@@ -244,7 +261,7 @@ export async function getDailyAnalytics(req, res) {
     const bills = await Bill.find({
       shopId,
       createdAt: { $gte: start, $lte: end },
-    }).lean();
+    }).lean().then(r => r.map(decryptBill));
 
     res.json({
       success: true,
@@ -270,7 +287,7 @@ export async function getWeeklyAnalytics(req, res) {
     const bills = await Bill.find({
       shopId,
       createdAt: { $gte: start, $lte: end },
-    }).lean();
+    }).lean().then(r => r.map(decryptBill));
 
     const dailyMap = {};
     for (const bill of bills) {
@@ -308,7 +325,7 @@ export async function getMonthlyAnalytics(req, res) {
     const bills = await Bill.find({
       shopId,
       createdAt: { $gte: start, $lte: end },
-    }).lean();
+    }).lean().then(r => r.map(decryptBill));
 
     const weekMap = {};
     for (const bill of bills) {
@@ -346,7 +363,7 @@ export async function getYearlyAnalytics(req, res) {
     const bills = await Bill.find({
       shopId,
       createdAt: { $gte: start, $lte: end },
-    }).lean();
+    }).lean().then(r => r.map(decryptBill));
 
     const monthMap = {};
     for (const bill of bills) {
@@ -446,7 +463,7 @@ export async function getAnalyticsReport(req, res) {
     const bills = await Bill.find({
       shopId,
       createdAt: { $gte: start, $lte: end },
-    }).lean();
+    }).lean().then(r => r.map(decryptBill));
 
     // ── Build a day-keyed map ──
     const dayMap = {};

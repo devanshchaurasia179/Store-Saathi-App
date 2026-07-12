@@ -2,6 +2,23 @@ import Product from "../models/Product.js";
 import Bill from "../models/Bill.js";
 import Customer from "../models/Customer.js";
 import { DASHBOARD_UPDATE_CONFIG } from "../config/dashboardUpdateConfig.js";
+import { decrypt } from "../utils/encrypt.js";
+
+/* -------------------------------
+   ENCRYPTED FIELDS (bill)
+-------------------------------- */
+const ENCRYPTED_FIELDS = ["items", "subTotal", "discount", "taxPercentage", "totalAmount", "paidAmount"];
+
+function decryptBill(doc) {
+  if (!doc) return doc;
+  const obj = typeof doc.toObject === "function" ? doc.toObject({ virtuals: true }) : { ...doc };
+  for (const field of ENCRYPTED_FIELDS) {
+    if (obj[field] !== undefined && obj[field] !== null) {
+      obj[field] = decrypt(obj[field]);
+    }
+  }
+  return obj;
+}
 
 /* -------------------------------
    PROFILE COMPLETION
@@ -67,34 +84,49 @@ export async function getDashboard(req, res) {
 
     /* -------------------------------
        MOST SOLD PRODUCTS
+       (aggregation can't unwind encrypted items —
+        fetch recent bills and aggregate in JS instead)
     -------------------------------- */
-    const mostSold = await Bill.aggregate([
-      { $match: { shopId } },
-      { $unwind: "$items" },
-      {
-        $group: {
-          _id: "$items.name",
-          totalSold: { $sum: "$items.quantity" },
-        },
-      },
-      { $sort: { totalSold: -1 } },
-      { $limit: 5 },
-      {
-        $project: {
-          _id: 0,
-          name: "$_id",
-          totalSold: 1,
-        },
-      },
-    ]);
+    const billsForMostSold = await Bill.find({ shopId })
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .select("items")
+      .lean();
+
+    const soldMap = {};
+    for (const rawBill of billsForMostSold) {
+      const decrypted = decryptBill(rawBill);
+      const billItems = Array.isArray(decrypted.items) ? decrypted.items : [];
+      for (const item of billItems) {
+        if (!item?.name) continue;
+        soldMap[item.name] = (soldMap[item.name] || 0) + (item.quantity || 0);
+      }
+    }
+
+    const mostSold = Object.entries(soldMap)
+      .map(([name, totalSold]) => ({ name, totalSold }))
+      .sort((a, b) => b.totalSold - a.totalSold)
+      .slice(0, 5);
 
     /* -------------------------------
        RECENT BILLS
     -------------------------------- */
-    const recentBills = await Bill.find({ shopId })
+    const rawRecentBills = await Bill.find({ shopId })
       .sort({ createdAt: -1 })
       .limit(5)
-      .select("_id dailyBillNumber totalAmount createdAt");
+      .select("_id dailyBillNumber totalAmount createdAt items")
+      .lean();
+
+    const recentBills = rawRecentBills.map((bill) => {
+      const d = decryptBill(bill);
+      return {
+        _id: d._id,
+        dailyBillNumber: d.dailyBillNumber,
+        totalAmount: d.totalAmount,
+        createdAt: d.createdAt,
+        items: d.items,
+      };
+    });
 
     /* -------------------------------
        RESPONSE
