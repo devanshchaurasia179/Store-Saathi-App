@@ -1,13 +1,21 @@
 import admin from "firebase-admin";
+import { createRequire } from "module";
 
-// Initialize Firebase Admin SDK once using the service account credentials from env vars.
-// Set FIREBASE_SERVICE_ACCOUNT in your .env as a JSON string, or use individual fields.
+const require = createRequire(import.meta.url);
+
+// Initialize Firebase Admin SDK once.
+// Loads the service account JSON file directly (avoids private key corruption
+// that occurs when embedding the key in environment variable strings).
 if (!admin.apps.length) {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || "{}");
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
+  try {
+    const serviceAccount = require("../../storesaarthi-b831b-firebase-adminsdk-fbsvc-b4c744df90.json");
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+    console.log("[Firebase Admin] Initialized successfully for project:", serviceAccount.project_id);
+  } catch (err) {
+    console.error("[Firebase Admin] Failed to initialize:", err.message);
+  }
 }
 
 export default admin;

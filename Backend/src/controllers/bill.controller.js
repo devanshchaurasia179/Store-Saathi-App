@@ -2,6 +2,36 @@ import Bill from "../models/Bill.js";
 import Product from "../models/Product.js";
 import Customer from "../models/Customer.js";
 import LedgerEntry from "../models/LedgerEntry.js";
+import { encrypt, decrypt } from "../utils/encrypt.js";
+
+/* --------------------------------------------------
+   ENCRYPTED FIELDS
+-------------------------------------------------- */
+const ENCRYPTED_FIELDS = ["items", "subTotal", "discount", "taxPercentage", "totalAmount", "paidAmount"];
+
+/** Encrypts sensitive fields on a plain object before saving to MongoDB. */
+function encryptBill(data) {
+  const out = { ...data };
+  for (const field of ENCRYPTED_FIELDS) {
+    if (out[field] !== undefined) out[field] = encrypt(out[field]);
+  }
+  return out;
+}
+
+/** Decrypts sensitive fields on a Mongoose doc or plain object returned from MongoDB. */
+function decryptBill(doc) {
+  if (!doc) return doc;
+  // Support both Mongoose documents (toObject) and plain lean objects
+  const obj = typeof doc.toObject === "function" ? doc.toObject({ virtuals: true }) : { ...doc };
+  for (const field of ENCRYPTED_FIELDS) {
+    if (obj[field] === undefined || obj[field] === null) continue;
+    const val = obj[field];
+    // If it's already a non-string (number, array, object) — legacy unencrypted bill
+    // decrypt() handles this: it returns non-strings as-is.
+    obj[field] = decrypt(val);
+  }
+  return obj;
+}
 
 /* --------------------------------------------------
    TIMEZONE CONSTANT (IST = UTC +5:30)
@@ -162,14 +192,11 @@ if (item.variantId) {
     else if (paidAmount < totalAmount) paymentStatus = "PARTIAL";
 
     /* -----------------------------
-       4️⃣ DAILY BILL NUMBER (IST SAFE)
+       5️⃣ CREATE BILL (encrypted)
     ----------------------------- */
     const dailyBillNumber = await generateDailyBillNumber(shopId);
 
-    /* -----------------------------
-       5️⃣ CREATE BILL
-    ----------------------------- */
-    const bill = await Bill.create({
+    const bill = await Bill.create(encryptBill({
       shopId,
       dailyBillNumber,
       customerId,
@@ -181,7 +208,7 @@ if (item.variantId) {
       paidAmount,
       paymentStatus,
       paymentMode,
-    });
+    }));
 
     /* -----------------------------
        6️⃣ STOCK ADJUSTMENT (VARIANT SAFE)
@@ -254,7 +281,7 @@ if (item.variantId) {
     }
     return res.status(201).json({
       success: true,
-      bill,
+      bill: decryptBill(bill),
     });
   } catch (error) {
     console.error("Create Bill Error:", error.message);
@@ -271,13 +298,13 @@ export async function getBills(req, res) {
   try {
     const shopId = req.user._id;
 
-    const bills = await Bill.find({ shopId })
+    const rawBills = await Bill.find({ shopId })
       .sort({ createdAt: -1 })
       .lean();
 
     return res.status(200).json({
       success: true,
-      bills,
+      bills: rawBills.map(decryptBill),
     });
   } catch (error) {
     console.error("Get Bills Error:", error.message);
@@ -306,7 +333,7 @@ export async function getBillById(req, res) {
 
     return res.status(200).json({
       success: true,
-      bill,
+      bill: decryptBill(bill),
     });
   } catch (error) {
     console.error("Get Bill By Id Error:", error.message);

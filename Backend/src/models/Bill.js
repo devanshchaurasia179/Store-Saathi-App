@@ -2,6 +2,10 @@ import mongoose from "mongoose";
 
 /* -----------------------------------
    BILL ITEM SCHEMA (VARIANT-AWARE)
+   Used as type reference / documentation.
+   The `items` field is stored encrypted
+   as Mixed — this schema is not mounted
+   directly on billSchema.
 ----------------------------------- */
 const billItemSchema = new mongoose.Schema(
   {
@@ -72,32 +76,32 @@ const billSchema = new mongoose.Schema(
     },
 
     items: {
-      type: [billItemSchema],
+      type: mongoose.Schema.Types.Mixed, // stored as encrypted string at rest
       required: true,
     },
 
     subTotal: {
-      type: Number,
+      type: mongoose.Schema.Types.Mixed, // stored as encrypted string at rest
       required: true,
     },
 
     discount: {
-      type: Number,
+      type: mongoose.Schema.Types.Mixed, // stored as encrypted string at rest
       default: 0,
     },
 
     taxPercentage: {
-      type: Number,
+      type: mongoose.Schema.Types.Mixed, // stored as encrypted string at rest
       default: 0,
     },
 
     totalAmount: {
-      type: Number,
+      type: mongoose.Schema.Types.Mixed, // stored as encrypted string at rest
       required: true,
     },
 
     paidAmount: {
-      type: Number,
+      type: mongoose.Schema.Types.Mixed, // stored as encrypted string at rest
       required: true,
     },
 

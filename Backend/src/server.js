@@ -14,7 +14,9 @@ import analyticsRoutes from "./routes/analytics.routes.js";
 import { initBillCleanupScheduler } from "./config/billCleanupScheduler.js";
 
 dotenv.config();
-
+import dns from 'dns';
+// Change DNS
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
