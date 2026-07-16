@@ -1,9 +1,4 @@
+node_modules/
 .env
-node_modules
-
-storesaarthi-b831b-firebase-adminsdk-fbsvc-b4c744df90.json
-
-# Elastic Beanstalk Files
-.elasticbeanstalk/*
-!.elasticbeanstalk/*.cfg.yml
-!.elasticbeanstalk/*.global.yml
+temp/*.txt
+temp/*.ps1

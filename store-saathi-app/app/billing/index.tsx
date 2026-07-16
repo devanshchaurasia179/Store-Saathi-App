@@ -291,7 +291,7 @@ export default function BillingPage() {
           )
         );
         setShowBillConfirmation(false);
-        setSelectedPaymentMode(null);
+        setSelectedPaymentMode("CASH");
         await checkPrinterStatus();
       }
     } catch (err: any) {
@@ -304,12 +304,12 @@ export default function BillingPage() {
   const handleCheckout = () => {
     if (!items.length) return;
     setShowBillConfirmation(true);
-    setSelectedPaymentMode(null);
+    setSelectedPaymentMode("CASH");
   };
   
   const handleCloseBillConfirmation = () => {
     setShowBillConfirmation(false);
-    setSelectedPaymentMode(null);
+    setSelectedPaymentMode("CASH");
   };
 
   const handlePrintPress = () => {

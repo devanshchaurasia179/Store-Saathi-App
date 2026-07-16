@@ -11,6 +11,7 @@ import productRoutes from "./routes/product.routes.js";
 import billRoutes from "./routes/bill.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
+import printRoutes from "./routes/print.routes.js";
 import { initBillCleanupScheduler } from "./config/billCleanupScheduler.js";
 
 dotenv.config();
@@ -42,6 +43,7 @@ app.use("/api/bills", billRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 // ...
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/print", printRoutes);
 
 
 
