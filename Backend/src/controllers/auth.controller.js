@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
-import admin from "../lib/firebaseAdmin.js";
+import axios from "axios";
 
 /* ================= HELPERS ================= */
 
@@ -31,81 +31,10 @@ function generateRawSecretKey(shopId) {
 }
 
 /* =====================================================
-   FIREBASE PHONE AUTH LOGIN
-   - Verifies the Firebase ID token from the mobile client
-   - Finds or creates the Shop by phone number
-   - Returns our own JWT for subsequent API calls
-===================================================== */
-export async function firebaseLogin(req, res) {
-  try {
-    const { firebaseIdToken } = req.body;
-
-    if (!firebaseIdToken) {
-      return res.status(400).json({ message: "Firebase ID token is required" });
-    }
-
-    // 1. Verify the ID token with Firebase Admin
-    let decodedToken;
-    try {
-      decodedToken = await admin.auth().verifyIdToken(firebaseIdToken);
-    } catch (err) {
-      return res.status(401).json({ message: "Invalid or expired Firebase token" });
-    }
-
-    // 2. Extract the phone number (Firebase stores it as +91XXXXXXXXXX)
-    const phoneNumber = decodedToken.phone_number;
-    if (!phoneNumber) {
-      return res.status(400).json({ message: "No phone number in Firebase token" });
-    }
-
-    // Normalize: strip country code for storage, match existing records
-    const mobileNumber = phoneNumber.replace(/^\+91/, "");
-
-    // 3. Find or create Shop
-    let shop = await Shop.findOne({ mobileNumber });
-    if (!shop) {
-      shop = await Shop.create({
-        mobileNumber,
-        shopName: "My Shop",
-        ownerName: "Owner",
-      });
-    }
-
-    // 4. Handle Secret Key (first-time login)
-    let rawSecretKey = null;
-    const shopWithSecret = await Shop.findById(shop._id).select("+secretKey");
-    if (!shopWithSecret.secretKey) {
-      rawSecretKey = generateRawSecretKey(shop._id.toString());
-      shopWithSecret.secretKey = rawSecretKey;
-      await shopWithSecret.save();
-    }
-
-    // 5. Generate JWT
-    const token = generateToken(shop._id);
-
-    // 6. Set cookie for web
-    res.cookie("jwt", token, {
-      httpOnly: true,
-      sameSite: "Strict",
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 365 * 24 * 60 * 60 * 1000,
-    });
-
-    // 7. Respond
-    res.status(200).json({
-      success: true,
-      token,
-      shop,
-      secretKey: rawSecretKey,
-    });
-  } catch (error) {
-    console.error("Firebase Login Error:", error);
-    res.status(500).json({ message: "Something went wrong" });
-  }
-}
-
-/* =====================================================
-   SEND OTP (legacy email-based – kept for fallback)
+   SEND OTP via ApiTxT SMS Service
+   - Generates a 6-digit OTP
+   - Sends it via ApiTxT SMS API
+   - Stores OTP + expiry in DB for verification
 ===================================================== */
 export async function sendOtp(req, res) {
   try {
@@ -115,8 +44,8 @@ export async function sendOtp(req, res) {
       return res.status(400).json({ message: "Mobile number is required" });
     }
 
+    // Find or create Shop
     let shop = await Shop.findOne({ mobileNumber });
-
     if (!shop) {
       shop = await Shop.create({
         mobileNumber,
@@ -125,27 +54,26 @@ export async function sendOtp(req, res) {
       });
     }
 
+    // Generate OTP and save to DB
     const otp = generateOtp();
     shop.otp = otp;
-    shop.otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    shop.otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 min expiry
     await shop.save();
 
-    const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      auth: {
-        user: "devanshchaurasia2410@gmail.com",
-        pass: process.env.NODEMAILER_PASS,
+    // Send OTP via ApiTxT
+    const apiTxtResponse = await axios.get("https://apitxt.com/api/sendOTP", {
+      params: {
+        authkey: process.env.APITXT_AUTH_KEY,
+        mobile: `91${mobileNumber}`,
+        otp: otp,
+        country: "91",
       },
     });
 
-    await transporter.sendMail({
-      from: '"Store Saathi OTP" <otp@storesaathi.dev>',
-      to: "devanshshopsaathi@gmail.com",
-      subject: "Your Store Saathi Login OTP",
-      text: `Your OTP is ${otp}. Valid for 5 minutes.`,
-    });
+    if (apiTxtResponse.data?.status !== "success") {
+      console.error("ApiTxT Error:", apiTxtResponse.data);
+      return res.status(500).json({ message: "Failed to send OTP. Try again." });
+    }
 
     res.status(200).json({
       success: true,
