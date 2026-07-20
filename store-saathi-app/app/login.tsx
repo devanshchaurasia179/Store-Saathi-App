@@ -16,8 +16,8 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
-import auth from "@react-native-firebase/auth";
 import WelcomeHeader from "../components/WelcomeHeader";
+import { sendOtp } from "../constants/auth.api";
 import { useAuth } from "../providers/AuthProvider";
 import { useLanguage } from "../providers/LanguageProvider";
 import { LANGUAGE_TEXT } from "../constants/language";
@@ -45,26 +45,34 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      // Firebase sends the SMS OTP directly to the user's phone
-      const confirmation = await auth().signInWithPhoneNumber(`+91${mobileNumber}`);
+      // Call backend which sends OTP via ApiTxT SMS
+      const res = await sendOtp(mobileNumber);
 
-      Toast.show({
-        type: "success",
-        text1: text.otpSentSuccess,
-      });
+      if (res?.data?.success) {
+        Toast.show({
+          type: "success",
+          text1: text.otpSentSuccess,
+        });
 
-      // Pass the confirmation object via global store so verify-otp can use it
-      global.__firebaseConfirmation = confirmation;
-
-      router.push({
-        pathname: "/verify-otp",
-        params: { mobileNumber },
-      });
+        router.push({
+          pathname: "/verify-otp",
+          params: { mobileNumber },
+        });
+      } else {
+        Toast.show({
+          type: "error",
+          text1: res?.data?.message || text.somethingWentWrong,
+        });
+      }
     } catch (error: any) {
-      console.error("Firebase sendOtp error:", error);
+      console.error("sendOtp error:", error);
+      const msg =
+        error?.response?.data?.message ||
+        error?.message ||
+        text.somethingWentWrong;
       Toast.show({
         type: "error",
-        text1: error?.message || text.somethingWentWrong,
+        text1: msg,
       });
     } finally {
       setLoading(false);

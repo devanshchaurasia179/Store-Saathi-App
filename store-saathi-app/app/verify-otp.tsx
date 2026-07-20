@@ -16,9 +16,8 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
-import { FirebaseAuthTypes } from "@react-native-firebase/auth";
 import WelcomeHeader from "../components/WelcomeHeader";
-import { firebaseLogin } from "../constants/auth.api";
+import { verifyOtp as verifyOtpApi } from "../constants/auth.api";
 import { useAuth } from "../providers/AuthProvider";
 import { useLanguage } from "../providers/LanguageProvider";
 import { LANGUAGE_TEXT } from "../constants/language";
@@ -45,9 +44,7 @@ export default function VerifyOtpPage() {
       return;
     }
 
-    const confirmation = global.__firebaseConfirmation as FirebaseAuthTypes.ConfirmationResult | undefined;
-
-    if (!confirmation) {
+    if (!mobileNumber) {
       Toast.show({
         type: "error",
         text1: "Session expired. Please request OTP again.",
@@ -59,19 +56,10 @@ export default function VerifyOtpPage() {
     try {
       setLoading(true);
 
-      // Step 1: Confirm OTP with Firebase
-      const userCredential = await confirmation.confirm(otp);
-
-      // Step 2: Get Firebase ID token to send to our backend
-      const firebaseIdToken = await userCredential!.user.getIdToken();
-
-      // Step 3: Exchange Firebase token with our backend for a JWT
-      const res = await firebaseLogin(firebaseIdToken);
+      // Verify OTP with backend (backend checks DB)
+      const res = await verifyOtpApi(mobileNumber, otp);
 
       if (res?.data?.success) {
-        // Clear the stored confirmation
-        global.__firebaseConfirmation = undefined;
-
         Toast.show({
           type: "success",
           text1: text.loginSuccess,

@@ -1,0 +1,15 @@
+# Dependencies (EB will run npm install)
+node_modules/
+
+# Environment variables (set these in EB console instead)
+.env
+
+# Temp files
+temp/*.txt
+temp/*.ps1
+
+# EB config
+.elasticbeanstalk/
+
+# Git
+.git/
