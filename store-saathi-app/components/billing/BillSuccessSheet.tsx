@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,10 +6,14 @@ import {
   TouchableOpacity,
   Modal,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatRupee } from "../../utils/formatCurrency";
+import { reconnectSavedPrinter, isThermalPrinterSaved, getConnectedThermalPrinter } from "../../utils/printerManager";
+import { getBillById } from "../../constants/bills.api";
+import { printBillAuto } from "../../utils/thermalPrinter";
 
 type BillSuccessSheetProps = {
   visible: boolean;
@@ -48,11 +52,53 @@ export default function BillSuccessSheet({
   labels,
 }: BillSuccessSheetProps) {
   const insets = useSafeAreaInsets();
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [printerName, setPrinterName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      getConnectedThermalPrinter().then((printer) => {
+        setPrinterName(printer?.name || null);
+      });
+    }
+  }, [visible]);
 
   if (!billId) return null;
 
   const hasDiscount = discount > 0;
   const hasTax = tax > 0;
+
+  const handleConnectAndPrint = async () => {
+    setIsConnecting(true);
+    try {
+      const hasSaved = await isThermalPrinterSaved();
+      if (!hasSaved) {
+        Alert.alert("No Printer", "No saved printer found. Please set up a printer first.");
+        setIsConnecting(false);
+        return;
+      }
+
+      const connected = await reconnectSavedPrinter();
+      if (!connected) {
+        Alert.alert(
+          "Connection Failed",
+          "Could not connect to printer. Make sure it's powered on and in range."
+        );
+        setIsConnecting(false);
+        return;
+      }
+
+      // Connected — now print
+      const billRes = await getBillById(billId);
+      if (billRes.data?.bill) {
+        await printBillAuto(billRes.data.bill);
+      }
+    } catch (err: any) {
+      Alert.alert("Print Failed", err?.message || "Unable to print. Try again.");
+    } finally {
+      setIsConnecting(false);
+    }
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -137,27 +183,55 @@ export default function BillSuccessSheet({
           {/* ── ACTION BUTTONS ── */}
           <View style={styles.actions}>
 
-            <TouchableOpacity
-              style={[styles.printBtn, !isPrinterConnected && styles.setupBtn]}
-              onPress={onPrint}
-              disabled={checkingPrinter}
-              activeOpacity={0.85}
-            >
-              {checkingPrinter ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <>
-                  <Feather
-                    name={isPrinterConnected ? "printer" : "bluetooth"}
-                    size={18}
-                    color="#fff"
-                  />
-                  <Text style={styles.printBtnText}>
-                    {isPrinterConnected ? labels.print : labels.setupPrint}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
+            {/* Printer info */}
+            {printerName && (
+              <View style={styles.printerInfo}>
+                <Feather name="printer" size={14} color={isPrinterConnected ? "#16a34a" : "#94a3b8"} />
+                <Text style={[styles.printerNameText, isPrinterConnected && styles.printerNameConnected]}>
+                  {printerName}
+                </Text>
+                <View style={[styles.printerDot, isPrinterConnected && styles.printerDotConnected]} />
+              </View>
+            )}
+
+            {isPrinterConnected ? (
+              /* Printer is connected — show Print button */
+              <TouchableOpacity
+                style={styles.printBtn}
+                onPress={onPrint}
+                disabled={checkingPrinter}
+                activeOpacity={0.85}
+              >
+                {checkingPrinter ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Feather name="printer" size={18} color="#fff" />
+                    <Text style={styles.printBtnText}>{labels.print}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : (
+              /* Printer not connected — show Connect & Print button */
+              <TouchableOpacity
+                style={[styles.printBtn, styles.connectBtn]}
+                onPress={handleConnectAndPrint}
+                disabled={isConnecting}
+                activeOpacity={0.85}
+              >
+                {isConnecting ? (
+                  <>
+                    <ActivityIndicator color="#fff" size="small" />
+                    <Text style={styles.printBtnText}>Connecting...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Feather name="bluetooth" size={18} color="#fff" />
+                    <Text style={styles.printBtnText}>Connect & Print</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               style={styles.nextBtn}
@@ -180,16 +254,16 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: "rgba(2, 6, 23, 0.75)",
-    alignItems: "center",        // ← center horizontally
-    justifyContent: "center",    // ← center vertically (was flex-end)
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 20,
   },
 
-  /* ── Main card (was bottom sheet) ── */
+  /* ── Main card ── */
   card: {
     width: "100%",
     backgroundColor: "#fff",
-    borderRadius: 28,            // fully rounded — all 4 corners
+    borderRadius: 28,
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 24,
@@ -326,6 +400,35 @@ const styles = StyleSheet.create({
   actions: {
     gap: 10,
   },
+  printerInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    backgroundColor: "#f8fafc",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  printerNameText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#64748b",
+  },
+  printerNameConnected: {
+    color: "#16a34a",
+  },
+  printerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#cbd5e1",
+  },
+  printerDotConnected: {
+    backgroundColor: "#22c55e",
+  },
   printBtn: {
     backgroundColor: "#112049",
     height: 54,
@@ -335,7 +438,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 9,
   },
-  setupBtn: { backgroundColor: "#f59e0b" },
+  connectBtn: {
+    backgroundColor: "#2563eb",
+  },
   printBtnText: {
     color: "#fff",
     fontSize: 15,

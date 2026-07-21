@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -7,12 +7,15 @@ import {
   StyleSheet,
   Platform,
   ScrollView,
+  Animated,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { formatRupee } from "../../utils/formatCurrency";
 import { LANGUAGE_TEXT_BILL_SUMMARY } from "../../constants/language_billing";
 import { useLanguage } from "../../providers/LanguageProvider";
+
+type PaymentMode = "CASH" | "UPI" | "OTHERS" | "NONE" | null;
 
 type Props = {
   subTotal: number;
@@ -25,6 +28,8 @@ type Props = {
   totalAmount: number;
   onCheckout: () => Promise<void> | void;
   disabled?: boolean;
+  selectedPaymentMode?: PaymentMode;
+  onPaymentModeSelect?: (mode: "CASH" | "UPI" | "OTHERS") => void;
 };
 
 type DiscountMode = "flat" | "percent";
@@ -32,6 +37,71 @@ type DiscountMode = "flat" | "percent";
 const PRIMARY_BLUE = "#1e3a8a";
 const SUCCESS_GREEN = "#059669";
 const GST_OPTIONS = [0, 5, 12, 18, 28];
+
+/* ---- Payment Mode Chip ---- */
+const PaymentModeChip = ({
+  mode,
+  label,
+  iconName,
+  iconColor,
+  bgColor,
+  selectedMode,
+  onSelect,
+  disabled,
+}: {
+  mode: "CASH" | "UPI" | "OTHERS";
+  label: string;
+  iconName: string;
+  iconColor: string;
+  bgColor: string;
+  selectedMode: PaymentMode;
+  onSelect: (m: "CASH" | "UPI" | "OTHERS") => void;
+  disabled: boolean;
+}) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const isSelected = selectedMode === mode;
+
+  const handlePress = () => {
+    Animated.sequence([
+      Animated.spring(scaleAnim, {
+        toValue: 0.92,
+        useNativeDriver: true,
+        speed: 50,
+        bounciness: 5,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        speed: 20,
+        bounciness: 8,
+      }),
+    ]).start();
+    onSelect(mode);
+  };
+
+  return (
+    <Animated.View style={[{ flex: 1 }, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        style={[styles.pmChip, isSelected && [styles.pmChipSelected, { borderColor: iconColor }]]}
+        onPress={handlePress}
+        disabled={disabled}
+        activeOpacity={0.8}
+      >
+        <View style={[styles.pmIconWrap, { backgroundColor: bgColor }]}>
+          <MaterialCommunityIcons name={iconName as any} size={18} color={iconColor} />
+        </View>
+        <Text style={[styles.pmLabel, isSelected && { color: iconColor, fontWeight: "800" }]}>
+          {label}
+        </Text>
+        {isSelected && (
+          <View style={[styles.pmCheckBadge, { backgroundColor: iconColor + "20" }]}>
+            <Ionicons name="checkmark" size={10} color={iconColor} />
+          </View>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
 
 export default function BillSummary({
   subTotal,
@@ -44,6 +114,8 @@ export default function BillSummary({
   totalAmount,
   onCheckout,
   disabled = false,
+  selectedPaymentMode,
+  onPaymentModeSelect,
 }: Props) {
   const { language } = useLanguage();
   const t = LANGUAGE_TEXT_BILL_SUMMARY[language] || LANGUAGE_TEXT_BILL_SUMMARY.en;
@@ -172,141 +244,180 @@ export default function BillSummary({
 
   return (
     <View style={styles.container}>
-      {/* Mini Badges for Due/Change - Moved up to save vertical space */}
-      {(due > 0 || change > 0) && (
-        <View style={styles.dueChangeRow}>
-          {due > 0 && (
-            <View style={[styles.badge, styles.dueBadge]}>
-              <Text style={[styles.badgeText, { color: "#b91c1c" }]}>
-                {t.due}: {formatRupee(due)}
-              </Text>
-            </View>
-          )}
-          {change > 0 && (
-            <View style={[styles.badge, styles.changeBadge]}>
-              <Text style={[styles.badgeText, { color: SUCCESS_GREEN }]}>
-                {t.change}: {formatRupee(change)}
-              </Text>
-            </View>
-          )}
-        </View>
-      )}
-
-      {/* Inputs Row */}
-      <View style={styles.inputRow}>
-        <View style={styles.miniCard}>
-          <View style={styles.miniHeader}>
-            <Text style={styles.miniLabel}>{t.discount}</Text>
-            <TouchableOpacity onPress={toggleDiscountMode} style={styles.togglePill}>
-              <Text style={styles.toggleText}>
-                {discountMode === "percent" ? "%" : "₹"}
-              </Text>
-            </TouchableOpacity>
+        {/* Mini Badges for Due/Change - Moved up to save vertical space */}
+        {(due > 0 || change > 0) && (
+          <View style={styles.dueChangeRow}>
+            {due > 0 && (
+              <View style={[styles.badge, styles.dueBadge]}>
+                <Text style={[styles.badgeText, { color: "#b91c1c" }]}>
+                  {t.due}: {formatRupee(due)}
+                </Text>
+              </View>
+            )}
+            {change > 0 && (
+              <View style={[styles.badge, styles.changeBadge]}>
+                <Text style={[styles.badgeText, { color: SUCCESS_GREEN }]}>
+                  {t.change}: {formatRupee(change)}
+                </Text>
+              </View>
+            )}
           </View>
-          <TextInput
-            style={styles.compactInput}
-            keyboardType="decimal-pad"
-            placeholder="0"
-            value={internalDiscount}
-            onChangeText={handleDiscountChange}
-            editable={!disabled}
-          />
-        </View>
+        )}
 
-        <View style={[styles.miniCard, { flex: 1.5 }]}>
-          <Text style={styles.miniLabel}>GST %</Text>
-          {isManualGst ? (
-            <View style={styles.manualGstBox}>
-              <TextInput
-                style={styles.manualInput}
-                keyboardType="decimal-pad"
-                value={internalTax}
-                onChangeText={handleManualTaxChange}
-                autoFocus
-                editable={!disabled}
-              />
-              <TouchableOpacity onPress={() => setIsManualGst(false)}>
-                <Ionicons name="close-circle" size={18} color="#94a3b8" />
+        {/* Inputs Row */}
+        <View style={styles.inputRow}>
+          <View style={styles.miniCard}>
+            <View style={styles.miniHeader}>
+              <Text style={styles.miniLabel}>{t.discount}</Text>
+              <TouchableOpacity onPress={toggleDiscountMode} style={styles.togglePill}>
+                <Text style={styles.toggleText}>
+                  {discountMode === "percent" ? "%" : "₹"}
+                </Text>
               </TouchableOpacity>
             </View>
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.gstScroll}
-            >
-              {GST_OPTIONS.map((val) => (
-                <TouchableOpacity
-                  key={val}
-                  style={[
-                    styles.gstChip,
-                    taxPercentage === val && styles.activeGstChip,
-                    disabled && styles.disabledChip,
-                  ]}
-                  onPress={() => !disabled && handleGstSelect(val)}
-                >
-                  <Text
-                    style={[
-                      styles.gstChipText,
-                      taxPercentage === val && styles.activeGstChipText,
-                    ]}
-                  >
-                    {val}%
-                  </Text>
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                style={styles.gstChip}
-                onPress={() => !disabled && setIsManualGst(true)}
-              >
-                <Ionicons name="create-outline" size={14} color="#64748b" />
-              </TouchableOpacity>
-            </ScrollView>
-          )}
-        </View>
-      </View>
-
-      {/* Final Summary Bar */}
-      <View style={styles.darkSummaryBar}>
-        <View style={styles.totalBlock}>
-          <Text style={styles.darkLabel}>{t.total}</Text>
-          <Text style={styles.totalDisplay}>{formatRupee(totalAmount)}</Text>
-        </View>
-
-        <View style={styles.receivedBlock}>
-          <View style={styles.receivedHeader}>
-            <Text style={styles.receivedLabel}>{t.received}</Text>
-            <MaterialCommunityIcons name="cash-check" size={12} color={SUCCESS_GREEN} />
-          </View>
-          <View style={styles.receivedInputWrapper}>
-            <Text style={styles.currencyPrefix}>₹</Text>
             <TextInput
-              style={styles.receivedInput}
+              style={styles.compactInput}
               keyboardType="decimal-pad"
-              value={internalPaid}
-              onChangeText={handlePaidChange}
-              editable={!disabled}
               placeholder="0"
-              placeholderTextColor="rgba(255,255,255,0.3)"
-              returnKeyType="done"
+              value={internalDiscount}
+              onChangeText={handleDiscountChange}
+              editable={!disabled}
             />
           </View>
-        </View>
-      </View>
 
-      {/* Checkout Button */}
-      <TouchableOpacity
-        style={[styles.checkoutBtn, disabled && styles.checkoutBtnDisabled]}
-        onPress={onCheckout}
-        activeOpacity={0.8}
-        disabled={disabled}
-      >
-        <Text style={styles.checkoutText}>
-          {disabled ? t.cartEmpty : t.completeBill}
-        </Text>
-        {!disabled && <Ionicons name="arrow-forward" size={18} color="#fff" />}
-      </TouchableOpacity>
-    </View>
+          <View style={[styles.miniCard, { flex: 1.5 }]}>
+            <Text style={styles.miniLabel}>GST %</Text>
+            {isManualGst ? (
+              <View style={styles.manualGstBox}>
+                <TextInput
+                  style={styles.manualInput}
+                  keyboardType="decimal-pad"
+                  value={internalTax}
+                  onChangeText={handleManualTaxChange}
+                  autoFocus
+                  editable={!disabled}
+                />
+                <TouchableOpacity onPress={() => setIsManualGst(false)}>
+                  <Ionicons name="close-circle" size={18} color="#94a3b8" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.gstScroll}
+              >
+                {GST_OPTIONS.map((val) => (
+                  <TouchableOpacity
+                    key={val}
+                    style={[
+                      styles.gstChip,
+                      taxPercentage === val && styles.activeGstChip,
+                      disabled && styles.disabledChip,
+                    ]}
+                    onPress={() => !disabled && handleGstSelect(val)}
+                  >
+                    <Text
+                      style={[
+                        styles.gstChipText,
+                        taxPercentage === val && styles.activeGstChipText,
+                      ]}
+                    >
+                      {val}%
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity
+                  style={styles.gstChip}
+                  onPress={() => !disabled && setIsManualGst(true)}
+                >
+                  <Ionicons name="create-outline" size={14} color="#64748b" />
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+
+        {/* Final Summary Bar */}
+        <View style={styles.darkSummaryBar}>
+          <View style={styles.totalBlock}>
+            <Text style={styles.darkLabel}>{t.total}</Text>
+            <Text style={styles.totalDisplay}>{formatRupee(totalAmount)}</Text>
+          </View>
+
+          <View style={styles.receivedBlock}>
+            <View style={styles.receivedHeader}>
+              <Text style={styles.receivedLabel}>{t.received}</Text>
+              <MaterialCommunityIcons name="cash-check" size={12} color={SUCCESS_GREEN} />
+            </View>
+            <View style={styles.receivedInputWrapper}>
+              <Text style={styles.currencyPrefix}>₹</Text>
+              <TextInput
+                style={styles.receivedInput}
+                keyboardType="decimal-pad"
+                value={internalPaid}
+                onChangeText={handlePaidChange}
+                editable={!disabled}
+                placeholder="0"
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                returnKeyType="done"
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Payment Mode Selection */}
+        {onPaymentModeSelect && (
+          <View style={styles.pmSection}>
+            <Text style={styles.pmSectionLabel}>Payment Mode</Text>
+            <View style={styles.pmRow}>
+              <PaymentModeChip
+                mode="CASH"
+                label="Cash"
+                iconName="cash"
+                iconColor="#16a34a"
+                bgColor="#f0fdf4"
+                selectedMode={selectedPaymentMode ?? null}
+                onSelect={onPaymentModeSelect}
+                disabled={disabled}
+              />
+              <PaymentModeChip
+                mode="UPI"
+                label="UPI"
+                iconName="qrcode-scan"
+                iconColor="#2563eb"
+                bgColor="#eff6ff"
+                selectedMode={selectedPaymentMode ?? null}
+                onSelect={onPaymentModeSelect}
+                disabled={disabled}
+              />
+              <PaymentModeChip
+                mode="OTHERS"
+                label="Others"
+                iconName="wallet"
+                iconColor="#d97706"
+                bgColor="#fffbeb"
+                selectedMode={selectedPaymentMode ?? null}
+                onSelect={onPaymentModeSelect}
+                disabled={disabled}
+              />
+            </View>
+          </View>
+        )}
+
+        {/* Checkout Button */}
+        <TouchableOpacity
+          style={[styles.checkoutBtn, disabled && styles.checkoutBtnDisabled]}
+          onPress={onCheckout}
+          activeOpacity={0.8}
+          disabled={disabled}
+        >
+          <Text style={styles.checkoutText}>
+            {disabled ? t.cartEmpty : t.completeBill}
+          </Text>
+          {!disabled && <Ionicons name="arrow-forward" size={18} color="#fff" />}
+        </TouchableOpacity>
+      </View>
   );
 }
 
@@ -316,7 +427,6 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     paddingBottom: Platform.OS === "ios" ? 20 : 10,
     gap: 8,
-    maxHeight: 280,
   },
   inputRow: {
     flexDirection: "row",
@@ -493,5 +603,65 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 16,
     fontWeight: "800",
+  },
+
+  /* Payment Mode Selection */
+  pmSection: {
+    marginHorizontal: 4,
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  pmSectionLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#64748b",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  pmRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  pmChip: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "#e2e8f0",
+    position: "relative",
+    gap: 5,
+  },
+  pmChipSelected: {
+    backgroundColor: "#fafcff",
+    shadowColor: "#2563eb",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  pmIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pmLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#64748b",
+  },
+  pmCheckBadge: {
+    position: "absolute",
+    top: 5,
+    right: 5,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

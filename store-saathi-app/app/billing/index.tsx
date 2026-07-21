@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
 
 /* COMPONENTS */
@@ -14,20 +14,21 @@ import AddCustomerModal from "../../components/ledger/AddCustomerModal";
 import AddProductModal from "../../components/inventory/AddProductModal";
 import ProductSearchOverlay from "../../components/billing/ProductSearchOverlay";
 import BillingHeader from "../../components/billing/BillingHeader";
-import BillingTabBar, { BillTab } from "../../components/billing/BillingTabBar";
+import BillingTabBar from "../../components/billing/BillingTabBar";
+import { BillTab } from "../../providers/BillingTabsProvider";
 import CustomerSelector from "../../components/billing/CustomerSelector";
 import ProductsGrid from "../../components/billing/ProductsGrid";
 import BarcodeScannerModal from "../../components/billing/BarcodeScannerModal";
-import BillConfirmationModal from "../../components/billing/BillConfirmationModal";
 import SearchOverlay from "../../components/billing/SearchOverlay";
 
 /* HOOKS & API */
 import { useBilling } from "../../hooks/useBilling";
+import { useBillingTabs } from "../../providers/BillingTabsProvider";
 import { getProducts } from "../../constants/inventory.api";
 import { getLedgerCustomers } from "../../constants/ledger.api";
 import { getBillById } from "../../constants/bills.api";
 import { printBillAuto } from "../../utils/thermalPrinter";
-import { isThermalPrinterSaved } from "../../utils/printerManager";
+import { isThermalPrinterSaved, reconnectSavedPrinter } from "../../utils/printerManager";
 
 /* LANGUAGE */
 import { LANGUAGE_TEXT_BILLING } from "../../constants/language_billing";
@@ -36,20 +37,20 @@ import { useLanguage } from "../../providers/LanguageProvider";
 
 export default function BillingPage() {
   const { language } = useLanguage();
+  const insets = useSafeAreaInsets();
   const t = LANGUAGE_TEXT_BILLING[language] || LANGUAGE_TEXT_BILLING.en;
   const tv = LANGUAGE_TEXT_VIEW_BILL[language] || LANGUAGE_TEXT_VIEW_BILL.en;
   const isFocused = useIsFocused();
+  const params = useLocalSearchParams<{ selectedProducts?: string }>();
+  const hasProcessedParams = useRef(false);
 
-  /* ---------------- PARALLEL BILLING STATE ---------------- */
-  const [tabs, setTabs] = useState<BillTab[]>([
-    { id: "tab-1", items: [], customerId: "", customerName: "", displayName: "Bill 1" },
-  ]);
-  const [activeTabId, setActiveTabId] = useState("tab-1");
+  /* ---------------- PARALLEL BILLING STATE (from context — survives navigation) ---------------- */
+  const { tabs, setTabs, activeTabId, setActiveTabId, addNewTab, closeTab: contextCloseTab, updateTabItems } = useBillingTabs();
   const [lastCreatedBillId, setLastCreatedBillId] = useState<string | null>(null);
 
   // Combined Bill Confirmation & Payment Modal State
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
-  const [selectedPaymentMode, setSelectedPaymentMode] = useState<"CASH" | "UPI" | "OTHERS" | "NONE" | null>(null);
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState<"CASH" | "UPI" | "OTHERS" | "NONE" | null>("CASH");
 
   // Snapshot states to show in the Mini-Bill Modal after reset
   const [checkoutSnapshot, setCheckoutSnapshot] = useState<{ items: any[], subTotal: number, discount: number, tax: number, total: number }>({
@@ -86,20 +87,27 @@ export default function BillingPage() {
     addItemByProduct
   } = useBilling();
 
+  const hasMountedRef = useRef(false);
+  const activeTabIdRef = useRef(activeTabId);
+
+  // Load items from tab when activeTabId changes (or on mount)
   useEffect(() => {
+    activeTabIdRef.current = activeTabId;
     setItems(activeTab.items ?? []);
     setDiscount(0);
     setTaxPercentage(0);
     setPaidAmount(0);
   }, [activeTabId, setItems, setDiscount, setTaxPercentage, setPaidAmount]);
 
+  // Sync items back to the active tab when items change
+  // Skip on first mount to avoid overwriting saved tab items with empty useBilling state
   useEffect(() => {
-    setTabs((prev) =>
-      prev.map((tab) =>
-        tab.id === activeTabId ? { ...tab, items: [...items] } : tab
-      )
-    );
-  }, [items, activeTabId]);
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
+    updateTabItems(activeTabIdRef.current, items);
+  }, [items, updateTabItems]);
 
   /* ---------------- CUSTOMER & PRODUCT DATA ---------------- */
   const [customers, setCustomers] = useState<any[]>([]);
@@ -128,49 +136,67 @@ export default function BillingPage() {
     fetchInitialData();
   }, [fetchInitialData]);
 
-  /* ---------------- TAB MANAGEMENT ---------------- */
-  const addNewTab = () => {
-    const newId = `tab-${Date.now()}`;
-    const tabNumber = tabs.length + 1;
-    setTabs((prev) => [
-      ...prev,
-      { 
-        id: newId, 
-        items: [], 
-        customerId: "", 
-        customerName: "",
-        displayName: `Bill ${tabNumber}`
-      },
-    ]);
-    setActiveTabId(newId);
-  };
-
-  const closeTab = (id: string) => {
-    if (tabs.length === 1) {
-      const newId = `tab-${Date.now()}`;
-      setTabs([{ 
-        id: newId, 
-        items: [], 
-        customerId: "", 
-        customerName: "",
-        displayName: "Bill 1" 
-      }]);
-      setActiveTabId(newId);
-      setItems([]);
-      return;
+  /* Reset param-processing flag when screen loses focus (navigating to select-products) */
+  useEffect(() => {
+    if (!isFocused) {
+      hasProcessedParams.current = false;
     }
+  }, [isFocused]);
 
-    const filtered = tabs.filter((t) => t.id !== id);
-    setTabs(filtered);
-    if (activeTabId === id) {
-      const nextTab = filtered[0] ?? { 
-        id: "tab-1", 
-        items: [], 
-        customerId: "", 
-        customerName: "",
-        displayName: "Bill 1" 
-      };
-      setActiveTabId(nextTab.id);
+  /* ---------------- AUTO-ADD PRODUCTS FROM ROUTE PARAMS ---------------- */
+  useEffect(() => {
+    if (hasProcessedParams.current) return;
+    if (!params.selectedProducts) return;
+
+    try {
+      const selections: { productId: string; variantId: string | null; quantity: number; name?: string; price?: number; unit?: string }[] =
+        JSON.parse(params.selectedProducts);
+
+      if (!Array.isArray(selections) || selections.length === 0) return;
+
+      hasProcessedParams.current = true;
+
+      // If selections include full details (name, price), use them directly for instant rendering
+      const hasFullDetails = selections.every((s) => s.name !== undefined && s.price !== undefined);
+
+      if (hasFullDetails) {
+        const newItems = selections.map((s) => ({
+          productId: s.productId,
+          variantId: s.variantId || null,
+          name: s.name!,
+          price: s.price!,
+          unit: s.unit || "unit",
+          quantity: s.quantity,
+        }));
+        // Replace items for active tab (select-products already includes existing items)
+        setItems(newItems);
+      } else {
+        // Fallback: wait for products to load and look up details
+        if (products.length === 0) {
+          hasProcessedParams.current = false;
+          return;
+        }
+        selections.forEach(({ productId, variantId, quantity }) => {
+          const product = products.find((p) => p._id === productId);
+          if (!product) return;
+
+          const variant = variantId
+            ? product.variants?.find((v: any) => (v._id || v.id) === variantId)
+            : null;
+
+          for (let i = 0; i < (quantity || 1); i++) {
+            addItemByProduct(product, variant);
+          }
+        });
+      }
+    } catch {}
+  }, [params.selectedProducts, products, addItemByProduct, setItems]);
+
+  /* ---------------- TAB MANAGEMENT ---------------- */
+  const closeTab = (id: string) => {
+    contextCloseTab(id);
+    if (tabs.length === 1) {
+      setItems([]);
     }
   };
 
@@ -237,14 +263,15 @@ export default function BillingPage() {
     return map;
   }, [products]);
 
+  const productCategories = useMemo(() => {
+    return Array.from(new Set(products.map((p: any) => p.category).filter(Boolean))) as string[];
+  }, [products]);
+
   const [isPrinterConnected, setIsPrinterConnected] = useState(false);
   const [checkingPrinter, setCheckingPrinter] = useState(false);
   
   // New state for barcode scanner modal
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
-  
-  // New state for bill confirmation modal
-  const [showBillConfirmation, setShowBillConfirmation] = useState(false);
 
   const checkPrinterStatus = useCallback(async () => {
     setCheckingPrinter(true);
@@ -262,7 +289,8 @@ export default function BillingPage() {
     }
   }, []);
 
-  const onConfirmPayment = async () => {
+  const handleCheckout = async () => {
+    if (!items.length) return;
     if (!selectedPaymentMode) {
       Alert.alert("Error", "Please select a payment mode");
       return;
@@ -279,7 +307,6 @@ export default function BillingPage() {
         total: totalAmount
       });
       
-      // We pass the mode to the checkout hook/api
       const res = await checkout(activeTab.customerId || null, selectedPaymentMode);
       
       if (res?.bill?._id) {
@@ -290,26 +317,30 @@ export default function BillingPage() {
             tab.id === activeTabId ? { ...tab, items: [] } : tab
           )
         );
-        setShowBillConfirmation(false);
         setSelectedPaymentMode("CASH");
         await checkPrinterStatus();
+        
+        // Auto-print only if printer is saved and can reconnect
+        const hasPrinter = await isThermalPrinterSaved();
+        if (hasPrinter) {
+          try {
+            const connected = await reconnectSavedPrinter();
+            if (connected) {
+              const billRes = await getBillById(res.bill._id);
+              if (billRes.data?.bill) {
+                await printBillAuto(billRes.data.bill);
+              }
+            }
+          } catch {
+            // Silently fail print — bill is already created successfully
+          }
+        }
       }
     } catch (err: any) {
       Alert.alert("Error", err.message || "Checkout failed. Please check network.");
     } finally {
       setIsProcessingCheckout(false);
     }
-  };
-
-  const handleCheckout = () => {
-    if (!items.length) return;
-    setShowBillConfirmation(true);
-    setSelectedPaymentMode("CASH");
-  };
-  
-  const handleCloseBillConfirmation = () => {
-    setShowBillConfirmation(false);
-    setSelectedPaymentMode("CASH");
   };
 
   const handlePrintPress = () => {
@@ -391,47 +422,60 @@ export default function BillingPage() {
       <ProductsGrid
         products={products}
         onProductPress={addProductToBill}
-        onSearchPress={() => setProductOpen(true)}
+        onSearchPress={() => {
+          // Build existing selections from current bill items to show on select-products page
+          const existingSelections = items.map((item) => ({
+            productId: item.productId,
+            variantId: item.variantId || null,
+            quantity: item.quantity,
+          }));
+          router.push({
+            pathname: "/billing/select-products",
+            params: { existingItems: JSON.stringify(existingSelections) },
+          });
+        }}
         onAddProductPress={() => setAddProductModalVisible(true)}
       />
 
       {/* BODY - SELECTED ITEMS */}
-      <View style={styles.body}>
-        <View style={styles.selectedItemsHeader}>
-          <Text style={styles.selectedItemsTitle}>
-             Seleted Items({items.length})
-          </Text>
-        </View>
-
-        <View style={{ flex: 1 }}>
-          {items.length === 0 ? (
-            <View style={styles.empty}>
-              <View style={styles.emptyIconBg}>
-                <Ionicons name="cart-outline" size={40} color="#cbd5e1" />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 50}
+      >
+        <View style={styles.body}>
+          <View style={{ flex: 1 }}>
+            {items.length === 0 ? (
+              <View style={styles.empty}>
+                <View style={styles.emptyIconBg}>
+                  <Ionicons name="cart-outline" size={40} color="#cbd5e1" />
+                </View>
+                <Text style={styles.emptyText}>No items selected</Text>
+                <Text style={styles.emptySubText}>Tap on products above to add them</Text>
               </View>
-              <Text style={styles.emptyText}>No items selected</Text>
-              <Text style={styles.emptySubText}>Tap on products above to add them</Text>
-            </View>
-          ) : (
-            <BillItemsList items={items} setItems={setItems} />
-          )}
-        </View>
+            ) : (
+              <BillItemsList items={items} setItems={setItems} />
+            )}
+          </View>
 
-        <View style={styles.summary}>
-          <BillSummary
-            subTotal={subTotal}
-            discount={discount}
-            setDiscount={setDiscount}
-            taxPercentage={taxPercentage}
-            setTaxPercentage={setTaxPercentage}
-            paidAmount={paidAmount}
-            setPaidAmount={setPaidAmount}
-            totalAmount={totalAmount}
-            onCheckout={handleCheckout}
-            disabled={!items.length}
-          />
+          <View style={[styles.summary, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+            <BillSummary
+              subTotal={subTotal}
+              discount={discount}
+              setDiscount={setDiscount}
+              taxPercentage={taxPercentage}
+              setTaxPercentage={setTaxPercentage}
+              paidAmount={paidAmount}
+              setPaidAmount={setPaidAmount}
+              totalAmount={totalAmount}
+              onCheckout={handleCheckout}
+              disabled={!items.length}
+              selectedPaymentMode={selectedPaymentMode}
+              onPaymentModeSelect={setSelectedPaymentMode}
+            />
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
 
       {/* BARCODE SCANNER MODAL */}
       <BarcodeScannerModal
@@ -439,22 +483,6 @@ export default function BillingPage() {
         isFocused={isFocused}
         onClose={() => setShowBarcodeScanner(false)}
         onScan={handleScan}
-      />
-
-      {/* COMBINED BILL CONFIRMATION & PAYMENT MODAL */}
-      <BillConfirmationModal
-        visible={showBillConfirmation}
-        items={items}
-        customerName={selectedCustomerName}
-        subTotal={subTotal}
-        discount={discount}
-        taxPercentage={taxPercentage}
-        totalAmount={totalAmount}
-        selectedPaymentMode={selectedPaymentMode}
-        isProcessing={isProcessingCheckout}
-        onClose={handleCloseBillConfirmation}
-        onPaymentModeSelect={setSelectedPaymentMode}
-        onConfirm={onConfirmPayment}
       />
 
       {/* ENHANCED SUCCESS SHEET (Mini-Bill) */}
@@ -476,8 +504,6 @@ export default function BillingPage() {
           print: tv.print,
           setupPrint: "Setup & Print",
           nextCustomer: "Next Customer",
-          itemsBought: "Mini Digital Receipt",
-          total: "Grand Total"
         }}
       />
 
@@ -571,6 +597,7 @@ export default function BillingPage() {
       <AddProductModal
         visible={addProductModalVisible}
         onClose={() => setAddProductModalVisible(false)}
+        categories={productCategories}
         onAdded={() => {
           getProducts().then((res) => {
             const updatedProducts = res.data.products || [];
@@ -707,9 +734,9 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
     backgroundColor: "#fff",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    marginTop: -20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    marginTop: -10,
   },
 
   customerBox: {
@@ -846,18 +873,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  selectedItemsHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  selectedItemsTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0f172a',
-    textAlign: 'center',
-  },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 20 },
   emptyIconBg: {
     width: 70,

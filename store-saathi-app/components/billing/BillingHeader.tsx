@@ -12,7 +12,7 @@ interface BillingHeaderProps {
 export default function BillingHeader({ title, subtitle, onScanPress }: BillingHeaderProps) {
   return (
     <View style={styles.header}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+      <TouchableOpacity onPress={() => router.replace("/dashboard")} style={styles.backBtn}>
         <Ionicons name="chevron-back" size={24} color="#1e293b" />
       </TouchableOpacity>
       <View>

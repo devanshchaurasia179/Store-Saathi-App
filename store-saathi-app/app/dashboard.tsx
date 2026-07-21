@@ -235,7 +235,7 @@ export default function DashboardPage() {
           {/* CREATE BILL BUTTON */}
           <TouchableOpacity
             style={styles.createBillButton}
-            onPress={() => router.push("/billing")}
+            onPress={() => router.push("/billing/select-products")}
             activeOpacity={0.9}
           >
             <View style={styles.buttonInner}>

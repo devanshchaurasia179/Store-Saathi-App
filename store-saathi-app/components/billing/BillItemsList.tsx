@@ -271,7 +271,7 @@ export default function BillItemsList({ items, setItems }) {
 }
 
 const styles = StyleSheet.create({
-  list: { padding: 12, paddingBottom: 100 },
+  list: { padding: 8, paddingBottom: 80 },
   card: {
     backgroundColor: "#fff",
     borderRadius: 12,

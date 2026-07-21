@@ -1,6 +1,5 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
-  Modal,
   View,
   Text,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
   Platform,
   ScrollView,
   TouchableWithoutFeedback,
+  BackHandler,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,82 +24,93 @@ type Props = {
   visible: boolean;
   onClose: () => void;
   onAdded?: () => void;
+  categories?: string[];
 };
 
 export default function AddProductModal({
   visible,
   onClose,
   onAdded,
+  categories,
 }: Props) {
   const insets = useSafeAreaInsets();
   const { language } = useLanguage();
   const t = LANGUAGE_TEXT_ADD_PRODUCT_MODAL[language] || LANGUAGE_TEXT_ADD_PRODUCT_MODAL.en;
 
+  // Handle Android back button
+  useEffect(() => {
+    if (!visible) return;
+    const handler = BackHandler.addEventListener("hardwareBackPress", () => {
+      onClose();
+      return true;
+    });
+    return () => handler.remove();
+  }, [visible, onClose]);
+
+  // Don't render anything when not visible — instant show, no Modal overhead
+  if (!visible) return null;
+
   return (
-    <Modal
-      visible={visible}
-      animationType="fade" // Fade is smoother for top-down drops
-      transparent
-      onRequestClose={onClose}
-    >
-      <View style={styles.overlay}>
-        {/* Backdrop: Clicking closes modal */}
-        <TouchableWithoutFeedback onPress={onClose}>
-          <View style={StyleSheet.absoluteFill} />
-        </TouchableWithoutFeedback>
+    <View style={styles.overlay} pointerEvents="auto">
+      {/* Backdrop */}
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={StyleSheet.absoluteFill} />
+      </TouchableWithoutFeedback>
 
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.keyboardView}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardView}
+      >
+        <View
+          style={[
+            styles.sheet,
+            { paddingTop: insets.top + 10 }
+          ]}
         >
-          <View
-            style={[
-              styles.sheet,
-              { paddingTop: insets.top + 10 }
-            ]}
-          >
-            {/* HEADER */}
-            <View style={styles.header}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.title}>{t.title}</Text>
-                <Text style={styles.subtitle}>{t.subtitle}</Text>
-              </View>
-              <TouchableOpacity 
-                onPress={onClose} 
-                style={styles.closeCircle}
-              >
-                <Ionicons name="close" size={22} color="#1e293b" />
-              </TouchableOpacity>
+          {/* HEADER */}
+          <View style={styles.header}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.title}>{t.title}</Text>
+              <Text style={styles.subtitle}>{t.subtitle}</Text>
             </View>
-
-            {/* FORM SECTION */}
-            <ScrollView 
-               showsVerticalScrollIndicator={false}
-               contentContainerStyle={styles.formContent}
-               keyboardShouldPersistTaps="handled"
+            <TouchableOpacity 
+              onPress={onClose} 
+              style={styles.closeCircle}
             >
-              <ProductForm
-                onSuccess={() => {
-                  onAdded?.();
-                  onClose();
-                }}
-              />
-            </ScrollView>
-
-            {/* BOTTOM HANDLE (Visual cue for Top-to-Bottom sheets) */}
-            <View style={styles.dragHandle} />
+              <Ionicons name="close" size={22} color="#1e293b" />
+            </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
-      </View>
-    </Modal>
+
+          {/* FORM SECTION */}
+          <ScrollView 
+             showsVerticalScrollIndicator={false}
+             contentContainerStyle={styles.formContent}
+             keyboardShouldPersistTaps="handled"
+          >
+            <ProductForm
+              onSuccess={() => {
+                onAdded?.();
+                onClose();
+              }}
+              categories={categories}
+            />
+          </ScrollView>
+
+          {/* BOTTOM HANDLE */}
+          <View style={styles.dragHandle} />
+        </View>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(15, 23, 42, 0.6)",
-    justifyContent: "flex-start", // Pins sheet to the top
+    justifyContent: "flex-start",
+    zIndex: 9999,
+    elevation: 9999,
   },
   keyboardView: {
     width: "100%",

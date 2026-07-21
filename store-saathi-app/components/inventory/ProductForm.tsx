@@ -63,9 +63,10 @@ const DEFAULT_FORM = {
 type Props = {
   onSuccess?: () => void;
   initialData?: any;
+  categories?: string[];
 };
 
-export default function ProductForm({ onSuccess, initialData }: Props) {
+export default function ProductForm({ onSuccess, initialData, categories }: Props) {
   const { language } = useLanguage();
   const t = LANGUAGE_TEXT_PRODUCT_FORM[language] || LANGUAGE_TEXT_PRODUCT_FORM.en;
 
@@ -86,12 +87,16 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
   } | null>(null);
 
   useEffect(() => {
-    // 1. Fetch Categories from DB
-    getProducts().then((res) => {
-      const prods = res.data.products || [];
-      const cats: string[] = Array.from(new Set(prods.map((p: any) => p.category).filter(Boolean)));
-      setDbCategories(cats);
-    }).catch(() => {});
+    // 1. Fetch Categories from DB only if not provided via props
+    if (categories && categories.length > 0) {
+      setDbCategories(categories);
+    } else {
+      getProducts().then((res) => {
+        const prods = res.data.products || [];
+        const cats: string[] = Array.from(new Set(prods.map((p: any) => p.category).filter(Boolean)));
+        setDbCategories(cats);
+      }).catch(() => {});
+    }
 
     // 2. Handle Initial Data
     if (!initialData) {
@@ -113,7 +118,7 @@ export default function ProductForm({ onSuccess, initialData }: Props) {
       variants: initialData.variants || [],
     });
     setCategorySearch(initialData.category || "");
-  }, [initialData]);
+  }, [initialData, categories]);
 
   const update = (key: string, value: any) => setForm((f: any) => ({ ...f, [key]: value }));
 
