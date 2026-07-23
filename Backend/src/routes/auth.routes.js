@@ -13,7 +13,6 @@ import {
   sendAnalyticsPinResetOtp,
   resetAnalyticsPinWithOtp,
   logout,
-  firebaseLogin,
 } from "../controllers/auth.controller.js";
 
 import { protectRoute } from "../middleware/auth.middleware.js";
@@ -21,7 +20,6 @@ import { protectRoute } from "../middleware/auth.middleware.js";
 const router = express.Router();
 
 /* ================= AUTH ================= */
-router.post("/firebase-login", firebaseLogin);   // 🔥 Firebase Phone Auth (primary)
 router.post("/send-otp", sendOtp);               // legacy email-based OTP
 router.post("/verify-otp", verifyOtp);
 
