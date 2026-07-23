@@ -12,6 +12,11 @@ import billRoutes from "./routes/bill.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
 import printRoutes from "./routes/print.routes.js";
+import publicRoutes from "./routes/public.routes.js";
+import customerAuthRoutes from "./routes/customerAuth.routes.js";
+import orderRoutes from "./routes/order.routes.js";
+import shopOrderRoutes from "./routes/shopOrder.routes.js";
+import onlineProfileRoutes from "./routes/onlineProfile.routes.js";
 import { initBillCleanupScheduler } from "./config/billCleanupScheduler.js";
 
 dotenv.config();
@@ -44,6 +49,11 @@ app.use("/api/dashboard", dashboardRoutes);
 // ...
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/print", printRoutes);
+app.use("/api/public", publicRoutes);
+app.use("/api/customer-auth", customerAuthRoutes);
+app.use("/api/orders", orderRoutes);
+app.use("/api/shop/orders", shopOrderRoutes);
+app.use("/api/online-profile", onlineProfileRoutes);
 
 
 
