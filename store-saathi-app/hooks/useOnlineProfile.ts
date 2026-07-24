@@ -8,6 +8,7 @@ import {
 
 export type OnlineProfileData = {
   _id?: string;
+  shop: string;
   storeName: string;
   ownerName: string;
   storeDescription: string;
@@ -39,6 +40,7 @@ export type OnlineProfileData = {
   isOnlineOrderingEnabled: boolean;
   isDeliveryAvailable: boolean;
   isPickupAvailable: boolean;
+  isDineInAvailable: boolean;
   acceptedPaymentMethods: string[];
   upiId: string;
   businessHours: {

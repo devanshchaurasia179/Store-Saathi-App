@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -15,9 +15,18 @@ import {
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import QRCode from "react-native-qrcode-svg";
+import { File, Paths } from "expo-file-system";
+import * as Sharing from "expo-sharing";
 
 import { useOnlineProfile } from "../../hooks/useOnlineProfile";
 import PageLoader from "../../components/PageLoader";
+
+/* ================= PAYMENT METHODS OPTIONS ================= */
+const PAYMENT_METHODS = [
+  { value: "COD", label: "Cash on Delivery", icon: "cash-outline" },
+  { value: "UPI", label: "UPI", icon: "wallet-outline" },
+];
 
 export default function OnlineProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -34,6 +43,7 @@ export default function OnlineProfileScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [editing, setEditing] = useState(false);
+  const qrRef = useRef<any>(null);
 
   /* ================= EDIT FORM STATE ================= */
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -58,6 +68,38 @@ export default function OnlineProfileScreen() {
     }
   };
 
+  const shopUrl = profile?.shop
+    ? `https://storesaarthicustomer.vercel.app/shop/${profile.shop}`
+    : "";
+
+  const handleDownloadQR = async () => {
+    if (!qrRef.current) return;
+
+    qrRef.current.toDataURL(async (dataURL: string) => {
+      try {
+        const file = new File(Paths.cache, "store-qr-code.png");
+        const binaryString = atob(dataURL);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        file.write(bytes);
+
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(file.uri, {
+            mimeType: "image/png",
+            dialogTitle: "Save QR Code",
+          });
+        } else {
+          Alert.alert("Saved", `QR code saved to:\n${file.uri}`);
+        }
+      } catch (err) {
+        console.error("QR download error:", err);
+        Alert.alert("Error", "Failed to download QR code");
+      }
+    });
+  };
+
   const startEditing = () => {
     setFormData({
       storeName: profile?.storeName || defaults?.storeName || "",
@@ -78,6 +120,10 @@ export default function OnlineProfileScreen() {
       pincode: profile?.address?.pincode || defaults?.address?.pincode || "",
       openTime: profile?.businessHours?.openTime || "09:00",
       closeTime: profile?.businessHours?.closeTime || "21:00",
+      acceptedPaymentMethods: profile?.acceptedPaymentMethods || ["COD"],
+      isDeliveryAvailable: profile?.isDeliveryAvailable ?? true,
+      isPickupAvailable: profile?.isPickupAvailable ?? false,
+      isDineInAvailable: profile?.isDineInAvailable ?? false,
     });
     setEditing(true);
   };
@@ -89,6 +135,10 @@ export default function OnlineProfileScreen() {
     }
     if (!formData.mobileNumber?.trim()) {
       Alert.alert("Required", "Mobile number is required");
+      return;
+    }
+    if (!formData.acceptedPaymentMethods?.length) {
+      Alert.alert("Required", "Please select at least one payment method");
       return;
     }
 
@@ -115,6 +165,10 @@ export default function OnlineProfileScreen() {
         openTime: formData.openTime,
         closeTime: formData.closeTime,
       },
+      acceptedPaymentMethods: formData.acceptedPaymentMethods,
+      isDeliveryAvailable: formData.isDeliveryAvailable,
+      isPickupAvailable: formData.isPickupAvailable,
+      isDineInAvailable: formData.isDineInAvailable,
     };
 
     const result = await saveProfile(payload);
@@ -415,6 +469,102 @@ export default function OnlineProfileScreen() {
               />
             </View>
 
+            {/* ORDER MODES */}
+            <Text style={styles.sectionTitle}>Order Modes</Text>
+            <View style={styles.card}>
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleInfo}>
+                  <Ionicons name="bicycle-outline" size={20} color="#1e3a8a" />
+                  <Text style={styles.toggleLabel}>Delivery</Text>
+                </View>
+                <Switch
+                  value={formData.isDeliveryAvailable}
+                  onValueChange={(v) =>
+                    setFormData({ ...formData, isDeliveryAvailable: v })
+                  }
+                  trackColor={{ false: "#e2e8f0", true: "#bbf7d0" }}
+                  thumbColor={formData.isDeliveryAvailable ? "#16a34a" : "#94a3b8"}
+                />
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleInfo}>
+                  <Ionicons name="walk-outline" size={20} color="#1e3a8a" />
+                  <Text style={styles.toggleLabel}>Pickup</Text>
+                </View>
+                <Switch
+                  value={formData.isPickupAvailable}
+                  onValueChange={(v) =>
+                    setFormData({ ...formData, isPickupAvailable: v })
+                  }
+                  trackColor={{ false: "#e2e8f0", true: "#bbf7d0" }}
+                  thumbColor={formData.isPickupAvailable ? "#16a34a" : "#94a3b8"}
+                />
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleInfo}>
+                  <Ionicons name="restaurant-outline" size={20} color="#1e3a8a" />
+                  <Text style={styles.toggleLabel}>Dine-In</Text>
+                </View>
+                <Switch
+                  value={formData.isDineInAvailable}
+                  onValueChange={(v) =>
+                    setFormData({ ...formData, isDineInAvailable: v })
+                  }
+                  trackColor={{ false: "#e2e8f0", true: "#bbf7d0" }}
+                  thumbColor={formData.isDineInAvailable ? "#16a34a" : "#94a3b8"}
+                />
+              </View>
+            </View>
+
+            {/* PAYMENT METHODS */}
+            <Text style={styles.sectionTitle}>Accepted Payment Methods</Text>
+            <View style={styles.card}>
+              <Text style={styles.paymentHint}>
+                Toggle which payment methods your customers can use
+              </Text>
+              <View style={styles.paymentMethodsContainer}>
+                {PAYMENT_METHODS.map((method) => {
+                  const isSelected = (formData.acceptedPaymentMethods || []).includes(method.value);
+                  return (
+                    <TouchableOpacity
+                      key={method.value}
+                      style={[
+                        styles.paymentChip,
+                        isSelected && styles.paymentChipActive,
+                      ]}
+                      onPress={() => {
+                        const current = formData.acceptedPaymentMethods || [];
+                        const updated = isSelected
+                          ? current.filter((m: string) => m !== method.value)
+                          : [...current, method.value];
+                        setFormData({ ...formData, acceptedPaymentMethods: updated });
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name={method.icon as any}
+                        size={18}
+                        color={isSelected ? "#fff" : "#475569"}
+                      />
+                      <Text
+                        style={[
+                          styles.paymentChipText,
+                          isSelected && styles.paymentChipTextActive,
+                        ]}
+                      >
+                        {method.label}
+                      </Text>
+                      {isSelected && (
+                        <Ionicons name="checkmark-circle" size={16} color="#fff" />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
             {/* SAVE BUTTON */}
             <TouchableOpacity
               style={[styles.saveButton, saving && { opacity: 0.6 }]}
@@ -437,6 +587,33 @@ export default function OnlineProfileScreen() {
         {/* VIEW MODE */}
         {profileExists && !editing && (
           <>
+            {/* QR CODE SECTION */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Your Store QR Code</Text>
+              <View style={[styles.card, styles.qrCard]}>
+                <View style={styles.qrContainer}>
+                  <QRCode
+                    value={shopUrl}
+                    size={200}
+                    backgroundColor="#fff"
+                    color="#1e293b"
+                    getRef={(ref: any) => (qrRef.current = ref)}
+                  />
+                </View>
+                <Text style={styles.qrUrl} numberOfLines={2}>
+                  {shopUrl}
+                </Text>
+                <TouchableOpacity
+                  style={styles.downloadQrButton}
+                  onPress={handleDownloadQR}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="download-outline" size={20} color="#fff" />
+                  <Text style={styles.downloadQrText}>Download QR Code</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
             {/* STORE INFO SECTION */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Store Information</Text>
@@ -529,12 +706,6 @@ export default function OnlineProfileScreen() {
               <Text style={styles.sectionTitle}>Delivery Settings</Text>
               <View style={styles.card}>
                 <InfoRow
-                  icon="bicycle-outline"
-                  label="Delivery Available"
-                  value={profile.isDeliveryAvailable ? "Yes" : "No"}
-                />
-                <View style={styles.divider} />
-                <InfoRow
                   icon="cash-outline"
                   label="Delivery Charges"
                   value={`₹${profile.deliveryCharges}`}
@@ -590,9 +761,21 @@ export default function OnlineProfileScreen() {
                 />
                 <View style={styles.divider} />
                 <InfoRow
+                  icon="bicycle-outline"
+                  label="Delivery Available"
+                  value={profile.isDeliveryAvailable ? "Yes" : "No"}
+                />
+                <View style={styles.divider} />
+                <InfoRow
                   icon="walk-outline"
                   label="Pickup Available"
                   value={profile.isPickupAvailable ? "Yes" : "No"}
+                />
+                <View style={styles.divider} />
+                <InfoRow
+                  icon="restaurant-outline"
+                  label="Dine-In Available"
+                  value={profile.isDineInAvailable ? "Yes" : "No"}
                 />
                 <View style={styles.divider} />
                 <InfoRow
@@ -872,6 +1055,42 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 
+  /* QR CODE */
+  qrCard: {
+    alignItems: "center",
+    paddingVertical: 24,
+  },
+  qrContainer: {
+    padding: 16,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#e2e8f0",
+  },
+  qrUrl: {
+    fontSize: 12,
+    color: "#64748b",
+    textAlign: "center",
+    marginTop: 14,
+    paddingHorizontal: 16,
+  },
+  downloadQrButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1e3a8a",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 16,
+    gap: 8,
+  },
+  downloadQrText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
   /* EMPTY STATE */
   emptyContainer: {
     justifyContent: "center",
@@ -915,5 +1134,58 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 15,
     fontWeight: "800",
+  },
+
+  /* TOGGLE ROW */
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+  },
+  toggleInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  toggleLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1e293b",
+  },
+
+  /* PAYMENT METHODS */
+  paymentHint: {
+    fontSize: 12,
+    color: "#94a3b8",
+    marginBottom: 12,
+  },
+  paymentMethodsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  paymentChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "#f1f5f9",
+    borderWidth: 1.5,
+    borderColor: "#e2e8f0",
+  },
+  paymentChipActive: {
+    backgroundColor: "#1e3a8a",
+    borderColor: "#1e3a8a",
+  },
+  paymentChipText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#475569",
+  },
+  paymentChipTextActive: {
+    color: "#fff",
   },
 });
