@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   RefreshControl,
   Linking,
-  Share,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
@@ -21,9 +20,11 @@ import {
   acceptOrder,
   rejectOrder,
   updateOrderStatus,
+  createBillFromOrder,
 } from "../../constants/orders.api";
 import PageLoader from "../../components/PageLoader";
 import { formatRupee } from "../../utils/formatCurrency";
+import { printKOT, printOrderBill } from "../../utils/thermalPrinter";
 
 /* ================= STATUS CONFIG ================= */
 const STATUS_CONFIG: Record<string, { bg: string; text: string; icon: string; label: string }> = {
@@ -91,6 +92,12 @@ export default function OrderDetailScreen() {
             setActionLoading(true);
             await acceptOrder(orderId!);
             await fetchOrder();
+            // Print KOT after accepting the order
+            try {
+              await printKOT(order);
+            } catch (printError) {
+              console.warn("KOT print failed:", printError);
+            }
           } catch (error: any) {
             Alert.alert(
               "Error",
@@ -359,17 +366,22 @@ export default function OrderDetailScreen() {
                       ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
                       : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressText)}`;
 
-                    const message = `📍 Delivery Address:\n${addressText}\n\n🗺️ Google Maps: ${mapsLink}`;
+                    const customerName = order.customer?.name || "Customer";
+                    const customerPhone = order.customer?.phone || "N/A";
 
-                    try {
-                      await Share.share({ message });
-                    } catch (error) {
-                      console.error("Share error:", error);
+                    const message = `� *Delivery Details*\n\n👤 *Customer:* ${customerName}\n📞 *Phone:* ${customerPhone}\n\n📍 *Address:*\n${addressText}\n\n🗺️ *Google Maps:*\n${mapsLink}`;
+
+                    const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(message)}`;
+                    const canOpen = await Linking.canOpenURL(whatsappUrl);
+                    if (canOpen) {
+                      Linking.openURL(whatsappUrl);
+                    } else {
+                      Alert.alert("WhatsApp not found", "Please install WhatsApp to share");
                     }
                   }}
                 >
-                  <Ionicons name="share-social-outline" size={18} color="#fff" />
-                  <Text style={styles.shareButtonText}>Share</Text>
+                  <MaterialCommunityIcons name="whatsapp" size={20} color="#fff" />
+                  <Text style={styles.shareButtonText}>Share to Partner</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -452,6 +464,56 @@ export default function OrderDetailScreen() {
             ) : null}
           </View>
         </View>
+
+        {/* PRINT ACTIONS — visible for accepted/non-cancelled orders */}
+        {order.status !== "pending" && order.status !== "rejected" && order.status !== "cancelled" && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Print</Text>
+            <View style={styles.printActions}>
+              <TouchableOpacity
+                style={styles.printKotButton}
+                activeOpacity={0.8}
+                onPress={async () => {
+                  try {
+                    await printKOT(order);
+                  } catch (e) {
+                    console.warn("KOT print error:", e);
+                  }
+                }}
+              >
+                <MaterialCommunityIcons name="printer" size={20} color="#1e3a8a" />
+                <Text style={styles.printKotButtonText}>Print KOT</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.printBillButton}
+                activeOpacity={0.8}
+                onPress={async () => {
+                  try {
+                    // Create a bill record (for analytics) if not already created
+                    if (!order.bill) {
+                      const paymentMode = order.paymentMethod === "online" ? "UPI" : "CASH";
+                      const paidAmount = order.paymentMethod === "online" ? order.totalAmount : 0;
+                      await createBillFromOrder(orderId!, {
+                        paymentMode,
+                        paidAmount,
+                      });
+                      // Refresh order to get updated bill reference
+                      await fetchOrder();
+                    }
+                    await printOrderBill(order);
+                  } catch (e: any) {
+                    const msg = e?.response?.data?.message || "Bill print error";
+                    console.warn("Bill print error:", e);
+                    Alert.alert("Error", msg);
+                  }
+                }}
+              >
+                <MaterialCommunityIcons name="receipt" size={20} color="#fff" />
+                <Text style={styles.printBillButtonText}>Print Bill</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       {/* BOTTOM ACTION BAR */}
@@ -788,7 +850,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: "#1e3a8a",
+    backgroundColor: "#25D366",
     gap: 8,
   },
   shareButtonText: {
@@ -808,6 +870,44 @@ const styles = StyleSheet.create({
   callButtonText: {
     fontSize: 13,
     fontWeight: "700",
+    color: "#fff",
+  },
+
+  /* PRINT ACTIONS */
+  printActions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  printKotButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: "#eff6ff",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    gap: 8,
+  },
+  printKotButtonText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#1e3a8a",
+  },
+  printBillButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: "#1e3a8a",
+    gap: 8,
+  },
+  printBillButtonText: {
+    fontSize: 14,
+    fontWeight: "800",
     color: "#fff",
   },
 });

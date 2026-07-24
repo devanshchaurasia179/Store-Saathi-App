@@ -530,3 +530,142 @@ export const printBillAuto = async (bill: any): Promise<void> => {
     await printBill(bill);
   }
 };
+
+/**
+ * Print a bill from an online order object.
+ * Adapts order fields to the bill format expected by printBillAuto.
+ */
+export const printOrderBill = async (order: any): Promise<void> => {
+  const bill = {
+    dailyBillNumber: order.orderNumber || order._id?.slice(-6) || "N/A",
+    subTotal: order.totalAmount || 0,
+    totalAmount: order.totalAmount || 0,
+    discount: order.discount || 0,
+    paidAmount: order.paymentMethod === "online" ? order.totalAmount : 0,
+    taxPercentage: order.taxPercentage || 0,
+    paymentStatus: order.paymentMethod === "online" ? "PAID" : "COD",
+    createdAt: order.createdAt || new Date().toISOString(),
+    customerId: { name: order.customer?.name || "Online Customer" },
+    items: (order.items || []).map((item: any) => ({
+      name: item.productName || item.name || "Item",
+      quantity: item.quantity || 1,
+      unit: item.unit || "piece",
+      price: item.price || 0,
+      total: item.subtotal || item.price * (item.quantity || 1),
+    })),
+  };
+
+  await printBillAuto(bill);
+};
+
+/**
+ * Print KOT (Kitchen Order Token) for an online order.
+ * Shows only item names and quantities — no pricing.
+ */
+export const printKOT = async (order: any): Promise<void> => {
+  try {
+    const paperSize = await getPaperSize();
+    const is80mm = paperSize === "80";
+    const DIVIDER = is80mm
+      ? "================================================\n\r"
+      : "================================\n\r";
+
+    await BluetoothEscposPrinter.printerInit();
+    await BluetoothEscposPrinter.printerAlign(
+      BluetoothEscposPrinter.ALIGN.CENTER
+    );
+    await BluetoothEscposPrinter.setBlob(0);
+
+    // Title
+    await BluetoothEscposPrinter.printText("** KOT **\n\r", { bold: true });
+    await BluetoothEscposPrinter.printText(DIVIDER, {});
+
+    // Order info
+    await BluetoothEscposPrinter.printerAlign(
+      BluetoothEscposPrinter.ALIGN.LEFT
+    );
+    await BluetoothEscposPrinter.printText(
+      `Order #${order.orderNumber || order._id?.slice(-6) || "N/A"}\n\r`,
+      { bold: true }
+    );
+
+    const dateObj = new Date(order.createdAt || Date.now());
+    const timePart = dateObj
+      .toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+      .replace(/\u202f/g, " ");
+    await BluetoothEscposPrinter.printText(`Time: ${timePart}\n\r`, {});
+
+    if (order.customer?.name) {
+      await BluetoothEscposPrinter.printText(
+        `Customer: ${order.customer.name}\n\r`,
+        {}
+      );
+    }
+
+    await BluetoothEscposPrinter.printText(DIVIDER, {});
+
+    // Table Header
+    const colWidths = is80mm ? [32, 16] : [22, 10];
+    await BluetoothEscposPrinter.printColumn(
+      colWidths,
+      [
+        BluetoothEscposPrinter.ALIGN.LEFT,
+        BluetoothEscposPrinter.ALIGN.RIGHT,
+      ],
+      ["Item", "Qty"],
+      { bold: true }
+    );
+    await BluetoothEscposPrinter.printText(
+      is80mm
+        ? "------------------------------------------------\n\r"
+        : "--------------------------------\n\r",
+      {}
+    );
+
+    // Items
+    for (const item of order.items || []) {
+      let name = item.productName || item.name || "Item";
+      const maxLen = is80mm ? 31 : 21;
+      if (name.length > maxLen) name = name.substring(0, maxLen - 1) + ".";
+
+      const qty = `${item.quantity || 1}`;
+
+      await BluetoothEscposPrinter.printColumn(
+        colWidths,
+        [
+          BluetoothEscposPrinter.ALIGN.LEFT,
+          BluetoothEscposPrinter.ALIGN.RIGHT,
+        ],
+        [name, qty],
+        {}
+      );
+    }
+
+    await BluetoothEscposPrinter.printText(DIVIDER, {});
+
+    // Notes
+    if (order.notes) {
+      await BluetoothEscposPrinter.printText(
+        `Note: ${order.notes}\n\r`,
+        { bold: true }
+      );
+      await BluetoothEscposPrinter.printText(DIVIDER, {});
+    }
+
+    await BluetoothEscposPrinter.printerAlign(
+      BluetoothEscposPrinter.ALIGN.CENTER
+    );
+    await BluetoothEscposPrinter.printText(
+      `Total Items: ${order.items?.length || 0}\n\r\n\r\n\r\n\r\r\n\r\n`,
+      {}
+    );
+    await BluetoothEscposPrinter.cutOnePoint();
+  } catch (error: any) {
+    Alert.alert("KOT Print Failed", error?.message || "Check printer connection.");
+    throw error;
+  }
+};
