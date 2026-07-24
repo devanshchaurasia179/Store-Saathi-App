@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs";
+import axios from "axios";
 import OnlineCustomer from "../models/OnlineCustomer.js";
 import { validatePhone, validateOtp, validateAddress, validateProfileUpdate } from "../validators/onlineCustomer.validator.js";
 
@@ -45,28 +45,32 @@ export async function customerSendOtp(req, res) {
       customer = await OnlineCustomer.create({ phone: cleanPhone });
     }
 
-    // Generate and hash OTP
+    // Generate OTP and save to DB
     const otp = generateOtp();
-    const salt = await bcrypt.genSalt(10);
-    const hashedOtp = await bcrypt.hash(otp, salt);
 
-    // Save hashed OTP with expiry
     await OnlineCustomer.findByIdAndUpdate(customer._id, {
-      otp: hashedOtp,
+      otp,
       otpExpiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
     });
 
-    // TODO: Replace with actual SMS service (Twilio, MSG91, etc.)
-    // For now, log OTP in development
-    if (process.env.NODE_ENV !== "production") {
-      console.log(`[DEV] Customer OTP for ${cleanPhone}: ${otp}`);
+    // Send OTP via ApiTxT
+    const apiTxtResponse = await axios.get("https://apitxt.com/api/sendOTP", {
+      params: {
+        authkey: process.env.APITXT_AUTH_KEY,
+        mobile: `91${cleanPhone}`,
+        otp: otp,
+        country: "91",
+      },
+    });
+
+    if (apiTxtResponse.data?.status !== "success") {
+      console.error("ApiTxT Customer OTP Error:", apiTxtResponse.data);
+      return res.status(500).json({ message: "Failed to send OTP. Try again." });
     }
 
     res.status(200).json({
       success: true,
       message: "OTP sent successfully",
-      // Remove in production — only for testing
-      ...(process.env.NODE_ENV !== "production" && { devOtp: otp }),
     });
   } catch (error) {
     console.error("Customer Send OTP Error:", error.message);
@@ -112,7 +116,7 @@ export async function customerVerifyOtp(req, res) {
     }
 
     // Compare OTP
-    const isValid = await bcrypt.compare(otp, customer.otp);
+    const isValid = customer.otp === otp;
     if (!isValid) {
       return res.status(401).json({ message: "Invalid OTP" });
     }

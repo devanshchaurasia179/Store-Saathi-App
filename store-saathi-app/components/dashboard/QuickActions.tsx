@@ -30,6 +30,13 @@ export default function QuickActions() {
       onPress: () => router.push("/ledger"),
     },
     {
+      title: "Orders",
+      icon: "cart-outline",
+      Icon: Ionicons,
+      onPress: () => router.push("/orders"),
+    },
+
+    {
       title: t.analytics,
       icon: "bar-chart-outline",
       Icon: Ionicons,
@@ -72,11 +79,11 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: "#fff",
     marginHorizontal: 12,
-    padding: 12, // Slightly reduced padding for 4 items
+    padding: 10,
     borderRadius: 16,
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 8, // Tighter gap for better fit
+    gap: 6,
     elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -87,7 +94,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8f9fb",
     borderRadius: 14,
-    paddingVertical: 14,
+    paddingVertical: 12,
     alignItems: "center",
     justifyContent: "center",
   },
