@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   RefreshControl,
   Linking,
-  Animated,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
@@ -135,10 +134,21 @@ export default function OrderDetailScreen() {
 
   const handleNextStatus = () => {
     if (!order) return;
-    const nextStatus = NEXT_STATUS[order.status];
-    if (!nextStatus) return;
+    const isDineInOrder = order.orderType === "dineIn";
+    const nextSt = isDineInOrder
+      ? (order.status === "accepted" ? "packing" : order.status === "packing" ? "ready" : order.status === "ready" ? "delivered" : undefined)
+      : NEXT_STATUS[order.status];
+    if (!nextSt) return;
 
-    const label = NEXT_STATUS_LABEL[order.status] || `Move to ${nextStatus}`;
+    const DINE_IN_LABELS: Record<string, string> = {
+      accepted: "Start Packing",
+      packing: "Mark as Ready",
+      ready: "Mark Delivered",
+    };
+
+    const label = isDineInOrder
+      ? (DINE_IN_LABELS[order.status] || `Move to ${nextSt}`)
+      : (NEXT_STATUS_LABEL[order.status] || `Move to ${nextSt}`);
 
     Alert.alert("Update Status", `${label}?`, [
       { text: "Cancel", style: "cancel" },
@@ -147,7 +157,7 @@ export default function OrderDetailScreen() {
         onPress: async () => {
           try {
             setActionLoading(true);
-            await updateOrderStatus(orderId!, nextStatus);
+            await updateOrderStatus(orderId!, nextSt);
             await fetchOrder();
           } catch (error: any) {
             Alert.alert("Error", error?.response?.data?.message || "Failed to update status");
@@ -178,7 +188,10 @@ export default function OrderDetailScreen() {
 
   const statusConf = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
   const createdAt = new Date(order.createdAt);
-  const nextStatus = NEXT_STATUS[order.status];
+  const isDineIn = order.orderType === "dineIn";
+  const nextStatus = isDineIn
+    ? (order.status === "accepted" ? "packing" : order.status === "packing" ? "ready" : order.status === "ready" ? "delivered" : undefined)
+    : NEXT_STATUS[order.status];
 
   return (
     <View style={styles.container}>
@@ -243,6 +256,36 @@ export default function OrderDetailScreen() {
           </View>
         </View>
 
+        {/* ORDER TYPE TAG */}
+        <View style={styles.orderTypeTagRow}>
+          <View
+            style={[
+              styles.orderTypeTag,
+              isDineIn ? styles.orderTypeTagDineIn : styles.orderTypeTagDelivery,
+            ]}
+          >
+            <Ionicons
+              name={isDineIn ? "restaurant-outline" : "bicycle-outline"}
+              size={14}
+              color={isDineIn ? "#7c2d12" : "#1e40af"}
+            />
+            <Text
+              style={[
+                styles.orderTypeTagText,
+                isDineIn ? styles.orderTypeTagDineInText : styles.orderTypeTagDeliveryText,
+              ]}
+            >
+              {isDineIn ? "Dine-In" : "Delivery"}
+            </Text>
+          </View>
+          {isDineIn && order.tableNumber ? (
+            <View style={styles.tableNumberTag}>
+              <MaterialCommunityIcons name="table-furniture" size={14} color="#4338ca" />
+              <Text style={styles.tableNumberTagText}>Table {order.tableNumber}</Text>
+            </View>
+          ) : null}
+        </View>
+
         {/* QUICK ACTIONS — Print Bill & Print KOT at the top */}
         {order.status !== "pending" && order.status !== "rejected" && order.status !== "cancelled" && (
           <View style={styles.quickActionsContainer}>
@@ -297,26 +340,30 @@ export default function OrderDetailScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionIconBg}>
-              <Ionicons name="person" size={14} color="#1e3a8a" />
+              <Ionicons name={isDineIn ? "restaurant" : "person"} size={14} color="#1e3a8a" />
             </View>
-            <Text style={styles.sectionTitle}>Customer</Text>
+            <Text style={styles.sectionTitle}>{isDineIn ? "Dine-In" : "Customer"}</Text>
           </View>
           <View style={styles.card}>
             <View style={styles.customerRow}>
-              <View style={styles.customerAvatar}>
+              <View style={[styles.customerAvatar, isDineIn && { backgroundColor: "#c2410c" }]}>
                 <Text style={styles.customerAvatarText}>
-                  {(order.customer?.name || "C")[0].toUpperCase()}
+                  {isDineIn ? "T" : (order.customer?.name || "C")[0].toUpperCase()}
                 </Text>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.customerName}>
-                  {order.customer?.name || "N/A"}
+                  {isDineIn
+                    ? `Table No. ${order.tableNumber || "?"}`
+                    : order.customer?.name || "N/A"}
                 </Text>
-                <Text style={styles.customerPhone}>
-                  {order.customer?.phone || "N/A"}
-                </Text>
+                {!isDineIn && (
+                  <Text style={styles.customerPhone}>
+                    {order.customer?.phone || "N/A"}
+                  </Text>
+                )}
               </View>
-              {order.customer?.phone ? (
+              {!isDineIn && order.customer?.phone ? (
                 <TouchableOpacity
                   style={styles.callButton}
                   onPress={() => Linking.openURL(`tel:${order.customer.phone}`)}
@@ -330,7 +377,7 @@ export default function OrderDetailScreen() {
         </View>
 
         {/* DELIVERY ADDRESS */}
-        {order.address && (
+        {order.address && !isDineIn && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={[styles.sectionIconBg, { backgroundColor: "#fef2f2" }]}>
@@ -551,7 +598,9 @@ export default function OrderDetailScreen() {
           >
             <MaterialCommunityIcons name="arrow-right-circle" size={22} color="#fff" />
             <Text style={styles.nextStatusButtonText}>
-              {NEXT_STATUS_LABEL[order.status] || "Next Step"}
+              {isDineIn
+                ? (order.status === "accepted" ? "Start Packing" : order.status === "packing" ? "Mark as Ready" : order.status === "ready" ? "Mark Delivered" : "Next Step")
+                : (NEXT_STATUS_LABEL[order.status] || "Next Step")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -680,6 +729,59 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "900",
     marginTop: 2,
+  },
+
+  /* ORDER TYPE TAG */
+  orderTypeTagRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginTop: 10,
+    gap: 8,
+  },
+  orderTypeTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  orderTypeTagDineIn: {
+    backgroundColor: "#fff7ed",
+    borderWidth: 1,
+    borderColor: "#fed7aa",
+  },
+  orderTypeTagDelivery: {
+    backgroundColor: "#eff6ff",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  orderTypeTagText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  orderTypeTagDineInText: {
+    color: "#7c2d12",
+  },
+  orderTypeTagDeliveryText: {
+    color: "#1e40af",
+  },
+  tableNumberTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#eef2ff",
+    borderWidth: 1,
+    borderColor: "#c7d2fe",
+  },
+  tableNumberTagText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#4338ca",
   },
 
   /* QUICK ACTIONS */

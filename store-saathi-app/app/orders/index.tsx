@@ -272,6 +272,14 @@ export default function OnlineOrdersScreen() {
     const isPending = item.status === "pending";
     const timeAgo = getTimeAgo(item.createdAt);
 
+    const isDineIn = item.orderType === "dineIn";
+    const displayName = isDineIn
+      ? `Table No. ${item.tableNumber || "?"}`
+      : item.customer?.name || "Customer";
+    const displayInitial = isDineIn
+      ? "T"
+      : (item.customer?.name || "C").charAt(0).toUpperCase();
+
     return (
       <TouchableOpacity
         style={[
@@ -282,7 +290,7 @@ export default function OnlineOrdersScreen() {
         activeOpacity={0.65}
         onPress={() => router.push(`/orders/${item._id}`)}
         accessibilityRole="button"
-        accessibilityLabel={`Order from ${item.customer?.name || "Customer"}, ${statusConf.label}, ${formatRupee(item.totalAmount)}`}
+        accessibilityLabel={`Order from ${displayName}, ${statusConf.label}, ${formatRupee(item.totalAmount)}`}
       >
         {/* Urgent indicator for pending orders */}
         {isPending && (
@@ -293,24 +301,48 @@ export default function OnlineOrdersScreen() {
           </View>
         )}
 
+        {/* Order Type Tag */}
+        <View style={styles.orderTypeRow}>
+          <View
+            style={[
+              styles.orderTypeBadge,
+              isDineIn ? styles.orderTypeDineIn : styles.orderTypeDelivery,
+            ]}
+          >
+            <Ionicons
+              name={isDineIn ? "restaurant-outline" : "bicycle-outline"}
+              size={12}
+              color={isDineIn ? "#7c2d12" : "#1e40af"}
+            />
+            <Text
+              style={[
+                styles.orderTypeText,
+                isDineIn ? styles.orderTypeDineInText : styles.orderTypeDeliveryText,
+              ]}
+            >
+              {isDineIn ? "Dine-In" : "Delivery"}
+            </Text>
+          </View>
+        </View>
+
         {/* Top Row: Customer + Status */}
         <View style={styles.cardTopRow}>
           <View style={styles.customerInfo}>
             <View
               style={[
                 styles.avatarCircle,
-                { backgroundColor: statusConf.bg },
+                { backgroundColor: isDineIn ? "#fff7ed" : statusConf.bg },
               ]}
             >
-              <Text style={[styles.avatarText, { color: statusConf.text }]}>
-                {(item.customer?.name || "C").charAt(0).toUpperCase()}
+              <Text style={[styles.avatarText, { color: isDineIn ? "#c2410c" : statusConf.text }]}>
+                {displayInitial}
               </Text>
             </View>
             <View style={styles.customerDetails}>
               <Text style={styles.customerName} numberOfLines={1}>
-                {item.customer?.name || "Customer"}
+                {displayName}
               </Text>
-              {item.customer?.phone ? (
+              {!isDineIn && item.customer?.phone ? (
                 <Text style={styles.customerPhone}>
                   {item.customer.phone}
                 </Text>
@@ -867,6 +899,40 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#475569",
     textTransform: "uppercase",
+  },
+
+  /* ORDER TYPE BADGE */
+  orderTypeRow: {
+    flexDirection: "row",
+    marginBottom: 10,
+  },
+  orderTypeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  orderTypeDineIn: {
+    backgroundColor: "#fff7ed",
+    borderWidth: 1,
+    borderColor: "#fed7aa",
+  },
+  orderTypeDelivery: {
+    backgroundColor: "#eff6ff",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  orderTypeText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  orderTypeDineInText: {
+    color: "#7c2d12",
+  },
+  orderTypeDeliveryText: {
+    color: "#1e40af",
   },
 
   /* TAP HINT */
