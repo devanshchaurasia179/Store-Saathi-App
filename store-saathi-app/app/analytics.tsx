@@ -521,10 +521,10 @@ const styles = StyleSheet.create({
   totalRevenueSub: { fontSize: 12, fontWeight: "600", color: "#64748B", marginTop: 2 },
   variantsListContainer: { paddingLeft: 4 },
   variantDetailRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 6 },
-  variantLeft: { flexDirection: "row", alignItems: "center", flex: 0.6 },
+  variantLeft: { flexDirection: "row", alignItems: "center", flex: 1, marginRight: 8 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#CBD5E1", marginRight: 8 },
-  variantNameLabel: { fontSize: 14, color: "#475569", fontWeight: "500" },
-  variantRight: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", flex: 0.4 },
+  variantNameLabel: { fontSize: 14, color: "#475569", fontWeight: "500", flex: 1 },
+  variantRight: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", minWidth: 120 },
   variantQtyText: { fontSize: 13, color: "#64748B", marginRight: 10 },
   variantRevenueText: { fontSize: 13, fontWeight: "700", color: "#1E293B", width: 75, textAlign: 'right' },
   

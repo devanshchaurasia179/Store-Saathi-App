@@ -366,7 +366,10 @@ export default function OrderDetailScreen() {
               {!isDineIn && order.customer?.phone ? (
                 <TouchableOpacity
                   style={styles.callButton}
-                  onPress={() => Linking.openURL(`tel:${order.customer.phone}`)}
+                  onPress={() => {
+                    const phone = order.customer.phone.replace(/[^0-9+]/g, "");
+                    Linking.openURL(`tel:${phone}`);
+                  }}
                   activeOpacity={0.7}
                 >
                   <Ionicons name="call" size={16} color="#fff" />

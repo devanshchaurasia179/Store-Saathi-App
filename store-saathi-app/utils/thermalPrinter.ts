@@ -35,6 +35,21 @@ const getUnitShorthand = (unit: string): string => {
 };
 
 /**
+ * Helper to format address object into a single printable string
+ */
+const formatAddress = (address: any): string => {
+  if (!address) return "";
+  if (typeof address === "string") return address;
+  const parts = [
+    address.street,
+    address.city,
+    address.state,
+    address.pincode,
+  ].filter((p) => p && String(p).trim());
+  return parts.join(", ");
+};
+
+/**
  * Connect to a Bluetooth thermal printer
  */
 export const connectPrinter = async (
@@ -89,7 +104,7 @@ export const printBill = async (bill: any): Promise<void> => {
     const shopName = shop.shopName || "Our Shop";
     const upiId = shop.upiId || "";
     const gstNumber = shop.gstNumber || "";
-    const address = shop.address || "";
+    const address = formatAddress(shop.address);
     const mobileNumber = shop.mobileNumber || "";
 
     const subTotal = bill.subTotal || bill.totalAmount || 0;
@@ -191,6 +206,15 @@ export const printBill = async (bill: any): Promise<void> => {
     // Item Loop
     for (const item of bill.items || []) {
       let name = item.name || "Item";
+      let variantLine = "";
+
+      // Extract variant from parentheses e.g. "Milk (500ml)"
+      const variantMatch = name.match(/^(.+?)\s*\((.+)\)$/);
+      if (variantMatch) {
+        name = variantMatch[1];
+        variantLine = variantMatch[2];
+      }
+
       if (name.length > 13) name = name.substring(0, 12) + ".";
 
       const shorthand = getUnitShorthand(item.unit);
@@ -207,6 +231,17 @@ export const printBill = async (bill: any): Promise<void> => {
         [name, qtyAndUnit, amount],
         {}
       );
+
+      // Print variant on a separate line below
+      if (variantLine) {
+        await BluetoothEscposPrinter.printerAlign(
+          BluetoothEscposPrinter.ALIGN.LEFT
+        );
+        await BluetoothEscposPrinter.printText(
+          `  (${variantLine})\n\r`,
+          {}
+        );
+      }
     }
 
     await BluetoothEscposPrinter.printText(
@@ -325,7 +360,7 @@ export const printBill80mm = async (bill: any): Promise<void> => {
     const shopName = shop.shopName || "Our Shop";
     const upiId = shop.upiId || "";
     const gstNumber = shop.gstNumber || "";
-    const address = shop.address || "";
+    const address = formatAddress(shop.address);
     const mobileNumber = shop.mobileNumber || "";
 
     const subTotal = bill.subTotal || bill.totalAmount || 0;
@@ -418,6 +453,15 @@ export const printBill80mm = async (bill: any): Promise<void> => {
     // Item Loop
     for (const item of bill.items || []) {
       let name = item.name || "Item";
+      let variantLine = "";
+
+      // Extract variant from parentheses e.g. "Milk (500ml)"
+      const variantMatch = name.match(/^(.+?)\s*\((.+)\)$/);
+      if (variantMatch) {
+        name = variantMatch[1];
+        variantLine = variantMatch[2];
+      }
+
       if (name.length > 21) name = name.substring(0, 20) + ".";
 
       const shorthand = getUnitShorthand(item.unit);
@@ -436,6 +480,17 @@ export const printBill80mm = async (bill: any): Promise<void> => {
         [name, qtyAndUnit, rate, amount],
         {}
       );
+
+      // Print variant on a separate line below
+      if (variantLine) {
+        await BluetoothEscposPrinter.printerAlign(
+          BluetoothEscposPrinter.ALIGN.LEFT
+        );
+        await BluetoothEscposPrinter.printText(
+          `  (${variantLine})\n\r`,
+          {}
+        );
+      }
     }
 
     await BluetoothEscposPrinter.printText(DIVIDER_HEAVY, {});
@@ -536,6 +591,12 @@ export const printBillAuto = async (bill: any): Promise<void> => {
  * Adapts order fields to the bill format expected by printBillAuto.
  */
 export const printOrderBill = async (order: any): Promise<void> => {
+  // For dine-in orders, show Table No. instead of customer name
+  let customerName = order.customer?.name || "Online Customer";
+  if (order.orderType === "dineIn" && order.tableNumber) {
+    customerName = `Table No. ${order.tableNumber}`;
+  }
+
   const bill = {
     dailyBillNumber: order.orderNumber || order._id?.slice(-6) || "N/A",
     subTotal: order.totalAmount || 0,
@@ -545,7 +606,7 @@ export const printOrderBill = async (order: any): Promise<void> => {
     taxPercentage: order.taxPercentage || 0,
     paymentStatus: order.paymentMethod === "online" ? "PAID" : "COD",
     createdAt: order.createdAt || new Date().toISOString(),
-    customerId: { name: order.customer?.name || "Online Customer" },
+    customerId: { name: customerName },
     items: (order.items || []).map((item: any) => ({
       name: item.productName || item.name || "Item",
       quantity: item.quantity || 1,
@@ -599,7 +660,12 @@ export const printKOT = async (order: any): Promise<void> => {
       .replace(/\u202f/g, " ");
     await BluetoothEscposPrinter.printText(`Time: ${timePart}\n\r`, {});
 
-    if (order.customer?.name) {
+    if (order.orderType === "dineIn" && order.tableNumber) {
+      await BluetoothEscposPrinter.printText(
+        `Table No. ${order.tableNumber}\n\r`,
+        { bold: true }
+      );
+    } else if (order.customer?.name) {
       await BluetoothEscposPrinter.printText(
         `Customer: ${order.customer.name}\n\r`,
         {}
@@ -629,6 +695,15 @@ export const printKOT = async (order: any): Promise<void> => {
     // Items
     for (const item of order.items || []) {
       let name = item.productName || item.name || "Item";
+      let variantLine = "";
+
+      // Extract variant from parentheses e.g. "Milk (500ml)"
+      const variantMatch = name.match(/^(.+?)\s*\((.+)\)$/);
+      if (variantMatch) {
+        name = variantMatch[1];
+        variantLine = variantMatch[2];
+      }
+
       const maxLen = is80mm ? 31 : 21;
       if (name.length > maxLen) name = name.substring(0, maxLen - 1) + ".";
 
@@ -643,6 +718,17 @@ export const printKOT = async (order: any): Promise<void> => {
         [name, qty],
         {}
       );
+
+      // Print variant on a separate line below
+      if (variantLine) {
+        await BluetoothEscposPrinter.printerAlign(
+          BluetoothEscposPrinter.ALIGN.LEFT
+        );
+        await BluetoothEscposPrinter.printText(
+          `  (${variantLine})\n\r`,
+          {}
+        );
+      }
     }
 
     await BluetoothEscposPrinter.printText(DIVIDER, {});

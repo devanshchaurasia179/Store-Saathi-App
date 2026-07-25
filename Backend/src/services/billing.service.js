@@ -89,21 +89,35 @@ export async function createBillFromOrder({
       _id: item.product,
       shopId,
       isActive: true,
-    }).select("name unit price isTrackable quantity");
+    }).select("name unit price isTrackable quantity variants");
 
     if (!product) {
       throw new Error(`Product not found: ${item.product}`);
     }
 
-    const price = Number(product.price.sellingPrice);
+    // Use variant-aware price & name from order item (already resolved during order creation)
+    const price = Number(item.price) || Number(product.price.sellingPrice);
     const quantity = Number(item.quantity);
     const total = price * quantity;
     subTotal += total;
 
+    // Determine variantId by matching the order's productName pattern "Product (Variant)"
+    let variantId = null;
+    const orderProductName = item.productName || product.name;
+    if (product.variants && product.variants.length > 0) {
+      // Try to find variant whose name appears in the order productName
+      const variant = product.variants.find(
+        (v) => orderProductName.includes(`(${v.name})`)
+      );
+      if (variant) {
+        variantId = variant._id;
+      }
+    }
+
     billItems.push({
       productId: product._id,
-      variantId: null,
-      name: product.name,
+      variantId,
+      name: orderProductName,
       quantity,
       unit: product.unit || "unit",
       price,
