@@ -41,6 +41,7 @@ export default function ViewBillModal({ billId, onClose }: any) {
   const t = LANGUAGE_TEXT_VIEW_BILL[language] || LANGUAGE_TEXT_VIEW_BILL.en;
 
   const [bill, setBill] = useState<any>(null);
+  const [orderInfo, setOrderInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
   // PRINTER STATUS STATE
@@ -112,6 +113,7 @@ export default function ViewBillModal({ billId, onClose }: any) {
       try {
         const res = await getBillById(billId);
         setBill(res.data.bill);
+        setOrderInfo(res.data.orderInfo || null);
         await checkPrinterStatus();
       } catch (e) {
         console.error("Fetch bill error", e);
@@ -250,10 +252,15 @@ export default function ViewBillModal({ billId, onClose }: any) {
                   <View style={styles.infoBlockRight}>
                     <Text style={styles.infoLabel}>{t.customer}</Text>
                     <Text style={styles.infoValue} numberOfLines={1}>
-                      {bill.customerId?.name || t.walkIn}
+                      {bill.customerId?.name
+                        || (orderInfo?.orderType === "dineIn"
+                          ? `Table ${orderInfo.tableNumber || "-"}`
+                          : orderInfo?.customerName || t.walkIn)}
                     </Text>
                     <Text style={styles.infoSub}>
-                      {bill.customerId?.mobileNumber || t.noPhone}
+                      {bill.customerId?.mobileNumber
+                        || orderInfo?.customerPhone
+                        || t.noPhone}
                     </Text>
                   </View>
                 </View>

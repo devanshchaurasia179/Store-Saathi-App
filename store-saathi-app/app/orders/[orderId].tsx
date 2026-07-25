@@ -298,7 +298,7 @@ export default function OrderDetailScreen() {
                   if (!order.bill) {
                     setActionLoading(true);
                     const paymentMode = order.paymentMethod === "online" ? "UPI" : "CASH";
-                    const paidAmount = order.paymentMethod === "online" ? order.totalAmount : 0;
+                    const paidAmount = (order.paymentMethod === "online" || order.orderType === "dineIn") ? order.totalAmount : 0;
                     await createBillFromOrder(orderId!, { paymentMode, paidAmount });
                     await fetchOrder();
                   }
