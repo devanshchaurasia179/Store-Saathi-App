@@ -66,7 +66,14 @@ export const onboardShop = (data: {
   gstNumber?: string;
   storeCategory?: string;
   upiId?: string;
-  location?: string;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+  };
 }) => {
   return api.post("/auth/onboarding", data);
 };

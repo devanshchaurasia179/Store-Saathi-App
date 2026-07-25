@@ -9,6 +9,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Animated,
+  Switch,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -16,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsFocused } from "@react-navigation/native";
 
 import { getShopOrders } from "../../constants/orders.api";
+import { getOnlineProfile, toggleStoreStatus } from "../../constants/onlineProfile.api";
 import PageLoader from "../../components/PageLoader";
 import { formatRupee } from "../../utils/formatCurrency";
 import { useAudioPlayer } from "expo-audio";
@@ -143,6 +145,10 @@ export default function OnlineOrdersScreen() {
   const [totalPages, setTotalPages] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
 
+  // 🟢 Store online/offline status
+  const [isStoreOnline, setIsStoreOnline] = useState<boolean | null>(null);
+  const [togglingStatus, setTogglingStatus] = useState(false);
+
   // 🔊 New order alert sound
   const alertPlayer = useAudioPlayer(alertSound);
   const prevOrderCountRef = useRef<number | null>(null);
@@ -156,6 +162,36 @@ export default function OnlineOrdersScreen() {
       if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
     };
   }, []);
+
+  // Fetch store online status
+  const fetchStoreStatus = useCallback(async () => {
+    try {
+      const res = await getOnlineProfile();
+      if (res.data?.success && res.data.profile) {
+        setIsStoreOnline(res.data.profile.isStoreOnline ?? false);
+      }
+    } catch (e) {
+      // Silently fail — toggle just won't show
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStoreStatus();
+  }, [fetchStoreStatus]);
+
+  const handleToggleStoreStatus = async () => {
+    try {
+      setTogglingStatus(true);
+      const res = await toggleStoreStatus();
+      if (res.data?.success) {
+        setIsStoreOnline(res.data.isStoreOnline);
+      }
+    } catch (e) {
+      console.warn("Toggle store status error:", e);
+    } finally {
+      setTogglingStatus(false);
+    }
+  };
 
   const playOrderAlert = useCallback(() => {
     try {
@@ -488,6 +524,35 @@ export default function OnlineOrdersScreen() {
         </View>
       </View>
 
+      {/* STORE ONLINE/OFFLINE TOGGLE */}
+      {isStoreOnline !== null && (
+        <View style={styles.storeStatusBar}>
+          <View style={styles.storeStatusLeft}>
+            <View
+              style={[
+                styles.storeStatusDot,
+                { backgroundColor: isStoreOnline ? "#22c55e" : "#ef4444" },
+              ]}
+            />
+            <View>
+              <Text style={styles.storeStatusTitle}>
+                Store is {isStoreOnline ? "Online" : "Offline"}
+              </Text>
+              <Text style={styles.storeStatusSub}>
+                {isStoreOnline ? "Accepting orders" : "Orders paused"}
+              </Text>
+            </View>
+          </View>
+          <Switch
+            value={isStoreOnline}
+            onValueChange={handleToggleStoreStatus}
+            trackColor={{ false: "#e2e8f0", true: "#bbf7d0" }}
+            thumbColor={isStoreOnline ? "#16a34a" : "#94a3b8"}
+            disabled={togglingStatus}
+          />
+        </View>
+      )}
+
       {/* TABS */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
@@ -650,6 +715,41 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 12,
     backgroundColor: "#eff6ff",
+  },
+
+  /* STORE STATUS BAR */
+  storeStatusBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  storeStatusLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  storeStatusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  storeStatusTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0f172a",
+  },
+  storeStatusSub: {
+    fontSize: 11,
+    color: "#64748b",
+    marginTop: 1,
   },
 
   /* TABS */

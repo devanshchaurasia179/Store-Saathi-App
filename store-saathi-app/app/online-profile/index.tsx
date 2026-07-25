@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import QRCode from "react-native-qrcode-svg";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
+import * as Location from "expo-location";
 
 import { useOnlineProfile } from "../../hooks/useOnlineProfile";
 import PageLoader from "../../components/PageLoader";
@@ -43,6 +44,7 @@ export default function OnlineProfileScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
   const qrRef = useRef<any>(null);
 
   /* ================= EDIT FORM STATE ================= */
@@ -52,6 +54,43 @@ export default function OnlineProfileScreen() {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
+  };
+
+  const detectLocation = async () => {
+    try {
+      setIsLocating(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Denied", "Location permission is required to detect your address.");
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setFormData((prev: Record<string, any>) => ({
+        ...prev,
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+      }));
+
+      const address = await Location.reverseGeocodeAsync({
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+      });
+      if (address.length > 0) {
+        const p = address[0];
+        setFormData((prev: Record<string, any>) => ({
+          ...prev,
+          street: [p.name, p.street].filter(Boolean).join(", "),
+          city: p.city || p.subregion || "",
+          state: p.region || "",
+          pincode: p.postalCode || "",
+        }));
+        Alert.alert("Location Detected", "Address fields updated from GPS.");
+      }
+    } catch {
+      Alert.alert("Error", "Failed to detect location. Please try again.");
+    } finally {
+      setIsLocating(false);
+    }
   };
 
   const handleToggleOnline = async () => {
@@ -118,6 +157,8 @@ export default function OnlineProfileScreen() {
       city: profile?.address?.city || defaults?.address?.city || "",
       state: profile?.address?.state || defaults?.address?.state || "",
       pincode: profile?.address?.pincode || defaults?.address?.pincode || "",
+      latitude: profile?.address?.latitude || defaults?.address?.latitude || null,
+      longitude: profile?.address?.longitude || defaults?.address?.longitude || null,
       openTime: profile?.businessHours?.openTime || "09:00",
       closeTime: profile?.businessHours?.closeTime || "21:00",
       acceptedPaymentMethods: profile?.acceptedPaymentMethods || ["COD"],
@@ -160,6 +201,8 @@ export default function OnlineProfileScreen() {
         city: formData.city.trim(),
         state: formData.state.trim(),
         pincode: formData.pincode.trim(),
+        latitude: formData.latitude,
+        longitude: formData.longitude,
       },
       businessHours: {
         openTime: formData.openTime,
@@ -365,7 +408,7 @@ export default function OnlineProfileScreen() {
             <Text style={styles.sectionTitle}>Address</Text>
             <View style={styles.card}>
               <FormField
-                label="Street"
+                label="Full Address"
                 value={formData.street}
                 onChangeText={(v: string) =>
                   setFormData({ ...formData, street: v })
@@ -397,6 +440,33 @@ export default function OnlineProfileScreen() {
                 placeholder="6-digit pincode"
                 keyboardType="number-pad"
               />
+
+              {/* Lat/Lng Display */}
+              {formData.latitude != null && formData.longitude != null && (
+                <View style={styles.coordsRow}>
+                  <Ionicons name="navigate-circle-outline" size={18} color="#16a34a" />
+                  <Text style={styles.coordsText}>
+                    {Number(formData.latitude).toFixed(6)}, {Number(formData.longitude).toFixed(6)}
+                  </Text>
+                </View>
+              )}
+
+              {/* Detect Location Button */}
+              <TouchableOpacity
+                style={[styles.detectLocationBtn, isLocating && { opacity: 0.6 }]}
+                onPress={detectLocation}
+                disabled={isLocating}
+                activeOpacity={0.7}
+              >
+                {isLocating ? (
+                  <ActivityIndicator size="small" color="#1e3a8a" />
+                ) : (
+                  <Ionicons name="navigate" size={18} color="#1e3a8a" />
+                )}
+                <Text style={styles.detectLocationText}>
+                  {isLocating ? "Detecting..." : "Detect Location via GPS"}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {/* DELIVERY SETTINGS */}
@@ -697,6 +767,16 @@ export default function OnlineProfileScreen() {
                       .filter(Boolean)
                       .join(", ")}
                   />
+                  {profile.address?.latitude != null && profile.address?.longitude != null && (
+                    <>
+                      <View style={styles.divider} />
+                      <InfoRow
+                        icon="navigate-circle-outline"
+                        label="Coordinates"
+                        value={`${profile.address.latitude.toFixed(6)}, ${profile.address.longitude.toFixed(6)}`}
+                      />
+                    </>
+                  )}
                 </View>
               </View>
             )}
@@ -1187,5 +1267,40 @@ const styles = StyleSheet.create({
   },
   paymentChipTextActive: {
     color: "#fff",
+  },
+
+  /* DETECT LOCATION */
+  detectLocationBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#eff6ff",
+    borderWidth: 1,
+    borderColor: "#dbeafe",
+    marginTop: 4,
+  },
+  detectLocationText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1e3a8a",
+  },
+  coordsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#f0fdf4",
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+  },
+  coordsText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#166534",
   },
 });

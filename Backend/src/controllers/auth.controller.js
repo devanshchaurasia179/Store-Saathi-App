@@ -488,7 +488,7 @@ export async function onboard(req, res) {
       gstNumber = "",
       storeCategory = "",
       upiId = "",
-      location = "",
+      address = {},
     } = req.body;
 
     if (!shopName || !ownerName) {
@@ -497,12 +497,22 @@ export async function onboard(req, res) {
       });
     }
 
+    // Build address object matching Shop model schema
+    const addressData = {
+      street: address.street || "",
+      city: address.city || "",
+      state: address.state || "",
+      pincode: address.pincode || "",
+      latitude: address.latitude ?? null,
+      longitude: address.longitude ?? null,
+    };
+
     const completionFields = {
       shopName,
       ownerName,
       storeCategory,
       upiId,
-      location,
+      address: addressData.street || addressData.city ? "filled" : "",
     };
 
     const filledFields = Object.values(completionFields).filter(
@@ -521,7 +531,7 @@ export async function onboard(req, res) {
         gstNumber,
         storeCategory,
         upiId,
-        location,
+        address: addressData,
         profileCompletion,
         isOnboarded: profileCompletion === 100,
       },

@@ -51,7 +51,14 @@ export default function ProfileForm() {
   const [gstNumber, setGstNumber] = useState("");
   const [storeCategory, setStoreCategory] = useState("");
   const [upiId, setUpiId] = useState("");
-  const [location, setLocation] = useState("");
+
+  /* ================= ADDRESS FIELDS ================= */
+  const [street, setStreet] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [pincode, setPincode] = useState("");
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
 
   /* 🔐 SECRET KEY STATES */
   const [secretKey, setSecretKey] = useState<string | null>(null);
@@ -83,7 +90,12 @@ export default function ProfileForm() {
         setGstNumber(shop.gstNumber ?? "");
         setStoreCategory(shop.storeCategory ?? "");
         setUpiId(shop.upiId ?? "");
-        setLocation(shop.location ?? "");
+        setStreet(shop.address?.street ?? "");
+        setCity(shop.address?.city ?? "");
+        setState(shop.address?.state ?? "");
+        setPincode(shop.address?.pincode ?? "");
+        setLatitude(shop.address?.latitude ?? null);
+        setLongitude(shop.address?.longitude ?? null);
         setHasPin(shop.hasAnalyticsPin ?? false);
       } catch {
         showToast(t.failedLoad, "error");
@@ -126,19 +138,24 @@ export default function ProfileForm() {
         showToast(t.toastPermDeny || "Permission denied", "error");
         return;
       }
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setLatitude(pos.coords.latitude);
+      setLongitude(pos.coords.longitude);
+
       const address = await Location.reverseGeocodeAsync({
         latitude: pos.coords.latitude,
         longitude: pos.coords.longitude,
       });
       if (address.length > 0) {
         const p = address[0];
-        const formatted = [p.name, p.street, p.city, p.region].filter(Boolean).join(", ");
-        setLocation(formatted);
+        setStreet([p.name, p.street].filter(Boolean).join(", "));
+        setCity(p.city || p.subregion || "");
+        setState(p.region || "");
+        setPincode(p.postalCode || "");
         showToast(t.locUpdated, "success");
       }
     } catch {
-      showToast("Error", "error");
+      showToast("Error detecting location", "error");
     } finally {
       setIsLocating(false);
     }
@@ -151,7 +168,21 @@ export default function ProfileForm() {
     }
     try {
       setSaving(true);
-      await onboardShop({ shopName, ownerName, gstNumber, storeCategory, upiId, location });
+      await onboardShop({
+        shopName,
+        ownerName,
+        gstNumber,
+        storeCategory,
+        upiId,
+        address: {
+          street,
+          city,
+          state,
+          pincode,
+          latitude,
+          longitude,
+        },
+      });
       showToast(t.profileSaved, "success");
     } catch {
       showToast(t.updateFailed || "Update failed", "error");
@@ -228,13 +259,32 @@ export default function ProfileForm() {
 
           <View style={styles.sectionCard}>
             <Text style={styles.sectionHeader}>{t.location}</Text>
-            <View style={styles.locationContainer}>
-              <TextInput style={styles.locationInput} value={location} onChangeText={setLocation} placeholder="Enter full address" multiline />
-              <TouchableOpacity style={[styles.locBtn, isLocating && styles.btnDisabled]} onPress={getCurrentLocation} disabled={isLocating}>
-                {isLocating ? <ActivityIndicator size="small" color="#1e3a8a" /> : <Ionicons name="navigate" size={16} color="#1e3a8a" />}
-                <Text style={styles.locBtnText}>{t.gpsAuto}</Text>
-              </TouchableOpacity>
+            <CardInput label="Full Address" icon="location-outline" value={street} onChange={setStreet} placeholder="Street address" />
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <CardInput label="City" icon="business-outline" value={city} onChange={setCity} placeholder="City" />
+              </View>
+              <View style={{ width: 12 }} />
+              <View style={{ flex: 1 }}>
+                <CardInput label="State" icon="map-outline" value={state} onChange={setState} placeholder="State" />
+              </View>
             </View>
+            <CardInput label="Pincode" icon="keypad-outline" value={pincode} onChange={setPincode} placeholder="6-digit pincode" keyboardType="number-pad" />
+
+            {/* Lat/Lng Display */}
+            {latitude !== null && longitude !== null && (
+              <View style={styles.coordsContainer}>
+                <Ionicons name="navigate-circle-outline" size={18} color="#16a34a" />
+                <Text style={styles.coordsText}>
+                  {latitude.toFixed(6)}, {longitude.toFixed(6)}
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity style={[styles.locBtn, isLocating && styles.btnDisabled]} onPress={getCurrentLocation} disabled={isLocating}>
+              {isLocating ? <ActivityIndicator size="small" color="#1e3a8a" /> : <Ionicons name="navigate" size={16} color="#1e3a8a" />}
+              <Text style={styles.locBtnText}>{t.gpsAuto}</Text>
+            </TouchableOpacity>
           </View>
 
           {/* ================= SECRET KEY SECTION ================= */}
@@ -318,13 +368,13 @@ export default function ProfileForm() {
 
 /* ================= HELPERS ================= */
 
-function CardInput({ label, icon, value, onChange, editable = true, placeholder = "" }: any) {
+function CardInput({ label, icon, value, onChange, editable = true, placeholder = "", keyboardType }: any) {
   return (
     <View style={styles.inputGroup}>
       <Text style={styles.label}>{label}</Text>
       <View style={[styles.field, !editable && styles.fieldDisabled]}>
         <Ionicons name={icon} size={18} color="#94a3b8" />
-        <TextInput value={value} onChangeText={onChange} editable={editable} placeholder={placeholder} placeholderTextColor="#cbd5e1" style={styles.textInput} />
+        <TextInput value={value} onChangeText={onChange} editable={editable} placeholder={placeholder} placeholderTextColor="#cbd5e1" style={styles.textInput} keyboardType={keyboardType} />
       </View>
     </View>
   );
@@ -349,10 +399,10 @@ const styles = StyleSheet.create({
   fieldDisabled: { backgroundColor: "#f1f5f9", borderColor: "#f1f5f9" },
   textInput: { flex: 1, fontSize: 15, fontWeight: "600", color: "#1e293b" },
   row: { flexDirection: 'row' },
-  locationContainer: { gap: 12 },
-  locationInput: { fontSize: 15, fontWeight: '600', color: '#1e293b', minHeight: 90, textAlignVertical: 'top', backgroundColor: '#f8fafc', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#e2e8f0' },
   locBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 18, backgroundColor: '#eff6ff', borderWidth: 1, borderColor: '#dbeafe' },
   locBtnText: { fontSize: 14, fontWeight: '800', color: '#1e3a8a' },
+  coordsContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#f0fdf4', padding: 12, borderRadius: 14, marginBottom: 14, borderWidth: 1, borderColor: '#bbf7d0' },
+  coordsText: { fontSize: 13, fontWeight: '700', color: '#166534' },
   saveBtn: { backgroundColor: "#1e3a8a", padding: 20, borderRadius: 22, marginTop: 10, alignItems: 'center' },
   saveBtnText: { color: "#fff", fontWeight: "900", fontSize: 17, letterSpacing: 0.5 },
   btnDisabled: { opacity: 0.6 },
