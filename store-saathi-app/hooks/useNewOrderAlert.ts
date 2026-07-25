@@ -6,7 +6,7 @@ import { getShopOrders } from "../constants/orders.api";
 // Use the existing beep sound for new order notification
 const alertSound = require("../assets/images/beep.mp3");
 
-const POLL_INTERVAL = 15_000; // Poll every 15 seconds
+const POLL_INTERVAL = 3_000; // Poll every 3 seconds
 
 /**
  * Hook that polls for new pending orders and plays a sound

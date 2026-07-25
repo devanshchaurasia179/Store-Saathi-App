@@ -92,6 +92,14 @@ export default function OrderDetailScreen() {
           try {
             setActionLoading(true);
             await acceptOrder(orderId!);
+            // Create bill immediately after accepting
+            try {
+              const paymentMode = order.paymentMethod === "online" ? "UPI" : "CASH";
+              const paidAmount = (order.paymentMethod === "online" || order.orderType === "dineIn") ? order.totalAmount : 0;
+              await createBillFromOrder(orderId!, { paymentMode, paidAmount });
+            } catch (billError: any) {
+              console.warn("Bill creation failed:", billError);
+            }
             await fetchOrder();
             try {
               await printKOT(order);
@@ -295,20 +303,11 @@ export default function OrderDetailScreen() {
               activeOpacity={0.8}
               onPress={async () => {
                 try {
-                  if (!order.bill) {
-                    setActionLoading(true);
-                    const paymentMode = order.paymentMethod === "online" ? "UPI" : "CASH";
-                    const paidAmount = (order.paymentMethod === "online" || order.orderType === "dineIn") ? order.totalAmount : 0;
-                    await createBillFromOrder(orderId!, { paymentMode, paidAmount });
-                    await fetchOrder();
-                  }
                   await printOrderBill(order);
                 } catch (e: any) {
                   const msg = e?.response?.data?.message || "Bill print error";
                   console.warn("Bill print error:", e);
                   Alert.alert("Error", msg);
-                } finally {
-                  setActionLoading(false);
                 }
               }}
             >
