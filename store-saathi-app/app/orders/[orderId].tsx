@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Linking,
+  Share,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
@@ -458,15 +459,12 @@ export default function OrderDetailScreen() {
                       ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
                       : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressText)}`;
                     const customerName = order.customer?.name || "Customer";
-                    const customerPhone = order.customer?.phone || "N/A";
-                    const message = `📦 *Delivery Details*\n\n👤 *Customer:* ${customerName}\n📞 *Phone:* ${customerPhone}\n\n📍 *Address:*\n${addressText}\n\n🗺️ *Google Maps:*\n${mapsLink}`;
-                    const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(message)}`;
-                    const canOpen = await Linking.canOpenURL(whatsappUrl);
-                    if (canOpen) {
-                      Linking.openURL(whatsappUrl);
-                    } else {
-                      Alert.alert("WhatsApp not found", "Please install WhatsApp to share");
-                    }
+                    const customerPhone = order.customer?.phone || "";
+                    const formattedPhone = customerPhone.startsWith("+") ? customerPhone : `+91${customerPhone.replace(/^0+/, "")}`;
+                    const message = `📦 *Delivery Details*\n\n👤 *Customer:* ${customerName}\n📞 *Phone:* ${formattedPhone}\n\n📍 *Address:*\n${addressText}\n\n🗺️ *Google Maps:*\n${mapsLink}`;
+                    await Share.share({
+                      message,
+                    });
                   }}
                 >
                   <MaterialCommunityIcons name="whatsapp" size={18} color="#fff" />

@@ -88,7 +88,15 @@ const STATUS_CONFIG: Record<
 };
 
 /* ================= TABS ================= */
-type TabType = "new" | "old";
+type TabType = "recent" | "past";
+
+/* ================= 1-HOUR THRESHOLD HELPER ================= */
+function isWithinLastHour(dateStr: string): boolean {
+  const now = new Date();
+  const created = new Date(dateStr);
+  const diffMs = now.getTime() - created.getTime();
+  return diffMs <= 60 * 60 * 1000; // 1 hour in ms
+}
 
 /* ================= PULSE DOT COMPONENT ================= */
 function PulseDot() {
@@ -137,8 +145,8 @@ export default function OnlineOrdersScreen() {
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
 
-  const [activeTab, setActiveTab] = useState<TabType>("new");
-  const [orders, setOrders] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<TabType>("recent");
+  const [allOrders, setAllOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
@@ -221,33 +229,26 @@ export default function OnlineOrdersScreen() {
         if (pageNum === 1 && !isRefresh) setLoading(true);
         if (pageNum > 1) setLoadingMore(true);
 
-        const status = activeTab === "new" ? "pending" : "";
-        const res = await getShopOrders({ status, page: pageNum, limit: 20 });
+        const res = await getShopOrders({ status: "", page: pageNum, limit: 20 });
 
         if (res.data?.success) {
-          let fetchedOrders = res.data.orders || [];
-
-          if (activeTab === "old") {
-            fetchedOrders = fetchedOrders.filter(
-              (o: any) => o.status !== "pending"
-            );
-          }
+          const fetchedOrders = res.data.orders || [];
 
           if (pageNum === 1) {
-            setOrders(fetchedOrders);
+            setAllOrders(fetchedOrders);
 
-            if (activeTab === "new") {
-              const total = res.data.pagination?.total ?? fetchedOrders.length;
-              if (
-                prevOrderCountRef.current !== null &&
-                total > prevOrderCountRef.current
-              ) {
-                playOrderAlert();
-              }
-              prevOrderCountRef.current = total;
+            // Alert sound for new pending orders
+            const pendingOrders = fetchedOrders.filter((o: any) => o.status === "pending");
+            const total = pendingOrders.length;
+            if (
+              prevOrderCountRef.current !== null &&
+              total > prevOrderCountRef.current
+            ) {
+              playOrderAlert();
             }
+            prevOrderCountRef.current = total;
           } else {
-            setOrders((prev) => [...prev, ...fetchedOrders]);
+            setAllOrders((prev) => [...prev, ...fetchedOrders]);
           }
 
           setTotalPages(res.data.pagination?.totalPages || 1);
@@ -261,15 +262,20 @@ export default function OnlineOrdersScreen() {
         setLoadingMore(false);
       }
     },
-    [activeTab, playOrderAlert]
+    [playOrderAlert]
   );
+
+  // Derive recent (last 1 hour) and past orders from allOrders
+  const recentOrders = allOrders.filter((o) => isWithinLastHour(o.createdAt));
+  const pastOrders = allOrders.filter((o) => !isWithinLastHour(o.createdAt));
+  const orders = activeTab === "recent" ? recentOrders : pastOrders;
 
   useEffect(() => {
     if (isFocused) {
       setPage(1);
       fetchOrders(1);
     }
-  }, [activeTab, isFocused, fetchOrders]);
+  }, [isFocused, fetchOrders]);
 
   // Auto-refresh every 2 seconds when screen is focused
   useEffect(() => {
@@ -463,7 +469,7 @@ export default function OnlineOrdersScreen() {
 
   /* ================= HEADER SUMMARY ================= */
   const renderListHeader = () => {
-    if (activeTab !== "new" || orders.length === 0) return null;
+    if (activeTab !== "recent" || orders.length === 0) return null;
 
     return (
       <View style={styles.summaryBanner}>
@@ -473,8 +479,7 @@ export default function OnlineOrdersScreen() {
           color="#1e40af"
         />
         <Text style={styles.summaryText}>
-          {orders.length} order{orders.length !== 1 ? "s" : ""} waiting for your
-          action
+          {orders.length} recent bill{orders.length !== 1 ? "s" : ""} in the last hour
         </Text>
       </View>
     );
@@ -500,7 +505,7 @@ export default function OnlineOrdersScreen() {
           <View>
             <Text style={styles.headerTitle}>Online Orders</Text>
             <Text style={styles.headerSubtitle}>
-              {activeTab === "new" ? "Manage incoming orders" : "Order history"}
+              {activeTab === "recent" ? "Bills from the last hour" : "Older bills"}
             </Text>
           </View>
         </View>
@@ -556,52 +561,57 @@ export default function OnlineOrdersScreen() {
       {/* TABS */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === "new" && styles.tabActive]}
-          onPress={() => setActiveTab("new")}
+          style={[styles.tab, activeTab === "recent" && styles.tabActive]}
+          onPress={() => setActiveTab("recent")}
           activeOpacity={0.7}
           accessibilityRole="tab"
-          accessibilityState={{ selected: activeTab === "new" }}
+          accessibilityState={{ selected: activeTab === "recent" }}
         >
           <Ionicons
-            name="notifications-outline"
+            name="time-outline"
             size={17}
-            color={activeTab === "new" ? "#fff" : "#64748b"}
+            color={activeTab === "recent" ? "#fff" : "#64748b"}
           />
           <Text
             style={[
               styles.tabText,
-              activeTab === "new" && styles.tabTextActive,
+              activeTab === "recent" && styles.tabTextActive,
             ]}
           >
-            New
+            Recent Bills
           </Text>
-          {orders.length > 0 && activeTab === "new" && (
+          {recentOrders.length > 0 && activeTab === "recent" && (
             <View style={styles.countBadge}>
-              <Text style={styles.countText}>{orders.length}</Text>
+              <Text style={styles.countText}>{recentOrders.length}</Text>
             </View>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tab, activeTab === "old" && styles.tabActive]}
-          onPress={() => setActiveTab("old")}
+          style={[styles.tab, activeTab === "past" && styles.tabActive]}
+          onPress={() => setActiveTab("past")}
           activeOpacity={0.7}
           accessibilityRole="tab"
-          accessibilityState={{ selected: activeTab === "old" }}
+          accessibilityState={{ selected: activeTab === "past" }}
         >
           <Ionicons
             name="archive-outline"
             size={17}
-            color={activeTab === "old" ? "#fff" : "#64748b"}
+            color={activeTab === "past" ? "#fff" : "#64748b"}
           />
           <Text
             style={[
               styles.tabText,
-              activeTab === "old" && styles.tabTextActive,
+              activeTab === "past" && styles.tabTextActive,
             ]}
           >
-            Past Orders
+            Past Bills
           </Text>
+          {pastOrders.length > 0 && activeTab === "past" && (
+            <View style={styles.countBadge}>
+              <Text style={styles.countText}>{pastOrders.length}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -632,8 +642,8 @@ export default function OnlineOrdersScreen() {
             <View style={styles.emptyIconCircle}>
               <MaterialCommunityIcons
                 name={
-                  activeTab === "new"
-                    ? "bell-off-outline"
+                  activeTab === "recent"
+                    ? "receipt"
                     : "package-variant-closed"
                 }
                 size={48}
@@ -641,12 +651,12 @@ export default function OnlineOrdersScreen() {
               />
             </View>
             <Text style={styles.emptyTitle}>
-              {activeTab === "new" ? "No New Orders" : "No Past Orders"}
+              {activeTab === "recent" ? "No Recent Bills" : "No Past Bills"}
             </Text>
             <Text style={styles.emptySubtitle}>
-              {activeTab === "new"
-                ? "When customers place orders, they'll appear here instantly"
-                : "Accepted, delivered & other orders will show here"}
+              {activeTab === "recent"
+                ? "Bills from the last 1 hour will appear here"
+                : "Bills older than 1 hour will show here"}
             </Text>
             <TouchableOpacity style={styles.emptyRefreshBtn} onPress={onRefresh}>
               <Ionicons name="refresh" size={16} color="#2563eb" />
