@@ -203,6 +203,11 @@ export async function updateOnlineProfile(req, res) {
 
     await profile.save();
 
+    // Sync upiId back to Shop model if it was updated
+    if (req.body.upiId !== undefined) {
+      await Shop.findByIdAndUpdate(shopId, { upiId: req.body.upiId });
+    }
+
     res.status(200).json({
       success: true,
       message: "Online profile updated successfully",

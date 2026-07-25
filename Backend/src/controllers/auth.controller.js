@@ -1,4 +1,5 @@
 import Shop from "../models/Shop.js";
+import OnlineProfile from "../models/OnlineProfile.js";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
@@ -537,6 +538,15 @@ export async function onboard(req, res) {
       },
       { new: true }
     );
+
+    // Sync upiId to OnlineProfile if it exists
+    if (upiId !== undefined) {
+      await OnlineProfile.findOneAndUpdate(
+        { shop: shopId },
+        { upiId },
+        { new: true }
+      );
+    }
 
     res.status(200).json({ success: true, shop });
   } catch (error) {
