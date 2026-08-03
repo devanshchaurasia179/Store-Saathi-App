@@ -52,6 +52,47 @@ const getInternalQuantity = (displayQty: number, displayUnit: string): number =>
 };
 
 /* ---------------- SUB-COMPONENTS ---------------- */
+const PriceInput = ({ item, onUpdate }) => {
+  const [localValue, setLocalValue] = useState(
+    item.price != null && item.price !== "" ? String(item.price) : ""
+  );
+
+  // Sync if price changes externally (e.g. product swap)
+  useEffect(() => {
+    setLocalValue(item.price != null && item.price !== "" ? String(item.price) : "");
+  }, [item.productId]);
+
+  const handleChange = (text: string) => {
+    let clean = text.replace(/[^0-9.]/g, "");
+    // Prevent multiple decimals
+    const parts = clean.split(".");
+    if (parts.length > 2) {
+      clean = parts[0] + "." + parts.slice(1).join("");
+    }
+    // Limit to 2 decimal places
+    if (parts[1] && parts[1].length > 2) {
+      clean = parts[0] + "." + parts[1].slice(0, 2);
+    }
+    setLocalValue(clean);
+    onUpdate(clean);
+  };
+
+  return (
+    <View style={styles.priceBox}>
+      <Text style={styles.currencyLabel}>₹</Text>
+      <TextInput
+        value={localValue}
+        onChangeText={handleChange}
+        keyboardType="decimal-pad"
+        style={styles.priceInput}
+        placeholder="0"
+        placeholderTextColor="#94a3b8"
+        selectTextOnFocus
+      />
+    </View>
+  );
+};
+
 const QuantityInput = ({ item, onUpdate }) => {
   const invU = getNormalizedInventoryUnit(item.unit);
   const dispU = item.displayUnit || invU;
@@ -165,16 +206,10 @@ export default function BillItemsList({ items, setItems }) {
         {/* BOTTOM ROW: Price Box, Multiplier, Qty Box, Stepper */}
         <View style={styles.controlsRow}>
           {/* PRICE INPUT BOX */}
-          <View style={styles.priceBox}>
-            <Text style={styles.currencyLabel}>₹</Text>
-            <TextInput
-              value={String(item.price || "")}
-              onChangeText={(v) => updatePrice(item.productId, v)}
-              keyboardType="decimal-pad"
-              style={styles.priceInput}
-              placeholder="0"
-            />
-          </View>
+          <PriceInput
+            item={item}
+            onUpdate={(v) => updatePrice(item.productId, v)}
+          />
 
           <Text style={styles.operator}>×</Text>
 

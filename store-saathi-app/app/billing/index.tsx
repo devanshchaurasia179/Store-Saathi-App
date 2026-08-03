@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Alert } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
@@ -438,44 +438,38 @@ export default function BillingPage() {
       />
 
       {/* BODY - SELECTED ITEMS */}
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior="padding"
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 50}
-      >
-        <View style={styles.body}>
-          <View style={{ flex: 1 }}>
-            {items.length === 0 ? (
-              <View style={styles.empty}>
-                <View style={styles.emptyIconBg}>
-                  <Ionicons name="cart-outline" size={40} color="#cbd5e1" />
-                </View>
-                <Text style={styles.emptyText}>No items selected</Text>
-                <Text style={styles.emptySubText}>Tap on products above to add them</Text>
+      <View style={[styles.body, { flex: 1 }]}>
+        <View style={{ flex: 1 }}>
+          {items.length === 0 ? (
+            <View style={styles.empty}>
+              <View style={styles.emptyIconBg}>
+                <Ionicons name="cart-outline" size={40} color="#cbd5e1" />
               </View>
-            ) : (
-              <BillItemsList items={items} setItems={setItems} />
-            )}
-          </View>
-
-          <View style={[styles.summary, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-            <BillSummary
-              subTotal={subTotal}
-              discount={discount}
-              setDiscount={setDiscount}
-              taxPercentage={taxPercentage}
-              setTaxPercentage={setTaxPercentage}
-              paidAmount={paidAmount}
-              setPaidAmount={setPaidAmount}
-              totalAmount={totalAmount}
-              onCheckout={handleCheckout}
-              disabled={!items.length}
-              selectedPaymentMode={selectedPaymentMode}
-              onPaymentModeSelect={setSelectedPaymentMode}
-            />
-          </View>
+              <Text style={styles.emptyText}>No items selected</Text>
+              <Text style={styles.emptySubText}>Tap on products above to add them</Text>
+            </View>
+          ) : (
+            <BillItemsList items={items} setItems={setItems} />
+          )}
         </View>
-      </KeyboardAvoidingView>
+
+        <View style={[styles.summary, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          <BillSummary
+            subTotal={subTotal}
+            discount={discount}
+            setDiscount={setDiscount}
+            taxPercentage={taxPercentage}
+            setTaxPercentage={setTaxPercentage}
+            paidAmount={paidAmount}
+            setPaidAmount={setPaidAmount}
+            totalAmount={totalAmount}
+            onCheckout={handleCheckout}
+            disabled={!items.length}
+            selectedPaymentMode={selectedPaymentMode}
+            onPaymentModeSelect={setSelectedPaymentMode}
+          />
+        </View>
+      </View>
 
       {/* BARCODE SCANNER MODAL */}
       <BarcodeScannerModal
