@@ -134,6 +134,7 @@ const checkout = async (
         productId: i.productId,
         variantId: i.variantId || null,
         quantity: i.quantity,
+        price: Number(i.price),
       })),
       discount,
       taxPercentage,
