@@ -155,9 +155,14 @@ if (item.variantId) {
           ? item.unit
           : product.unit || "unit";
 
-      const price = variant
-  ? Number(variant.price.sellingPrice)
-  : Number(product.price.sellingPrice);
+      // Use the price edited by the user on the frontend.
+      // Fall back to the product's catalog price only if no price was sent.
+      const catalogPrice = variant
+        ? Number(variant.price.sellingPrice)
+        : Number(product.price.sellingPrice);
+      const price = item.price != null && !isNaN(Number(item.price))
+        ? Number(item.price)
+        : catalogPrice;
 
 
       if (price < 0) {
